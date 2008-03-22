@@ -1,0 +1,67 @@
+#! /usr/bin/perl -w
+# Extracts losetup and mount instructions how to mount
+# the partitions within a HDD image file.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/fdisk2losetup $
+# $Author: root $
+# $Date: 2007-05-30T21:17:40.766801Z $
+# $Revision: 758 $
+
+
+sub d2x {
+   my $dec= shift;
+   my @out;
+   do {
+      push @out, $dec % 16;
+      $dec= int $dec / 16;
+   } while $dec;
+   return join '', map sprintf('%X', $_), reverse @out;
+}
+
+
+my($offset, $size, $img, $cmd, $begin, $end, $pt, $fs, @pi, %h, $loop);
+$img= shift;
+unless ($loop= shift) {
+   $cmd= qq'losetup -a';
+   open PT, "$cmd |" or die "Failed: '$cmd' - $!";
+   while (<PT>) {
+      next unless ($loop)= m'^/dev/loop/(\d+)';
+      $h{$loop}= 1;
+   }
+   close PT or die;
+   for ($loop= 0; $h{$loop}; ++$loop) { }
+}
+unless ($img && -f $img && -r _ && $loop =~ /^\d+$/ && !@ARGV) {
+   die "Usage: $0 <hd-image-file> [ <loop-no> ]";
+}
+$cmd= qq'fdisk -S 63 -H 255 -C 16383 -ul "$img"';
+open PT, "$cmd |" or die "Failed: '$cmd' - $!";
+while (<PT>) {
+   next unless ($begin, $end, $pt, $fs)= /
+      # Starting sector.
+      \s (\d+) \s+
+      # Ending sector.
+      (\d+) \s+
+      # Number of sectors.
+      \d+ \+? \s+
+      # Partition type.
+      ([[:xdigit:]]{1,2}) \s+
+      # File system type.
+      (\S+) \s*
+   $/x;
+   next if $pt eq '5';
+   $offset= $begin * 512;
+   $size= ($end - $begin + 1) * 512;
+   push @pi, "losetup -o 0x" . d2x($offset) . " -s 0x" . d2x $size;
+   print "$pt '$fs' $offset ($size): $pi[-1]\n";
+}
+close PT or die;
+foreach (@pi) {
+   print qq'$_ /dev/loop/$loop "$img"\n';
+}
+print
+     "mount /dev/loop/$loop -t ntfs -o ro,noatime,nls=utf8,umask=027,uid=operator,gid=plugdev /mnt\n"
+   , "mount /dev/loop/$loop -t vfat -o ro,noatime,utf8=true,umask=117,dmask=007,uid=operator,gid=plugdev /mnt\n"
+   , "umount /mnt\n"
+   , "losetup -d /dev/loop/$loop\n"
+;

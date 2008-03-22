@@ -1,0 +1,133 @@
+#! /usr/bin/perl -w
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/mbr-info $
+# $Author: root $
+# $Date: 2007-07-19T19:03:56.069731Z $
+# $Revision: 847 $
+
+
+use strict;
+
+
+sub group {
+   my $num= shift;
+   my $sep= '.';
+   my $nsep= 3;
+   my $i= length $num;
+   my $out= '';
+   while ($i > 0) {
+      substr($out, 0, 0)= $sep if $out ne '';
+      substr($out, 0, 0)=
+         $i >= $nsep ?
+            substr($num, $i - $nsep, $nsep)
+         :
+            substr($num, 0, $i)
+      ;
+      $i-= $nsep;
+   }
+   return $out;
+}
+
+
+# <arguments> := <byte_count> <format>*
+# <format> := "-bytes" | "-decimal" | "-binary"
+sub storage_size {
+   my($bytes, @args)= @_;
+   @args= ("-bytes") unless @args;
+   if ($args[0] =~ /^\d/) {
+      my $decimal_point= ',';
+      my($mult, $suf)= @args;
+      my $u;
+      foreach (qw/K M G T P E Z Y/) {
+         $bytes/= $mult;
+         $u= $_;
+         last if $bytes < $mult;
+      }
+      $bytes= sprintf "%.1f", $bytes;
+      ($bytes, $mult)= $bytes =~ /^(\d*)(?:\.(\d*))$/;
+      if ($mult) {
+         substr($mult, 0, 0)= $decimal_point;
+      } else {
+         $mult= "";
+      }
+      return group($bytes) . "$mult $u$suf";
+   } else {
+      my(%b, $out, $op);
+      $b{-bytes}= group($bytes) . " Bytes";
+      return $b{-bytes} if $bytes < 1024;
+      $b{-decimal}= &storage_size($bytes, 1000, 'B');
+      $b{-binary}= &storage_size($bytes, 1024, 'iB');
+      $out= '';
+      foreach (@args) {
+         unless (exists $b{$_}) {
+            return &storage_size($bytes);
+         }
+         if ($out ne '') {
+            unless ($op) {
+               $out.= ' (= ';
+               $op= 1;
+            } else {
+               $out.= ' = ';
+            }
+         }
+         $out.= $b{$_};
+      }
+      $out.= ')' if $op;
+      return $out;
+   }
+}
+
+
+my($dev, $bytes, $heads, $spt, $ops, %p, @p, $k, $v, @v);
+$dev= shift || '';
+-b "$dev" || die "'$dev' is not a block device";
+open IN, qq!LC_ALL=C fdisk -lu "$dev" |!
+   or die "Cannot get partition info for '$dev': $1"
+;
+while (defined($_= <IN>)) {
+   @v= m!^Disk /dev/\w+: [\d.]+ [[:alpha:]]+, (\d+) bytes$! and ($bytes)= @v
+   or @v=
+      m!^(\d+) heads, (\d+) sectors/track, \d+ cylinders, total \d+ sectors$!
+      and ($heads, $spt)= @v
+   or @v= /^Units = sectors of \d+ \* \d+ = (\d+) bytes$/ and ($ops)= @v
+   or @p{qw/pnum start end blocks type/}=
+      m!^/dev/[[:alnum:]]+?(\d+)\D+(\d+)\s+(\d+)\s+(\d+)\s+([[:xdigit:]]+)\s!
+      and push @p, [%p]
+   ;
+}
+close IN or die;
+open IN, qq!LC_ALL=C /lib/udev/ata_id --export "$dev" |!
+   or die "Cannot get model info for '$dev': $1"
+;
+while (defined($_= <IN>)) {
+   ($k, $v)= /^ID_(MODEL|SERIAL|REVISION)\s*=\s*(.*?)\s*$/ and $p{lc $k}= $v;
+}
+close IN or die;
+$p{model} =~ tr/_/ /;
+print
+     "[Name]\n", storage_size($bytes, '-decimal')
+   , "; $p{model}; S/N $p{serial}\n"
+   , "\n[Beschreibung]\n"
+   , ($p{revision} ? "Product Revision: $p{revision}\n" : '')
+   , "Disk size: ", storage_size($bytes, qw/-binary -bytes/), "\n"
+   , "Geometry: $heads heads, $spt sectors / track, $ops bytes / sector\n"
+   , "\n[Partitions]\n"
+;
+unless (@p) {
+   print "(None)\n";
+   exit
+}
+{
+   my $nf;
+   foreach (@p) {
+      %p= @$_;
+      $nf and print "\n" or $nf= 1;
+      print
+         "Partition $p{pnum}: "
+         , storage_size($p{blocks} * $ops, '-decimal'), "; "
+         , "Type 0x$p{type}\n"
+         , group($p{blocks}), " sectors; "
+         , "starting sector = ", group($p{start}), "; "
+         , "ending sector = ", group($p{end}), "\n"
+      ;
+   }
+}

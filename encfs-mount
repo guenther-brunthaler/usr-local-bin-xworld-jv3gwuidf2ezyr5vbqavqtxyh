@@ -1,0 +1,145 @@
+#! /bin/sh
+#
+# Mounts an <name>.encfs directory <name> using encfs.
+#
+# Written in 2008 by Guenther Brunthaler.
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	exit 1
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<<: return code ${?}!"
+}
+
+
+wrout() {
+	if test $# = 0; then
+		run fmt -w "`tput cols`"
+	else
+		run printf '%s\n' "$*" | wrout
+	fi
+}
+
+
+show_usage() {
+	APP=${0##*/}
+	cat <<- EOT | wrout | less -F
+	$APP - mount or unmount encfs
+	
+	$APP is an enfcs helper utility. ("encfs" is a popular encrypted
+	filesystem in userspace based on the "fuse" kernel module.) $APP
+	mounts an encrypted encfs container on a mount point directory for the
+	current user. Alternatively, $APP can unmount a mounted directory.
+	
+	Usage: $APP [ options ... ] [ <directory> ]
+		
+	where
+		
+	<directory>: Either the mount point directory or the encrypted encfs
+	container directory. If the base name of <directory> has a .encfs
+	suffix, it is assumed to be an encrypted enfcs container directory.
+	Otherwise, it is considered to be the mount point directory. In
+	either case, both directories must exist: <name> and <name>.encfs,
+	and <directory> may specify either of them.
+
+	--help, -h: Show this usage help.
+
+	--non-empty, --nonempty, --ne, -e: Allow the mount point directory to
+	be non-empty before the mounting. Normally, this will result in an
+	error.
+	
+	--read-only, --readonly, --ro, -r: Mount as read-only.
+	
+	$APP will mount the encfs directory unless already mounted; in the
+	latter case, it will unmount the directory instead.
+	
+	When unmounting an already-mounted encfs directory, the fuse kernel
+	module will also be unloaded if it is no longer required. The latter
+	requires that "sudo rmmod fuse" has been set up by the administrator
+	to actually work.
+
+	Before trying to mount the encfs container directory, $APP will load
+	the "fuse" kernel module if it is not already loaded. This requires
+	that "sudo modprobe fuse" has been set up by the administrator to
+	actually work.
+	
+	Note that encfs might possibly not to be fully trusted, because it has
+	been built on some questionable design decisions such as CBC chaining
+	mode and a rather restricted set of encryption algorithms.
+	
+	It is therefore recommended to never use encfs on its own for really
+	important sensitive data, but rather on top of an already encrypted
+	volume (such as LUKS or TrueCrypt).
+	
+	In such scenarios, encfs can add an additional layer of security on
+	top of the already encrypted volumes. Encfs has also the advantage
+	that it works on a per-user basis and does not require administrator
+	rights for mounting or unmounting.
+	
+	$APP (c) 2008 by Guenther Brunthaler
+EOT
+}
+
+
+chkdir() {
+	test x`run stat -c %a "$1"` = x700 \
+		|| die "$2 directory must be chmod 700!"
+}
+
+
+get_device() {
+	run stat -c '%d' "$1"
+}
+
+
+is_mounted() {
+	test x`get_device "$1"` != x`get_device "$1/.."`
+}
+
+
+NONEMPTY=
+READONLY=
+while true; do
+	case "$1" in
+		--nonempty | --non-empty | --ne | -e) NONEMPTY=Y;;
+		--read-only | --readonly | --ro | -r) READONLY=Y;;
+		--help | -h) show_usage; exit;;
+		--) shift; break;;
+		-*) die "Unsupported option '$1'!";;
+		*) break;;
+	esac
+	shift
+done
+MOUNT=${1?Usage: %0 <enfs-mountdir>}
+run test -d "$MOUNT"
+MOUNT=`run readlink --canonicalize "$MOUNT"`
+if test x"${MOUNT%.encfs}" = x"$MOUNT"; then
+	ENC=$MOUNT.encfs
+	run test -d "$ENC"
+else
+	ENC=$MOUNT
+	MOUNT=${ENC%.encfs}
+	run test -d "$MOUNT"
+fi
+chkdir "$ENC" "Associated .encfs"
+chkdir "$MOUNT" "Mount point"
+if is_mounted "$MOUNT"; then
+	wrout "Trying to unmount '$ENC' from '$MOUNT'..."
+	run fusermount -u "$MOUNT"
+	if test x`lsmod | grep ^fuse | awk '{print $3}'` = x0; then
+		sudo rmmod fuse
+	fi
+else
+	run lsmod | grep -s ^fuse > /dev/null || run sudo modprobe fuse
+	wrout "Trying to mount '$ENC' as '$MOUNT'..."
+	set --
+	test -n "$NONEMPTY" && set -- "$@" -o nonempty
+	test -n "$READONLY" && set -- "$@" -o ro
+	run encfs "$ENC" "$MOUNT" -- "$@"
+fi
+echo "Success!"

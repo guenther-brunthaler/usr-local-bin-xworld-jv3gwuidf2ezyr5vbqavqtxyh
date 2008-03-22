@@ -1,0 +1,44 @@
+#!/bin/sh
+#
+# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
+# $Author: root $
+# $Date: 2006-08-27T09:44:37.131062Z $
+# $Revision: 289 $
+
+
+# Removes trailing and leading tabs and spaces.
+trim() {
+	local OLD NEW TAB
+	OLD="$1"
+	TAB=$'\t'
+	while true; do
+		NEW="${OLD# }"
+		NEW="${NEW#$TAB}"
+		test "$NEW" = "$OLD" && break
+		OLD="$NEW"
+	done
+	while true; do
+		NEW="${OLD% }"
+		NEW="${NEW%$TAB}"
+		test "$NEW" = "$OLD" && break
+		OLD="$NEW"
+	done
+	echo "$NEW"
+}
+
+BACK="$(grep '^\s*-backpath /.*' ~/.joerc | head -n1)"
+BACK="${BACK#*backpath}"
+BACK="$(trim "$BACK")"
+if [ -z "$BACK" ]; then
+	echo "ERROR: No backup path has been set up yet"
+	exit 1
+fi
+if [ ! -d "$BACK" ]; then
+	echo "ERROR: Old backup path '$BACK' has does not yet exist!"
+	exit 1
+fi
+FTYPERC="$HOME/.joe"
+sed -e 's!^\s*-backpath /.*!-backpath '$BACK'!;s!^:include\s\s*ftyperc\s*$!:include '$FTYPERC'!' /usr/local/etc/skel/.joerc > ~/.joerc
+if [ -f /etc/joe/ftyperc ]; then
+	test -e ~/.joe || cp /usr/local/etc/skel/.joe ~/.joe
+fi

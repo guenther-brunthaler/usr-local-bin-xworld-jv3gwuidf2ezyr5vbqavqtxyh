@@ -1,0 +1,23 @@
+#! /bin/sh
+# Executes a script of the same in the user's
+# "$HOME/p/p2/bin"-subdirectory if it exists
+# or displays an error message otherwise.
+#
+# The user's script is intended to do whatever
+# the name of the script may suggest, but
+# that's up to the user.
+#
+# This script can be symlinked to perform
+# the same action on user scripts with different
+# names also.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/run-level2-userscript $
+# $Author: root $
+# $Date: 2006-11-19T08:08:49.083552Z $
+# $Revision: 417 $
+
+
+EXE="$HOME/p/p2/bin/${0##*/}"
+test -x "$EXE" && exec "$EXE"
+echo "Could not find an executable '$EXE'!" >& 2
+exit 1

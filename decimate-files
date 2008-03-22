@@ -1,0 +1,238 @@
+#!/usr/bin/perl
+# Keep the accumulated byte sizes of log files within some directory
+# within specified bounds by removing as many of the oldest files
+# as necessary.
+#
+# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
+# $Author: root $
+# $Date: 2006-08-27T09:44:37.131062Z $
+# $Revision: 289 $
+
+
+use strict;
+use Getopt::Std;
+use Sys::Syslog;
+
+
+our($opt_v, $opt_D, $opt_f, $opt_a, $opt_d);
+my($syslog_is_open, $app);
+my($dir, $maxsize);
+
+
+sub VERSION_MESSAGE {
+   foreach ('$Revision: 1.18 $', '$Date: 2006/05/18 23:43:50 $') {
+      my $v= $_;
+      $v =~s/\s*\$\s*//g;
+      print "$v\n";
+   }
+   print "Author: Guenther Brunthaler\n";
+}
+
+
+sub HELP_MESSAGE {
+   print <<".";
+
+$app - restrict accumulated size of files in a direcory
+
+$app will typically be run periodically from a system
+daemon such as cron in order to delete the oldest or least
+recently used files from log or cache directories where
+necessary to restrict the combined size of all the files
+in that directory to a specified threshold.
+
+Usage: $app [ options ] <dir> <maxsize>
+where
+<dir>: directory containing the files
+<maxsize>: Maximum allowed accumulated byte size.
+           '-characters may be used as thousands-separators
+           within <maxsize> and will be ignored.
+           When suffixed with ?B or ?iB, the number is
+           multiplied by 1000 ** ?factor or 1024 ** ?factor,
+           respectively, according to the following table:
+              ? ?factor
+              =========
+              K 1 (kilo/kibi)
+              M 2 (mega/mebi)
+              G 3 (giga/gibi)
+              T 4 (tera/tebi)
+              P 5 (peta/pebi)
+              E 6 (exa/exbi)
+              Z 7 (zetta/zebi)
+              Y 8 (yotta/yobi)
+           For example, 1MiB means
+           1 * 1024 ** 2 = 1 * 2 ** 20 = 1'048'576 bytes.
+           Other examples: 20'000 300MB 20GiB 1TB 256EiB
+Options:
+-v: Be verbose; print what what will be done.
+-a: Compare last-access times instead of last-modified-times
+    when determining which files are the oldest ones.
+    This also applys to the -d option (see below).
+-d <days>: Only remove files older than that number of days.
+           A "day" here is interpreted simply as 24 * 60 * 60
+           seconds, and does thus not necessarily mean
+           "calendar day" (i. e. it does not care about
+           changes in daylight saving time or leap seconds
+           that may fall within the specified interval).
+           So, if "-d 7" is used, only files older than a
+           week are subject to potential removal.
+           The -d option is typically used to prevent
+           $app from trying to remove files that
+           may still be in use by the system, especially
+           when applied to cache directories.
+           In such scenarios, the -d option will typically
+           be used together with the -a flag.
+-D: Dry-run; do not actually delete any files. Implies -v.
+-f <facility>: Enables syslog events for deleted files
+               and specifies the syslog facility to use.
+--help: Display this message.
+--version: Display version information.
+           
+$app will examine all plain files (i. e. no
+subdirectories) of <dir> and calculate the sum of
+all file sizes.
+
+Then it compares the calculated sum against <maxsize>.
+If the accumulated size is larger than <maxsize>, it deletes
+the oldest file (that has least recently been modified).
+
+Then it checks the sizes again and continues to delete the
+oldest file until the size constraints are finally met.
+
+If the -d option is used, $app will under
+no cirumstances delete files younger than the specified
+number of days, even if this means the size constraints
+cannot be met because there are no other files left
+to be deleted.
+
+$app will typically be run periodically by
+some system daemon in order to ensure that some log file
+directory will not grow unrestrained.
+
+A working example: Create an hourly cron job which
+restricts the log files in /var/log/ebuilds/* from growing
+beyond a total of 10 megabytes (million bytes), and enable
+logging to syslog using the 'daemon' facility.
+
+cat << 'END' > /etc/cron.hourly/decimate-logfiles.cron
+#!/bin/sh
+# Delete excess log files.
+$0 -f daemon /var/log/ebuilds 10MB
+END
+chmod +x /etc/cron.hourly/decimate-logfiles.cron
+
+Another example: Create a daily cron job which
+restricts the files in /usr/portage/distfiles/* from
+growing beyond a total of 750 mebibytes (binary megabytes
+of 2 ** 20 bytes each) and also enable syslog logging
+using the 'daemon' facility. But this time, consider
+the least recently files for removal only. This means
+the last-accessed times of the files should be examined
+rather than the last-modified times. In addition,
+only files accessed longer than one day ago are allowed
+to be removed at all, even if this means that the size
+constraints cannot be met.
+
+cat << 'END' > /etc/cron.daily/decimate-distcache.cron
+#!/bin/sh
+# Delete excess cached distribution archives.
+$0 -f daemon -ad 1 /usr/portage/distfiles 750MiB
+END
+chmod +x /etc/cron.daily/decimate-distcache.cron
+
+Note that option switches can be "clustered"; "-ad 1" means
+the same as "-a -d 1". This is only possible, however,
+because the -a option does not take an argument.
+
+For those code samples to actually work, one has to replace
+the absolute path names shown with those actually used in
+the target system, of course.
+
+.
+   VERSION_MESSAGE;
+}
+
+
+sub logger($$) {
+   my($lvl, $msg)= @_;
+   return unless $opt_f;
+   unless ($syslog_is_open) {
+      openlog $app, '', $opt_f;
+      $syslog_is_open;
+   }
+   syslog $lvl, '%s', $msg;
+}
+
+
+sub maybe_unlink {
+   my $f= shift;
+   print "SIMULATION: " if $opt_D;
+   print "Unlinking file '$f' from target directory.\n" if $opt_v;
+   if (!$opt_D && unlink($f) != 1) {
+      print "(Failed - could not delete file: $!)\n";
+      return 0;
+   }
+   logger 'info', "Deleted file '$dir/$f'" unless $opt_D;
+   return 1;
+}
+
+
+$app= $0;
+$app =~ s!^.*[\\/:]!!;
+$opt_d= 0;
+$Getopt::Std::STANDARD_HELP_VERSION= 1;
+unless (getopts 'Davf:d:') {
+   usage:
+   print STDERR "Run with --help as argument for help.\n";
+   exit 1;
+}
+$dir= shift;
+$maxsize= shift;
+foreach ($opt_d) {
+   unless (defined) {
+      print STDERR "Missing required numeric argument!\n";
+      goto usage;
+   }
+   unless (/^\d+$/) {
+      print STDERR "Invalid number '$_'\n";
+   }
+}
+$opt_v||= $opt_D;
+$opt_d*= 24 * 60 * 60;
+goto usage if !$dir || !$maxsize || !-d $dir || $maxsize < 1 || @ARGV;
+$maxsize =~ s/'//g;
+goto usage unless $maxsize =~ s/^ (\d+) (?: ([KMGTPEZY]) (i?) B )? $/$1/x;
+if ($2) {
+   my $p= $2;
+   $p =~ tr/KMGTPEZY/12345678/;
+   $maxsize*= ($3 ? 1024 : 1000) ** $p;
+}
+print "Accumulated file sizes shall not exceed $maxsize bytes.\n" if $opt_v;
+chdir $dir or die "Cannot cd to '$dir': $!";
+my(@f, $t, $now);
+opendir LOGDIR, '.' or die "Cannot read directory '$dir': $!";
+my $s= 0;
+$now= time;
+while (defined($_= readdir LOGDIR)) {
+   next unless -f && (my @z= stat _);
+   $t= $z[$opt_a ? 8 : 9];
+   next if $t + $opt_d >= $now;
+   push @f, {name => $_, size => $z[7], time => $t};
+   $s+= $z[7];
+}
+closedir LOGDIR or die;
+@f= sort { $b->{time} <=> $a->{time} } @f;
+print "Found ", scalar(@f), " files, $s bytes total.\n" if $opt_v;
+while (@f && $s > $maxsize) {
+   $s-= $f[-1]->{size} if 1 == maybe_unlink $f[-1]->{name};
+   pop @f;
+}
+print "Remaining accumulated file sizes: $s bytes.\n" if $opt_v;
+if ($opt_D) {
+   print
+      "This has only been a simulation - no files were actually deleted.\n"
+   ;
+}
+if ($s > $maxsize && !$opt_D) {
+   logger 'warning', "Could not decimate files in '$dir' below $maxsize bytes";
+}
+closelog if $syslog_is_open;

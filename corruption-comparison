@@ -1,0 +1,288 @@
+#! /usr/bin/perl -w
+#
+# Uses an existing backup to show which local data has
+# been altered/corrupted. Checks the contents and does
+# not rely on time stamps. Checks only one filesystem
+# at a time - does not cross filesystem boundaries.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/corruption-comparison $
+# $Author: root $
+# $Date: 2007-05-03T17:05:05.660970Z $
+# $Revision: 647 $
+#
+# Written by Guenther Brunthaler in 2007.
+
+
+use strict;
+use Getopt::Std;
+use File::Spec::Functions (qw/catfile/);
+use POSIX ();
+use Digest::MD5;
+
+
+my($tdev, $app);
+
+
+sub VERSION_MESSAGE {
+   foreach ('$Revision: 647 $', '$Date: 2007-05-03T17:05:05.660970Z $') {
+      my $v= $_;
+      $v =~s/\s*\$\s*//g;
+      print "$v\n";
+}
+   print "Author: Guenther Brunthaler\n";
+}
+
+
+sub HELP_MESSAGE {
+   print <<".";
+
+$app - determine local corruptions using existing backup
+
+$app uses an existing backup to show which local data has
+been altered/corrupted.
+
+$app checks sizes/contents and does not rely on time stamps.
+
+$app checks only one filesystem at a time, so it will not
+cross filesystem boundaries.
+
+Usage: $app <local_root_path> <backup_root_path>
+
+where
+
+<local_root_path>:
+   Top-level directory of the filesystem subtree to be
+   compared against the backup.
+   Typically, this will be the mount point directory of
+   the filesystem which is suspected to contain corrupted
+   data somewhere.
+   It is ok if <local_root_path> has been mounted read-only,
+   because $app will not try to write anything.
+
+<backup_root_path>:
+   This is the top-level directory within the backup
+   directory which contains the backup of <local_root_path>.
+
+Note that it is possible that <backup_root_path> contains
+a backup of several mounted filesystems at the time
+the backup was made. For this reason, only
+<local_root_path> is checked for cross-device links in order
+to avoid crossing filesystem boundaries.
+
+.
+   # ' # Dummy for resynchronizing syntax highlighting.
+   VERSION_MESSAGE;
+}
+
+
+sub problem($) {
+   my $msg= shift;
+   print "Problem: $msg\n";
+}
+
+
+sub ChecksumFile($) {
+   my $file= shift;
+   local *FH;
+   if (open FH, '<', $file) {
+      my $ctx= new Digest::MD5;
+      binmode FH or die $!;
+      $ctx->addfile(*FH{IO});
+      close FH or die $!;
+      return $ctx->digest;
+   } else {
+      problem "Cannot open '$file' for comparison of contents!";
+   }
+}
+
+
+sub CompareFiles($$$$$) {
+   my($indent, $ty1, $fn1, $ty2, $fn2)= @_;
+   my($ck1, $ck2)= map ChecksumFile($_), $fn1, $fn2;
+   if ($ck1 ne $ck2) {
+      problem
+         "Different file contents for $ty1 '$fn1' and $ty2 '$fn2'!"
+      ;
+   }
+}
+
+
+# If successful, stat-"_" remains set.
+sub examine($) {
+   my $path= shift;
+   my(@z);
+   if (@z= lstat $path) {
+      my $info= {
+         size => $z[7], nlink => $z[3], mode => $z[2]
+      };
+      if (-l _) {
+         $info->{target}= readlink($path)
+            or die "Cannot read link '$path': $!"
+         ;
+      } elsif (-d _) {
+         # Considered irrelevant.
+         delete $info->{nlink};
+      }
+      return $info;
+   }
+   problem "Cannot stat '$path': $!";
+   return undef;
+}
+
+
+# Returns undef if both conditions $c1 and $c2 are the same.
+# Otherwise, returns the key $k1 or $k1, depending on
+# which associated condition is the only one which is true.
+sub only($$$$) {
+   my($k1, $c1, $k2, $c2)= @_;
+   return undef if $c1 && $c2 || !$c1 && !$c2;
+   return $c1 ? $k1 : $k2;
+}
+
+
+sub walk($$$);
+sub walk($$$) {
+   my($depth, $original, $candidate)= @_;
+   local *DIR;
+   my(%fsos, $fso, @dirs, $info, $only, $key, $phase);
+   # $fso{$FSO}->{$ATTRIBUTE_NAME}= $ATTRIBUTE_VALUE.
+   # $fso{$FSO}->{ignore} == $ENTRY_IS_IRRELEVANT.
+   my %phases= (
+      original => {
+         title => 'backup'
+         , base => $original
+         , original => 1
+      }, candidate => {
+         title => 'test candidate'
+         , base => $candidate
+      }
+   );
+   # Enumerate directory entries.
+   foreach $key (sort keys %phases) {
+      $phase= $phases{$key};
+      if (opendir DIR, $phase->{base}) {
+         while (defined($fso= readdir DIR)) {
+            next unless File::Spec->no_upwards($fso);
+            if ($info= examine(catfile($phase->{base}, $fso))) {
+               $fsos{$fso}= {} unless exists $fsos{$fso};
+               $fsos{$fso}->{$key}= $info;
+               if (!$phase->{original} && (stat _)[0] != $tdev) {
+                  $fsos{$fso}->{ignore}= 1;
+               }
+            }
+         }
+         closedir DIR or die $!;
+      } else {
+         problem
+            "Cannot read $phase->{$key}->{title}"
+            . " subtree '$phase->{$key}->{base}': $!"
+         ;
+         return;
+      }
+   }
+   # Process entries and collect directories.
+   FSO: foreach $fso (sort keys %fsos) {
+      $info= $fsos{$fso};
+      next if $info->{ignore};
+      if (
+         $only= only(
+            'original', exists $info->{original}
+            , 'candidate', exists $info->{candidate}
+         )
+      ) {
+         problem
+            "Only $phases{$only}->{title} '"
+            . catfile($phases{$only}->{base}, $fso)
+            . "' exists!"
+         ;
+         next;
+      }
+      # Compare attributes.
+      foreach my $k (
+         sort keys %{
+            # Combine array of pairs into anonymous hash.
+            {
+               map {
+                  $_, undef # Make hash pair from keys.
+               } map {
+                  keys %{$info->{$_}} # List of subhash keys.
+               } qw/original candidate/
+            }
+         }
+      ) {
+         if (
+            $only= only(
+               'original', exists $info->{original}->{$k}
+               , 'candidate', exists $info->{candidate}->{$k}
+            )
+         ) {
+            problem
+               "Attribute $k with value '" . $info->{$only}->{$k}
+               . "' exists only for " . $phases{$only}->{title}
+               . " '" . catfile($phases{$only}->{base}, $fso)
+               . "'!"
+            ;
+            next FSO;
+         }
+         if ($info->{original}->{$k} ne $info->{candidate}->{$k}) {
+            problem
+               "Attribute $k has value '" . $info->{original}->{$k}
+               . "' for " . $phases{original}->{title} . " '"
+               . catfile($phases{original}->{base}, $fso)
+               . "', but has value '" . $info->{candidate}->{$k}
+               . "' for " . $phases{candidate}->{title} . " '"
+               . catfile($phases{candidate}->{base}, $fso)
+               . "'!"
+            ;
+            last;
+         }
+         # All equal so far. For files, compare contents then.
+         if (POSIX::S_ISREG($info->{original}->{mode})) {
+            if (
+               CompareFiles(
+                    $depth
+                  , $phases{original}->{title}
+                  , catfile($phases{original}->{base}, $fso)
+                  , $phases{candidate}->{title}
+                  , catfile($phases{candidate}->{base}, $fso)
+               )
+            ) {last}
+         }
+      }
+      if (
+         POSIX::S_ISDIR($info->{original}->{mode})
+         && !exists $info->{original}->{target}
+      ) {
+         push @dirs, $fso; # Directory and not a symlink.
+      }
+   }
+   # Recurse into subdirectories.
+   %fsos= (); # Save memory.
+   ++$depth;
+   foreach $fso (@dirs) {
+      walk
+           $depth
+         , catfile($original, $fso)
+         , catfile($candidate, $fso)
+      ;
+   }
+}
+
+
+$app= $0;
+$app =~ s!^.*[\\/:]!!;
+$Getopt::Std::STANDARD_HELP_VERSION= 1;
+unless (getopts '') {
+   usage:
+   print STDERR "Run with --help as argument for help.\n";
+   exit 1;
+}
+my $candidate= shift;
+my $backup= shift;
+if (@ARGV != 0 || !defined($backup)) {HELP_MESSAGE; exit 1}
+$_= File::Spec->canonpath($_) foreach ($candidate, $backup);
+unless (-d $candidate) {
+   die "Test candidate '$candidate' must be a directory!";
+}
+$tdev= (stat _)[0];
+walk 0, $backup, $candidate;

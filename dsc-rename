@@ -1,0 +1,244 @@
+#! /usr/bin/perl -w
+# Renames files from a digital still camera to a date/time based format.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/dsc-rename $
+# $Author: root $
+# $Date: 2007-01-25T19:22:34.299894Z $
+# $Revision: 532 $
+
+
+use strict;
+use Getopt::Std;
+use Time::Local;
+
+
+our($app, $opt_n, $opt_c);
+
+
+sub VERSION_MESSAGE {
+   foreach ('$Revision: 532 $', '$Date: 2007-01-25T19:22:34.299894Z $') {
+      my $v= $_;
+      $v =~s/\s*\$\s*//g;
+      print "$v\n";
+   }
+   print "Author: Guenther Brunthaler\n";
+}
+
+
+sub HELP_MESSAGE {
+   print <<".";
+
+$app - rename files from a digital still camera
+
+Renames files from a digital still camera to
+the following format: 'YYYYMMDD-hhmmss.ext' or, in case of
+name collisions, to: 'YYYYMMDD-hhmmss-N.ext' where N is a counter.
+The date/time is taken from the EXIF "Generated" tag, if present,
+or from the file's modification time otherwise.
+
+Also, all files containing EXIF information are renamed into *.jpg,
+no matter of the original file extension.
+
+Requires package media-gfx/exiftags to be installed.
+
+When running, the files to be examined/renamed must be specified
+on the command line. Shell expansions other than files will be ignored.
+
+An undo log file will also be created. This is a shell script which,
+when run, will rename the renamed files back to their original names.
+
+Usage: $app [ <options> ] files ...
+
+where <options> is one or more of:
+-c: Combine the original file names with the generated names.
+-n: Dry run. Only display what would be done, but actually don't do anything.
+
+.
+   VERSION_MESSAGE;
+}
+
+
+
+$app= $0;
+$app =~ s!^.*[\\/:]!!;
+$Getopt::Std::STANDARD_HELP_VERSION= 1;
+unless (getopts 'nc') {
+   usage:
+   print STDERR "Run with --help as argument for help.\n";
+   exit 1;
+}
+# $f{$MTIME}->[$INDEX]->{iname}: The original file name.
+# $f{$MTIME}->[$INDEX]->{ext}: The file extension to be used.
+# $f{$MTIME}->[$INDEX]->{type}: Date/time source to be displayed.
+# $f{$MTIME}->[$INDEX]->{size}: File size.
+my(%f);
+# Get list of files and determine potential name clashes.
+{
+   my($jpg, $buf, $k, $ext, $y, $m, $d, $h, $n, $s, %r, @s);
+   # Locate EXIF helper utility.
+   $ext= 'exiftime';
+   $ext= qx"which \"$ext\"" and chomp $ext, -f $ext
+      or die "media-gfx/exiftags is not installed"
+   ;
+   foreach my $iname (@ARGV) {
+      next unless -f $iname;
+      @s= stat _ or die $!;
+      # Quick JPEG signature contents check.
+      open IN, '<', $iname or die "Cannot open '$iname': $!";
+      $jpg= read IN, $buf, 2 and $jpg= $jpg == 2
+         and $jpg= $buf eq pack 'C2', 0xff, 0xd8
+      ;
+      close IN or die $!;
+      # Try to get $k as EXIF date/time for apparent JPEG files.
+      undef $k;
+      if ($jpg) {
+         open IN, qq'"$ext" -tg "$iname" 2> /dev/null |'
+            or die "Pipe failed for '$iname': $!"
+         ;
+         while (defined($_= <IN>)) {
+            if (
+               ($y, $m, $d, $h, $n, $s)= /^
+                  Image[ ]Generated:[ ]
+                  (\d\d\d\d):(\d\d):(\d\d)[ ](\d\d):(\d\d):(\d\d)
+               $/x
+            ) {
+               $k= timelocal($s, $n, $h, $d, $m - 1, $y);
+               $r{type}= "EXIF";
+               last;
+            }
+         }
+         unless (close IN) {
+            die "Error closing command pipe: $!" if $!;
+            # Otherwise, just the EXIF tool has failed.
+            undef $k;
+         }
+      }
+      # Otherwise get $k from file's mtime.
+      unless ($k) {
+         $k= $s[9];
+         $r{type}= "mtime";
+      }
+      $r{iname}= $iname;
+      $r{size}= $s[7];
+      # Use an empty string as file extension if no current/preferred
+      # file extension is available.
+      # All file extensions will be converted into lower case.
+      $r{ext}= $jpg ? 'jpg' : lc +($iname =~ m{\.([^./]*)$})[0] || '';
+      $f{$k}= [] unless exists $f{$k};
+      push @{$f{$k}}, {%r};
+   }
+}
+# Actually rename files.
+{
+   my($i, $k, $r, $w, @d, $bn, $c, %out, $undo, $any, %coll, $n, @L);
+   unless ($opt_n) {
+      # Create undo log file.
+      $bn= $0;
+      $bn =~ s{.*/}{};
+      @d= localtime;
+      @d= ($d[5] + 1900, $d[4] + 1, @d[reverse 0 .. 3]);
+      $undo= $bn . sprintf "-%04u%02u%02u-%02u%02u%02u.undo", @d;
+      print "Creating undo log file '$undo'.\n";
+      open UNDO, '>', $undo or die "Could not create '$undo': $!";
+      print UNDO "#! /bin/sh\n# Created by $bn on ";
+      printf UNDO "%04u-%02u-%02u %02u:%02u:%02u.\n\n", @d;
+      print UNDO
+         "MV() {\n"
+         , "   mv -i \"\$1\" \"\$2\" && return\n"
+         , "   echo \"Warning: Could not rename "
+         , "\\\"\$1\\\" into \\\"\$2\\\"!\" >& 2\n"
+         , "}\n\n"
+      ;
+   }
+   my $type_weight= sub {
+      return $_[0]->{type} eq 'EXIF' ? 0 : 1;
+   };
+   # Process groups of files with potentially conflicting names
+   foreach $k (sort {$a <=> $b} keys %f) {
+      @d= localtime $k;
+      $bn= sprintf
+         "%04u%02u%02u-%02u%02u%02u"
+         , $d[5] + 1900, $d[4] + 1, @d[reverse 0 .. 3]
+      ;
+      $c= 1; # Disambiguation counter.
+      %coll= (); # List of file extensions already-used.
+      @L= (); # List of rename operations.
+      foreach $r (
+         sort {
+            # EXIF files are considered more significant than others.
+            &$type_weight($a) <=> &$type_weight($b)
+            # Otherwise, larger files are considered more significant.
+            || $b->{size} <=> $a->{size}
+            # Otherwise, sort by new extension.
+            || $a->{ext} cmp $b->{ext}
+            # Otherwise, sort on lower-cased original file name.
+            || lc($a->{iname}) cmp lc $b->{iname}
+            # As a last resort, sort on original file name.
+            || $a->{iname} cmp $b->{iname}
+         } @{$f{$k}}
+      ) {
+         $out{type}= $r->{type};
+         $out{ext}= $r->{ext};
+         $out{iname}= $r->{iname};
+         if (exists $coll{$out{ext}}) {
+            ++$c;
+         } else {
+            $coll{$out{ext}}= undef;
+         }
+         $out{index}= $c;
+         $out{add}= '';
+         if ($opt_c) {
+            $n= $r->{iname};
+            $n =~ s/\.[^.]+$//; # Strip extension.
+            # Strip some well-known camera-assigned substrings.
+            $n =~ s/
+               (?: ^ | (?<= [^[:alnum:]] ) )
+               (?:
+                  PIC | PICT | PICTURE | PC
+                  | Bild | Bild[ ]
+                  | DSC | STILL | STLL
+                  | IMG | IMAGE
+               ) \d+
+            //ix;
+            $n =~ s/(?<=[,.;!])/ /g; # Add space after certain characters.
+            $n =~ s/(?=[%])/ /g; # Add space before certain characters.
+            # Add space before and after certain characters.
+            $n =~ s/([&])/ $1 /g;
+            $n =~ s/\s{2,}/ /g; # Compress spaces.
+            # Remove spaces between certain character pairs.
+            $n =~ s/(?<=[.]) (?=[.])//g;
+            $n =~ s/(?<=\d\.) (?=\d)//g;
+            $n =~ s/^\s*|\s*$//g; # Remove leading/trailing spaces.
+            $out{add}= " " . $n if $n ne '';
+         }
+         substr($out{ext}, 0, 0)= "." if $out{ext} ne '';
+         push @L, {%out};
+      }
+      $w= length $c; # Format width for disambiguation counter.
+      # Execute group renaming list.
+      for ($i= 0; $i < @L; ++$i) {
+         $n= $bn;
+         $r= $L[$i];
+         if (
+            $r->{index} != 1
+            || $i + 1 < @L && $L[$i + 1]->{ext} eq $r->{ext}
+         ) {
+            $n.= sprintf "-%0${w}u", $r->{index};
+         }
+         $n.= $r->{add} . $r->{ext};
+         print "Renaming '$r->{iname}' into '$n' (origin $r->{type})\n";
+         unless ($opt_n) {
+            rename $r->{iname}, $n or die "Could not rename: $!";
+            print UNDO qq'MV "$n" "$r->{iname}"\n';
+            $any= 1;
+         }
+      }
+   }
+   unless ($opt_n) {
+      close UNDO or die "Could not finish writing '$undo': $!";
+      unless ($any) {
+         print "Removing undo log because no files have been renamed.\n";
+         unlink $undo || die "Could not delete '$undo': $!";
+      }
+   }
+}

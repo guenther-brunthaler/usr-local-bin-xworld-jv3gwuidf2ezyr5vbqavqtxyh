@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
+# $Author: root $
+# $Date: 2006-08-27T09:44:37.131062Z $
+# $Revision: 289 $
+
+
+openssl base64

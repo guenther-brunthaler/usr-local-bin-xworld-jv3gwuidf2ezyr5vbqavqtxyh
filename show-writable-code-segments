@@ -1,0 +1,34 @@
+#! /usr/bin/perl -w
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/show-writable-code-segments $
+# $Author: root(xtreme) $
+# $Date: 2006-09-14T19:02:09.490185Z $
+# $Revision: 299 $
+#
+# Written in 2006 by Guenther Brunthaler.
+
+
+use strict;
+use Workfile_F467BD48_CBA4_11D5_9920_C23CC971FBD2;
+
+
+my($pid, $fh, $cmd);
+my $fobj= new Lib::Workfile;
+opendir PROC, '/proc' or die $!;
+while (defined($_= readdir PROC)) {
+   next unless /^(\d+)$/;
+   $pid= $1;
+   $fh= $fobj->open(-filename => "/proc/$pid/maps");
+   while (defined($_= <$fh>)) {
+      next unless /
+         ^ [[:xdigit:]]{4,} - [[:xdigit:]]{4,} \s+
+         [-r] ( [-w] [-x] ) [sp] \s+ [[:xdigit:]]{4,} \s+
+         [[:xdigit:]]{2,} : [[:xdigit:]]{2,} \s+ \d+ \s+
+         (.+?) \s* $
+      /x;
+      $cmd= readlink("/proc/$pid/exe") || "(process $pid)";
+      chomp;
+      print "$_ PID($pid) $cmd\n" if $1 eq 'wx';
+   }
+}
+closedir PROC or die;

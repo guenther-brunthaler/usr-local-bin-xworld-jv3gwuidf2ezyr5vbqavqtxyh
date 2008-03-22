@@ -1,0 +1,55 @@
+#! /bin/sh
+# Compresses files/directories as a 7zip-archive.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/pack7z $
+# $Author: root $
+# $Date: 2007-11-12T07:18:34.361398Z $
+# $Revision: 1028 $
+
+# Usage:
+# $0 archive fsos ...
+# $0 archive.7z fsos ...
+# $0 fso
+# $0 fso.7z
+# where:
+# fso...file system object (file or directory)
+
+# Tweaks the compression efficiency:
+C=127 # 5 to 273 (see below).
+# Does not improve compression ratio, but compress speed:
+M=32m # 25 to 500 nearly same and about 32 is best.
+
+OUT=${1%.7z} # Strip any .7z suffix from archive basename.
+shift
+OUT=${OUT:?Usage: $0 ( archive files_or_dirs ... | file_or_dir ) }
+test -z "$*" && set -- "$OUT"
+# -ms=on: solid
+# -mx=9: maximum compression
+# -mfb=$C: compression parameter
+nice 7za a -ms=on -md=$M -mfb=$C -mx=9 "$OUT.7z" "$@"
+
+# Parameter test for a 24 mb PDF file
+# Parameter C values (archive size, parameter):
+# 22086515 127
+# 22086901 110
+# 22087160 120
+# 22087793 124
+# 22088028 128
+# 22088046 064
+# 22088102 126
+# 22088102 125
+# 22088160 100
+# 22088640 273
+# 22088649 129
+# 22089048 192
+# 22089095 123
+# 22089340 256
+# 22098937 032
+# 22118013 016
+# 22165805 008
+# 22227231 005
+
+# General remarks:
+# Text files compress better as ".tar.bz2" rather than as ".tar.7z".
+# ".7z" compresses slightly better than ".tar.7z" (for solid archives).
+# 7zip is better than bzip2/gzip for precompressed or general files.

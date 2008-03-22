@@ -1,0 +1,568 @@
+#!/usr/bin/perl
+#
+# Tool for creating, updating and synchronizing shadow
+# configuration files.
+#
+# The use of shadow configuration files allows an administrator
+# to extract changes made against the original distribution files
+# on different machines, and maintain those changes in differently
+# named files for each machine.
+#
+# This allows, for example, to isolate local changes in /etc
+# config files for different machines, and put them under
+# version control WITHIN THE SAME BRANCH.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/configsync $
+# $Author: root(xvaio) $
+# $Date: 2006-09-03T11:48:00.185929Z $
+# $Revision: 275 $
+
+
+# Base-35 encoded binary UUID used for tagging.
+my $uuid= '0hcw56vd7kebmph90dbt3s3ed';
+my $edit_tag= "{touched_$uuid}";
+my $comment_prefix= "## This comment represents tag '";
+my $comment_suffix= "'.";
+my $begin_tag_prefix= "begin_";
+my $begin_tag_suffix= "_$uuid";
+my $end_tag_prefix= "end_";
+my $end_tag_suffix= "_$uuid";
+
+
+use strict;
+use Getopt::Long;
+use POSIX ':fcntl_h';
+use ReplacementFile_F467BD49_CBA4_11D5_9920_C23CC971FBD2;
+use PkgVersion_B9A179B0_9FB3_11D9_BFF3_00A0C9EF1631;
+
+
+our $VERSION= extract_VERSION_from '$Revision: 275 $';
+our $COPYRIGHT_STARTING_YEAR= 2006;
+our $AUTHOR= "Guenther Brunthaler";
+our($verbose, $dry);
+
+
+my %commands;
+%commands= (
+     '' => {cmd => sub {&usage("Missing argument specifying subcommand")}}
+   , 'help' => {
+      title => 'Display complete help for a command'
+      , help => << '.'
+         $0 displays the full help for <command>.
+
+         If no command is specified, $0 displays a list of all available
+         commands.
+.
+      , usage => '[ <command> ]'
+      , cmd => sub {
+         my $topic= shift @ARGV;
+         if (defined $topic) {
+            print &get_help($topic);
+         } else {
+            print &get_usage('help');
+            print
+               "\n"
+               , "where <command> is one of the following:\n"
+               , map &get_title($_), sort grep $_, keys %commands
+            ;
+         }
+      }
+   } , 'usage' => {
+      title => 'Display usage synopsis for a command'
+      , help => << '.'
+         $0 displays a short usage synopsis for <command>.
+
+         If no command is specified, $0 displays the synopses of all available
+         commands.
+.
+      , usage => '[ <command> ]'
+      , cmd => sub {
+         my $topic= shift @ARGV;
+         if (defined $topic) {
+            print &get_usage($topic);
+         } else {
+            print "Usage:\n";
+            foreach $topic (sort grep $_, keys %commands) {
+               print &get_usage($topic, 1);
+            }
+         }
+      }
+   }, 'annotate' => {
+      title => "Auto-tag 'diff\\ -u' files"
+      ,  help => << "."
+         \$0 replaces <file> by a transformed copy. (It will only be replaced
+         if the transformation has been successful, though.)
+
+         The transformation consists of removing the first character of each
+         line in the file, transforming the line contents according to the
+         contents of the removed character, and then outputting the
+         transformed line.
+
+         The following transformation characters (first character of the
+         original line) are supported:
+
+         *\\ '-':
+            If the current line is the first line of the original file, just
+            remove the whole line.
+
+            Otherwise, if the line starts with a 'sh'-compatible comment, or
+            if it only contains whitespace, leave the line as it is. In any
+            other case, remove the line.
+
+         *\\ '+':
+            If the current line is the second line of the original file, just
+            remove the whole line.
+
+            Otherwise, insert the tag string '$edit_tag' before the first
+            character of the line.
+
+         *\\ '\@':
+            If the current line is the third line of the original file, just
+            remove the whole line.
+
+            In any other case abort with an error.
+
+         *\\ '\\ ':
+            Just leave the line as it is.
+
+         *\\ Any other character:
+            Abort with an error.
+
+         This command is intended to be used in conjunction with the
+         'diff\\ -U999999999\\ <oldfile>\\ <newfile>' command, which generates
+         a version of <oldfile>, where all changes leading to <newfile> have
+         been tagged in exactly the way required by this command.
+
+         The net effect of applying this command to the diff output will be a
+         tagged version of the input file, suitable for processing with the
+         remaining commands.
+.
+      , usage => "<file>"
+      , cmd => sub {
+         my $rf= new Lib::ReplacementFile;
+         my($out, $in)= $rf->create(
+            -original_name => shift @ARGV, -emulate => $dry
+         );
+         my($c, $n);
+         my $syntax_error= sub {
+            die
+                 "Syntax error in '" . $rf->original_name
+                 . "' line $n: "
+               . "Unexpected leading character '$c'"
+            ;
+         };
+         for ($n= 1; defined($_= <$in>); ++$n) {
+            $c= substr $_, 0, 1;
+            $_= substr $_, 1;
+            if ($c eq '-') {
+               next if $. == 1 || !/ ^ \s* (?: \# | $ ) /x;
+            } elsif ($c eq '+') {
+               next if $. == 2;
+               substr($_, 0, 0)= $edit_tag;
+            } elsif ($c eq '@') {
+               next if $. == 3;
+               &$syntax_error;
+            } elsif ($c ne ' ') {
+               &$syntax_error;
+            }
+            print $out $_;
+         }
+         $rf->commit;
+      }
+   } , 'tag' => {
+      title => "Tag runs of lines annotated as 'touched'"
+      , help => << "."
+         \$0 replaces <file> and any additional files specified on the command
+         line by a transformed copy of those files. (Each file will only be
+         replaced if the transformation has been successful, though.)
+         
+         The transformation consists of finding runs of consecutive lines
+         which contain the tag string '$edit_tag'.
+         
+         Each such run will then be enclosed within special tag lines, and the
+         '$edit_tag' string will be removed from the enclosed lines. In case
+         there are multiple occurrences of '$edit_tag' within a line, only the
+         first occurrence will be removed. (Also note that only the
+         '$edit_tag'-tag itself will be removed - any whitespace that was
+         adjacent to the tag will not be removed.)
+         
+         The special tag lines which will enclose each run have the format:
+         
+         $comment_prefix$begin_tag_prefix<N>$begin_tag_suffix$comment_suffix
+         
+         and
+
+         $comment_prefix$end_tag_prefix<N>$end_tag_suffix$comment_suffix
+         
+         where '<N>' will be an arbitrary integer that identifies the run
+         uniqely within the file. (To be more specific, it will be the largest
+         such integer + 1 to be found in the input file, or 1 if the input
+         file did not contain any tagged runs yet.)
+         
+         The default "$comment_prefix"-prefix at the beginning of the
+         generated tag lines can be changed by the --comment-prefix option.
+         
+         Similarly, the comment-suffix option can be used to specify a string
+         to be added to the end of the generated lines (defaults to
+         "$comment_suffix").
+         
+         Usage rationale: Insert a '$edit_tag'-tag into any line of your
+         manually edited config file which you consider to be a change. It
+         does't matter where it is put into the line; the tag will be removed
+         by \$0 anyway. (And nothing else will be removed - including any
+         whitespace before of after the mark. Any such whitespace will be
+         kept.)
+         
+         Then run \$0 in order to convert your '$edit_tag'-tags back into
+         valid configuration files, where all your customizations (in
+         comparison to the vendor-shipped template/example configuration
+         files) will be enclosed within a pair of comment lines, and the
+         comment lines themselves will contain unique identification tags.
+         
+         \$0 is thus a utility for inserting pairs of tag-lines as comments
+         into configurations files which have been manually tagged before.
+         
+         It is of course also possible to insert the
+         '$begin_tag_prefix<N>$begin_tag_suffix' and
+         '$end_tag_prefix<N>$end_tag_suffix' marks manually.
+         
+         But then care must be taken to keep <N> unique within the file, while
+         inserting the string '$edit_tag' into different lines of the
+         configuration file can easily be done via the clipboard or the yank
+         buffer of your favourite editor.
+.
+      , usage =>
+           '[ --comment-prefix <prefix> ]'
+         . ' [ --comment-suffix <suffix> ] <file> ...'
+      , cmd => sub {
+         my(
+            $file, $cmtb, $cmte, $rf, $in, $out, $n, $last_n
+            , $btp, $etp, $bts, $ets, $edt
+            , $any, $inrun, $finish, $nline
+         );
+         $cmtb= $comment_prefix; $cmte= $comment_suffix;
+         while (@ARGV) {
+            if ($ARGV[0] eq '--comment-prefix') {
+               $cmtb= $ARGV[1];
+            } elsif ($ARGV[0] eq '--comment-suffix') {
+               $cmte= $ARGV[1];
+            } else {
+               last;
+            }
+            splice @ARGV, 0, 2;
+         }
+         &usage("Missing filename") unless @ARGV;
+         foreach (
+            [\$btp, $begin_tag_prefix], [\$etp, $end_tag_prefix]
+            , [\$bts, $begin_tag_suffix], [\$ets, $end_tag_suffix]
+            , [\$edt, $edit_tag]
+         ) {
+            ${$_->[0]}= quotemeta $_->[1];
+         }
+         my $runpat= qr/
+            ( (?: $btp | $etp ) ( \d+ ) (?: $bts | $ets ) )
+         /x;
+         $rf= new Lib::ReplacementFile;
+         while ($file= shift @ARGV) {
+            print "Transforming file '$file'...\n" if $verbose;
+            ($out, $in)= $rf->create(
+               -original_name => $file, -emulate => $dry
+            );
+            $last_n= 0;
+            while (defined($_= <$in>)) {
+               if ((undef, $n)= /$runpat/) {
+                  $last_n= $n if $last_n > $n;
+               }
+            }
+            seek $in, 0, SEEK_SET or die "Could not re-read '$file': $!";
+            undef $any; undef $inrun;
+            $finish= sub {
+               return unless $inrun;
+               print $out "$cmtb$end_tag_prefix$n$end_tag_suffix$cmte\n";
+               undef $inrun;
+            };
+            while (defined($_= <$in>)) {
+               if (s/$edt//o) {
+                  unless ($inrun) {
+                     $inrun= $any= 1;
+                     ++$n;
+                     print $out
+                        "$cmtb$begin_tag_prefix$n$begin_tag_suffix$cmte\n"
+                     ;
+                  }
+               } else {
+                  &$finish;
+               }
+               if (($nline)= /$runpat/) {
+                  $nline= "$cmtb$nline$cmte\n";
+                  if ($nline ne $_) {
+                     $_= $nline;
+                     $any= 1;
+                  }
+               }
+               print $out $_;
+            }
+            &$finish;
+            $rf->commit if $any;
+         }
+      }
+   }
+);
+
+
+# Returns a string containing "$0" for expansion that should
+# be paragraph-wrapped before output.
+sub version_stuff {
+   my $year= (localtime)[5] + 1900;
+   my $copyright=
+      $COPYRIGHT_STARTING_YEAR < $year
+      ? "$COPYRIGHT_STARTING_YEAR - $year"
+      : $year
+   ;
+   return
+      "\$0 version $VERSION\n\nCopyright $copyright by $AUTHOR\n"
+   ;
+}
+
+
+# Remove the largest common whitespace prefix from all lines
+# of the first argument.
+# (Empty lines or lines containing only whitespace are skipped
+# by this operation and will be replaced by
+# completely empty lines.)
+# The first argument must either be a reference to a multiline
+# string containing newline characters or a reference to an
+# array of single line strings (without newline characters).
+# Then optionally indent all resulting lines with the prefix
+# specified as the argument to the -first option.
+# For all indented lines do the same, but use the argument
+# to option -indent as the value of the -first option then.
+# If option -wrap <number> is specified, contiguous non-empty
+# lines of the same indentation depth are considered paragraphs,
+# and will be word-wrapped on output, resulting in a maximum
+# total line length of <number> characters.
+# The word-wrappin will occur on whitespaces, which can be
+# protected by a backslash.
+sub normalize_indentation {
+   my($tref, %opt)= @_;
+   my(@t, $t, $p, $pl);
+   $opt{-first}||= '';
+   $opt{-indent}||= ' ';
+   $t= ref($tref) eq 'ARRAY' ? $tref : [split /\n/, $$tref];
+   foreach (@$t) {
+      s/^\s+$//;
+      next if $_ eq '';
+      if (defined $pl) {
+         for (;;) {
+            substr($p, $pl= length)= '' if length() < $pl;
+            last if substr($_, 0, $pl) eq $p;
+            substr($p, --$pl)= '';
+         }
+      } else {
+         ($p)= /^(\s*)/;
+         $pl= length $p;
+      }
+   }
+   substr($_, 0, $pl)= '' foreach grep $_ ne '', @$t;
+   if (exists $opt{-wrap}) {
+      my $width= $opt{-wrap} - length $opt{-first};
+      my $i;
+      my $wrap= sub {
+         my($tref, $aref, $iref, $w)= @_;
+         my $buf;
+         my $insert= sub {
+            my($tref, $aref, $iref)= @_;
+            splice @$aref, $$iref++, 0, $$tref if defined $$tref;
+            undef $$tref;
+         };
+         return unless $$tref;
+         foreach (split /(?:(?<!\\)\s)+/, $$tref) {
+            s/\\\s/ /gs;
+            if (length($buf || '') + length > $w) {
+               &$insert(\$buf, $aref, $iref);
+            }
+            if (defined $buf) {$buf.= " $_"} else {$buf= $_}
+         }
+         &$insert(\$buf, $aref, $iref);
+         undef $$tref;
+      };
+      $width= 1 if $width < 1;
+      undef $p;
+      for ($i= 0; $i < @$t; ) {
+         if ($t->[$i] =~ /^(?:\s|$)/) {
+            &$wrap(\$p, $t, \$i, $width);
+            ++$i;
+         } else {
+            if (defined $p) {$p.= ' '} else {$p= ''}
+            $p.= $t->[$i];
+            splice @$t, $i, 1;
+         }
+      }
+      &$wrap(\$p, $t, \$i, $width);
+   }
+   for (my $i= 0; $i < @$t; ) {
+      if ($t->[$i] =~ /^\s/) {
+         push @t, splice @$t, $i, 1;
+         next;
+      }
+      if (@t) {
+         &normalize_indentation(\@t, %opt, -first => $opt{-indent});
+         splice @$t, $i, 0, @t;
+         $i+= @t;
+         @t= ();
+      }
+      ++$i;
+   }
+   if (@t) {
+      &normalize_indentation(\@t, %opt, -first => $opt{-indent});
+      push @$t, @t;
+   }
+   substr($_, 0, 0)= $opt{-first} foreach grep $_ ne '', @$t;
+   $$tref= join '', map "$_\n", @$t if ref($tref) ne 'ARRAY';
+}
+
+
+# Verifies that command exists and synthesizes missing entries.
+sub get_command_attribute {
+   my($topic, $what)= @_;
+   my($t);
+   die &get_usage($what) unless defined $topic;
+   unless ($t= $commands{$topic}) {
+      die "Cannot display $what for '$topic' - unknown command";
+   }
+   $t->{title}||= "As the name '$topic' implies";
+   $t->{usage}= '' unless exists $t->{usage};
+   $t->{help}||=
+      "Self-explanatory. '$what' does exactly what its name implies."
+   ;
+   return $t->{$what} || die "Unknown tag '$what'";
+}
+
+
+sub indent {
+   my($vref, $wrap)= @_;
+   my @w;
+   @w= (-wrap => 79) if $wrap;
+   normalize_indentation $vref, -indent => ' ' x 4, @w;
+}
+
+
+sub expand_progname(\$@) {
+   my($tref, @args)= @_;
+   my $me= $0;
+   $me =~ s/.*[\\\/]//;
+   $me= join ' ', $me, @args;
+   $$tref =~ s/ \$0 (?= [^\d] | $) /$me/gx;
+}
+
+
+sub prep_command_attribute {
+   my $tref= shift;
+   expand_progname $$tref;
+   indent $tref, 1;
+}
+
+
+sub get_title {
+   my $topic= shift;
+   my $t= get_command_attribute $topic, 'title';
+   substr($t, 0, 0)= "$topic - ";
+   prep_command_attribute \$t;
+   return $t;
+}
+
+
+sub get_usage {
+   my($topic, $no_prefix)= @_;
+   my($t, $out);
+   $out= $no_prefix ? '' : get_title($topic) . "\n";
+   $t= get_command_attribute $topic, 'usage';
+   $t =~ s/ ^ | (?= \n ) /\$0 $topic /gsx;
+   unless ($no_prefix) {
+      substr($t, 0, 0)= "Usage:" . ($t =~ /\n/s ? "\n" : " ");
+   }
+   prep_command_attribute \$t;
+   return $out . $t;
+}
+
+
+sub get_version {
+   my $v= version_stuff;
+   expand_progname $v;
+   indent \$v, 1;
+   $v =~ s/\n\n/\n/gs;
+   return $v;
+}
+
+
+sub get_help {
+   my $topic= shift;
+   my $t= get_command_attribute $topic, 'help';
+   $t =~ s/ \$0 (?= [^\d] | $ ) /'\$0\\ $topic'/gx;
+   prep_command_attribute \$t;
+   return
+      get_usage($topic) . "\n" . $t
+      . "\n" . get_version . "\n"
+   ;
+}
+
+
+sub usage {
+   my $m= shift() . "!\n";
+   my $m2= << '.';
+      Usage: $0 [\ <global-option> ... \ ] <subcommand>
+      [\ command-option\ ...\ ] [\ argument\ ...\ ]
+      
+      Global options:
+      
+      --verbose, -v: Verbose output.
+      
+      --dry-run: Options which normally update files won't do this; instead
+      files with the same name plus the suffix '.new' are created with the new
+      contents.
+      
+      Or use
+
+         $0 help
+      
+      for getting more detailed help.
+.
+   foreach ($m, $m2) {
+      indent \$_;
+      expand_progname $_;
+   }
+   $m.= "\n$m2";
+   indent \$m, 1;
+   print STDERR $m;
+   die;
+}
+
+
+sub VERSION_MESSAGE {
+   print get_version;
+}
+
+
+sub HELP_MESSAGE {
+   print get_usage 'help';
+   VERSION_MESSAGE;
+}
+
+
+Getopt::Long::Configure(
+   qw(
+      gnu_compat no_getopt_compat bundling
+      require_order auto_version auto_help
+   )
+);
+GetOptions(
+   "verbose|v" => \$verbose
+   , "dry-run" => \$dry
+) or usage "Invalid global options";
+my $cmd= shift || '';
+&{
+   (
+      $commands{$cmd}
+      || {cmd => sub {usage "Unknown subcommand '$cmd'"}}
+   )->{cmd}
+};

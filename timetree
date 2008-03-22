@@ -1,0 +1,10 @@
+#!/bin/sh
+#
+# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
+# $Author: root $
+# $Date: 2006-08-27T09:44:37.131062Z $
+# $Revision: 289 $
+
+
+echo -e "        mtime      \t        atime      \t        ctime      \tpath"
+find "$@" -type f -printf '%TY-%Tm-%Td %TH:%TM:%TS\t%AY-%Am-%Ad %AH:%AM:%AS\t%CY-%Cm-%Cd %CH:%CM:%CS\t%p\n' | sort --reverse

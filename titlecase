@@ -1,0 +1,7 @@
+#! /usr/bin/perl -w
+# Written by Guenther Brunthaler in 2008
+
+while (defined($_= <>)) {
+   s/\b(.)/\u$1/g;
+   print;
+}

@@ -1,0 +1,13 @@
+#!/usr/bin/perl
+# Filter to remove leading whitespace from lines.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/ltrim $
+# $Author: root(xvaio) $
+# $Date: 2006-10-30T07:48:58.241945Z $
+# $Revision: 368 $
+
+
+while (defined($_= <>)) {
+   s/^\s+//;
+   print;
+}

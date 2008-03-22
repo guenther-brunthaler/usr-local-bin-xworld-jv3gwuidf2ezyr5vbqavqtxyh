@@ -1,0 +1,11 @@
+#!/usr/bin/perl
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/lcase $
+# $Author: root(xvaio) $
+# $Date: 2006-08-27T11:02:50.623454Z $
+# $Revision: 254 $
+
+
+while (defined($_= <>)) {
+   print lc;
+}

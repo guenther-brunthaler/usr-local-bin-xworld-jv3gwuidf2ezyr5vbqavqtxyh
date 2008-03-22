@@ -1,0 +1,49 @@
+#! /usr/bin/perl -w
+#
+# Convert formatted text to free flowing text.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/unwrap $
+# $Author: root $
+# $Date: 2007-03-02T16:11:48.529261Z $
+# $Revision: 585 $
+
+
+my($st);
+$st= 0;
+while (<>) {
+   chomp;
+   s/\s+/ /g;
+   s/^\s+|\s+$//g;
+   for (;;) {
+      if ($st == 0) {
+         # Searching for first paragraph.
+         last if $_ eq '';
+         $st= 1;
+      } elsif ($st == 1) {
+         # Output first part of paragraph.
+         print;
+         $st= 2;
+         last;
+      } elsif ($st == 2) {
+         # Output remainder of paragraph.
+         if ($_ eq '') {
+            # End of paragraph encountered.
+            print "\n"; # Terminate current line.
+            $st= 3;
+         } else {
+            # Continuation.
+            print " ", $_;
+         }
+         last;
+      } elsif ($st == 3) {
+         # Searching for (non-first) next paragraph.
+         last if $_ eq '';
+         print "\n"; # Empty line.
+         $st= 1;
+      }
+   }
+}
+if ($st == 2) {
+   # Terminate current line.
+   print "\n";
+}

@@ -1,0 +1,13 @@
+#!/bin/sh
+# Recursively removes dead symlinks in the current directory
+# or from the specified directories and its subdirectories
+# interactively.
+#
+# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
+# $Author: root $
+# $Date: 2006-08-27T09:44:37.131062Z $
+# $Revision: 289 $
+
+
+export PATH=/bin:/usr/bin
+find -type l -exec sh -c "readlink -e \"{}\" || rm -i \"{}\"" \;

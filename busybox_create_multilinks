@@ -1,0 +1,44 @@
+#! /usr/bin/perl -w
+#
+# Create hardlinks for all tools provided by the
+# BusyBox executable which can be found in the
+# current directory or $PATH.
+#
+# The hardlinks will be created in the current
+# directory. Already existing files will be
+# skipped.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/busybox_create_multilinks $
+# $Author: root $
+# $Date: 2006-11-28T19:29:06.076106Z $
+# $Revision: 444 $
+
+
+use strict;
+substr($ENV{PATH}, 0, 0)= '.:';
+my $bb= qx/which busybox | head -1/ or die "Could not locate BusyBox";
+chomp $bb;
+die "'$bb' is not executable" unless -x $bb;
+open IN, qq'"$bb" --help |' or die "Cannot get $bb --help";
+my $n= 0;
+my $s;
+while (defined($_= <IN>)) {
+   if ($s) {
+      chomp;
+      foreach (grep $_, split /,\s*|^\s*/s) {
+         if (-e $_) {
+            warn "Not creating '$_' - already exists";
+         } else {
+            if (link $bb, $_ or symlink $bb, $_) {
+               ++$n
+            } else {
+               warn "Could not link '$bb' to '$_': $!";
+            }
+         }
+      }
+   } elsif (/defined functions:\s*$/) {
+      $s= 1;
+   }
+}
+close IN or die;
+print "$n links have been created.\n";

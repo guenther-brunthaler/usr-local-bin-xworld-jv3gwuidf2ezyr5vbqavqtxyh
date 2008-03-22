@@ -1,0 +1,154 @@
+#!/bin/sh
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/wait-for-network-idle $
+# $Author: root $
+# $Date: 2007-07-21T19:23:47.207145Z $
+# $Revision: 850 $
+
+
+usage() {
+	cat <<- "."
+	wait-for-network-idle - wait for the network becoming idle
+	
+	Waits until the system's internet connections have been
+	idle for a certain amount of seconds.
+
+	Usage: wait-for-network-idle [ options ] [ <seconds> ]
+
+	Example:
+	  if wait-for-network-idle --quick-check; then
+	     echo "I had to wait after initial delay"
+	  else
+	     echo "No actual waiting was necessary"
+	  fi
+	
+	<seconds>:
+	  The checking interval for idle time checking,
+	  specified in minutes. Defaults to 45 seconds.
+	  The command will repeateadly sleep for that amount
+	  of time each time it has detected the network
+	  is still active.
+	  Choosing a lower value makes the script detect
+	  idleness more instantly, but might also put
+	  a somewhat higher stress on the system.
+
+	options:
+	
+	--initial-wait <seconds>, -i <seconds>:
+	  Wait that many seconds unconditionally before starting
+	  to monitor network load. Defaults to 60 secinds.
+	  This is useful to start up the download connections.
+	--help, -h: Display this help text.
+	--verbose, -v: Verbose operation.
+	--dry-run, --simulate, -n:
+	  Just print what would be done, but don't actually
+	  do anything.
+	  
+	Return values:
+	0: The tool had to wait at least for one cycle after
+	   the initial delay (if any).
+	1: No waiting was necessary after the initial delay.
+	2: An error occurred.
+	
+	The tools will return a status code of 2 if any errors
+	occur during processing.
+
+	Version 1.0
+	Written by Guenther Brunthaler in 2007.
+.
+}
+                                                                                                                             
+
+die() {
+	{
+		echo "ERROR: $*"
+		echo "Use $0 --help for help."
+	} >& 2
+	exit 2
+}
+
+
+inform() {
+	test -z "$VERBOSE" && return
+	echo "$*"
+}
+
+
+run() {
+	local TRY RC
+	while true; do
+		case "$1" in
+			--) shift; break;;
+			-try) TRY=1;;
+			*) break;;
+		esac
+		shift
+	done
+	if [ -n "$DRY" ]; then
+		echo "SIMULATION: $*"
+	else
+		"$@" && return
+		RC=$?
+		test -n "$TRY" && return $RC
+		die "Command >>>$*<<< failed return code $RC!"
+	fi
+}
+
+
+idle() {
+	# Returns 0 if idle; 1 otherwise.
+	test "$(LC_ALL=C netstat -Ainet | wc -l)" -eq 2
+}
+
+
+# Start of command line processing.
+# Define presets.
+VERBOSE=
+DRY=
+CHECK_INTERVAL=45
+INITIAL_WAIT=60
+PROBING=1
+#
+COPTS=
+while true; do
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch clustering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case "$COPT" in
+		--) break;; # Must be first!
+		--initial-wait | -i) INITIAL_WAIT="$1"; shift;;
+                --help | -h) usage; exit;;
+		--version)
+			# Sychronize this with the usage text!
+			echo "Version 1.0"
+			exit;;
+		--verbose | -v) VERBOSE=1;;
+		--dry-run | --simulate | -n) DRY=1;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+# Shift off ordinal arguments.
+test $# -ge 1 && { CHECK_INTERVAL="$1"; shift; }
+#test $# -ge 1 || die "Missing argument - limit for accumulated sum!"
+#LIMIT="$1"; shift
+# Check for excess arguments.
+test $# = 0 || die "Unexpected excess arguments: $*"
+# End of command line processing.
+inform "Waiting $INITIAL_WAIT seconds for network load to stabilize..."
+run sleep $INITIAL_WAIT
+inform "Waiting for $CHECK_INTERVAL seconds of network inactivity..."
+while ! run -try idle; do
+	PROBING=0
+	run sleep $CHECK_INTERVAL
+done
+inform "Network is idle! Continuing processing..."
+exit $PROBING

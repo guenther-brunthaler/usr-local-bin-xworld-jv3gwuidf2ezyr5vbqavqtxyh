@@ -1,0 +1,44 @@
+#! /bin/sh
+# Filter for safely encoding / decoding a binary stream.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/xworld-stdcrypt $
+# $Author: root(xtreme) $
+# $Date: 2006-09-26T04:16:23.581202Z $
+# $Revision: 306 $
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	echo "Usage: $0 [ -e | -f ] <passfile>" >& 2
+	exit 1
+}
+
+
+crypt() {
+	openssl $2 -salt -bufsize 10000000 -pass file:$PASSFILE -$1 || {
+		die "Could not -$1 algo $2: $!!"
+	}
+}
+
+
+ENCRYPT=
+while true; do
+	case "$1" in
+		-e | --encrypt) ENCRYPT=1;;
+		-d | --decrypt) ENCRYPT=0;;
+		--) shift; break;;
+		-*) die "Unknown option '$1'!";;
+		*) break;;
+	esac
+	shift
+done
+PASSFILE="$1"; shift
+test $# = 0 || die "Excess arguments: '$*'"
+test -n "$PASSFILE" || die "Missing passfile argument!"
+test -f "$PASSFILE" || die "Password file '$PASSFILE' does not exist!"
+test -n "$ENCRYPT" || die "Unspecified operation mode!"
+if [ $ENCRYPT = 1 ]; then
+	crypt e aes-256-cbc | crypt e idea-cbc | crypt e rc4 | crypt e bf-cbc
+else
+	crypt d bf-cbc | crypt d rc4 | crypt d idea-cbc | crypt d aes-256-cbc
+fi

@@ -1,0 +1,52 @@
+#!/bin/sh
+# Sets/replaces the favourite svn:-props
+# on the SVK controlled argument files.
+# The -K or --no-keywords option disables
+# the setting of keyword expansion.
+#
+# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
+# $Author: root $
+# $Date: 2006-08-27T09:44:37.131062Z $
+# $Revision: 289 $
+
+
+die() {
+	echo "ERROR: $1" >& 2
+	exit 1
+}
+
+
+svk() {
+	echo "INFO: svk $*"
+	command svk "$@"
+	test "$?" -eq 0 && return
+	die "SVK failed with return code $?!"
+}
+
+
+is_executable() {
+	test -x "$1" && return
+	local L L2
+	read L < "$1" || return
+	L2="${L#???}"
+	L="${L%$L2}"
+	test "$L" = '#!/' || return
+	until [ "${L2# }" = "$L2" ]; do
+		L2="${L2# }"
+	done
+	test "${L2#bin/false}" = "$L2"
+}
+
+
+NO_KW=
+if [ "$1" = "-K" ] || [ "$1" = "--no-keywords" ]; then
+	NO_KW=1
+	shift
+fi
+for F in "$@"; do
+	test -f "$F" || die "'$F' is not a file!"
+	svk ps svn:eol-style native "$F"
+	is_executable "$F" && svk ps svn:executable '*' "$F"
+	test -z "$NO_KW" \
+	&& svk ps svn:keywords 'HeadURL Author Date Id Revision' "$F"
+done

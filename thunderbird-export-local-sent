@@ -1,0 +1,119 @@
+#! /usr/bin/perl
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/thunderbird-export-local-sent $
+# $Author: root(xvaio) $
+# $Date: 2006-10-05T20:52:36.492553Z $
+# $Revision: 326 $
+
+
+use strict;
+use Workfile_F467BD48_CBA4_11D5_9920_C23CC971FBD2;
+use Getopt::Long;
+use Sys::Hostname;
+
+
+my $export_dir= 'Mail/Local Folders/Sent.sbd';
+my $export_folder_pattern= 'exportieren';
+
+
+my($server, $dst, $in, $out);
+Getopt::Long::Configure("bundling");
+GetOptions('server_huhaq53quh5mmz3wztg8z8p8y=s' => \$server);
+$dst= shift;
+die "Too many arguments" if @ARGV;
+unless ($server) {
+   die 'Missing destination [user@]host specification' unless $dst;
+}
+my $base= $ENV{HOME} || die '$HOME not set';
+$base =~ s!/*$!/.thunderbird!;
+die "directory '$base' does not exist" unless -d $base;
+my $fh= new Lib::Workfile;
+$in= $fh->open(-filename => "$base/profiles.ini");
+my(%s, %sc);
+my $end= sub {
+   return 1 if $s{default};
+   if ($s{name} && lc($s{name}) eq 'default') {
+      $s{default}= $s{name};
+      %sc= %s;
+   }
+   %s= ();
+   return 0;
+};
+while (defined($_= <$in>)) {
+   if (/^\[/) {
+      last if &$end;
+   } elsif (/^\s*([^=]+?)\s*=\s*(.*?)\s*$/) {
+      $s{lc $1}= $2;
+   }
+}
+%s= %sc unless &$end;
+die "No default profile defined" unless &$end;
+print "Using profile '$s{name}'.\n";
+$s{path} =~ s!/*$!!;
+$base= $s{isrelative} ? "$base/$s{path}" : $s{path};
+die "Profile-directory '$base' does not exist" unless -d $base;
+$base.= '/' . $export_dir;
+if ($server) {
+   unless (-d $base) {
+      mkdir $base, 0700
+         or die "Could not create remote directory '$base': $!"
+      ;
+   }
+   my @d= localtime;
+   $base.= sprintf
+      '/Import %04u-%02u-%02u %02u:%02u:%02u from %s'
+      , $d[5] + 1900, $d[4] + 1, @d[reverse 0 .. 3], $server
+   ;
+   $out= $fh->create(-filename => $base);
+   while (defined($_= <STDIN>)) {
+      print $out $_;
+   }
+   $fh->remain_on_close;
+   $fh->commit;
+   exit 0;
+} else {
+   my $export_folder;
+   die "Export folder base directory '$base' does not exist" unless -d $base;
+   $export_folder_pattern= quotemeta $export_folder_pattern;
+   $export_folder_pattern= qr/$export_folder_pattern/i;
+   opendir DIR, $base or die "Cannot read directory '$base': $!";
+   while (defined($_= readdir DIR)) {
+      next unless /$export_folder_pattern/;
+      next if /\.msf$/io;
+      if (defined $export_folder) {
+         die "Multiple matching folders: '$export_folder', '$_'";
+      }
+      $export_folder= $_;
+   }
+   closedir DIR or die $!;
+   unless ($export_folder) {
+      die "Could not find the local thunderbird export folder";
+   }
+   $base.= '/' . $export_folder;
+   die "Export mail folder '$base' does not exist" unless -f $base;
+   print
+        "Please compact your export subfolder '$export_folder'\n"
+      , "within your 'Sent' e-mail-folder now!\n"
+   ;
+   {
+      local $|= 1;
+      print "Press [Enter] to continue. ";
+      <STDIN>;
+   }
+   $in= $fh->open(-filename => $base);
+   print "Transferring folder contents to $dst...\n";
+   $out= qq<ssh -o Compression=yes "$dst" "$0">
+      . ' --server_huhaq53quh5mmz3wztg8z8p8y '
+      . [getpwuid ${<}]->[0] . '@' . hostname
+   ;
+   open OUT, "| $out" or die "Cannot create output pipe >>>$out<<<: $!";
+   while (defined($_= <$in>)) {
+      print OUT $_;
+   }
+   close OUT or die "Cannot finish writing output pipe >>>$out<<<: $!";
+   print
+      "Transfer complete.\n"
+      , "Remove the contents of local 'Sent' subfolder\n"
+      , "'$export_folder' now!\n"
+   ;
+}

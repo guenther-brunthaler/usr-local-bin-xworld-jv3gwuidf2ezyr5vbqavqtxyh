@@ -1,0 +1,26 @@
+#!/bin/bash
+# If you don't want color, just redirect STDIN to /dev/null for this script!
+#
+# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
+# $Author: root $
+# $Date: 2006-08-27T09:44:37.131062Z $
+# $Revision: 289 $
+
+
+# Common functions
+[[ ${RC_GOT_FUNCTIONS} != "yes" ]] && source /sbin/functions.sh
+
+OPT_SUPPRESS=
+while getopts s OPT; do
+	case $OPT in
+		s) OPT_SUPPRESS=1;;
+		?) exit 1;;
+	esac
+done
+c_runlevel=$(runlevel | cut -d' ' -f2)
+test "$c_runlevel" || c_runlevel='unknown'
+echo -n "bootlevel $HILITE$BOOTLEVEL$NORMAL"
+if [ "$c_runlevel" != "unknown" -o ! "$OPT_SUPPRESS" ]; then
+	echo -n ", telinit $HILITE$c_runlevel$NORMAL"
+fi
+echo ", softlevel $HILITE$SOFTLEVEL$NORMAL"

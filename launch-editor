@@ -1,0 +1,32 @@
+#! /bin/sh
+# Invoke the right editor for the right file type.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/launch-editor $
+# $Author: root $
+# $Date: 2007-09-16T16:29:29.122780Z $
+# $Revision: 957 $
+
+
+x11_active() {
+	test "x$DISPLAY" != x || return
+	xdpyinfo > /dev/null 2>& 1
+}
+
+
+invoke_joe() {
+	if "${1#+}"
+	joe "$@"
+}
+
+
+invoke_kedit() {
+}
+
+
+invoke_kwrite() {
+}
+
+
+invoke_leafpad() {
+	leafpad "$@"
+}

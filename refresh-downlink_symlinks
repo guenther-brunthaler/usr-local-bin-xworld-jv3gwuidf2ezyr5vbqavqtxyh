@@ -1,0 +1,42 @@
+#! /bin/sh
+#
+# Creates or refreshes as subdirectory $SYMDIR of the
+# current directory, containing symlinks to all the
+# symlinks that exist within the current directory.
+#
+# Symlinks already existing within $SYMDIR which do
+# not point to an existing target will be removed.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/refresh-downlink_symlinks $
+# $Author: root $
+# $Date: 2007-04-20T02:55:26.814632Z $
+# $Revision: 622 $
+
+
+SYMDIR="downstream_symlinks"
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	exit 1
+}
+
+
+chk_symlink() {
+	local T
+	while true; do
+		T="$(readlink -e "$1")" || break
+		test -L "$T" || return
+	done
+	rm "$1" || die "Cannot remove symlink '$1'!"
+}
+
+
+export PATH="/bin:/usr/bin"
+export -f chk_symlink
+if [ -e "$SYMDIR" ]; then
+	find "$SYMDIR" -type l -exec sh -c "chk_symlink \"{}\"" \;
+else
+	mkdir "$SYMDIR" || die "Cannot create directory '$SYMDIR'!"
+fi
+find -maxdepth 1 -type l -exec ln -sf ".{}" "$SYMDIR/{}" \;

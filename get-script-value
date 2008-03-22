@@ -1,0 +1,80 @@
+#!/bin/sh
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/get-script-value $
+# $Author: root(xvaio) $
+# $Date: 2006-08-27T11:02:50.623454Z $
+# $Revision: 254 $
+
+
+HELPER="/usr/local/bin/functions/lookup.sh"
+HV=1
+
+
+usage() {
+	echo "Usage: $0 [ <script> [ <key> ] ]" >& 2
+	cat <<- "---EOF---" >& 2
+	Displays the specified key value, or a list of all settings
+	that are available for the specified script.
+	Without any non-option arguments, the settings directory is
+	displayed using 'ls' and passing any options to it.
+	---EOF---
+	exit 1
+}
+
+
+die() {
+	echo "ERROR: $1" >& 2
+	exit 1
+}
+
+
+info() {
+	test -z "$VERBOSE" && return
+	echo "$1" >& 2
+}
+
+
+VERBOSE=
+while true; do
+	for ARG in "$@"; do
+		test "$ARG" = "${ARG#-}" && break 2
+		case "$ARG" in
+			-h|--help|--usage) usage;;
+		esac
+	done
+	. "$HELPER" --version $HV "${KEY:-*}" --from filename --into SF
+	BASE="${SF%/*}"
+	eval "ls $* -- \"$BASE\""
+	exit
+done
+while true; do
+	case "$1" in
+		-v|--verbose) VERBOSE=1;;
+		*) break
+	esac
+	shift
+done
+test $# -eq 1 -o $# -eq 2 || usage
+SCRIPT="$1"; shift
+KEY="$1"; shift
+. "$HELPER" --version $HV --script "$SCRIPT" \
+	"${KEY:-*}" --from filename --into SF
+BASE="${SF%/*}"
+test "$BASE" = "$SF" && die "Could not look up key '$KEY'!"
+test -d "$BASE" || die "Settings base directory '$BASE' does not exist!"
+if [ -z "$KEY" ]; then
+	info "Enumerating settings for '$SCRIPT'..."
+	for KEY in $SF; do
+		test -f "$KEY" && echo "Found setting '$KEY'."
+	done
+	info "Done."
+else
+	info "Displaying settings from '$SF'..."
+	if [ -f "$SF" ]; then
+		info "[BEGIN OF FILE CONTENTS]"
+		cat "$SF"
+		info "[END OF FILE CONTENTS]"
+	else
+		info "Settings file does not exist!"
+	fi
+fi

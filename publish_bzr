@@ -1,0 +1,166 @@
+#! /bin/sh
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	exit 1
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<<: return code ${?}!"
+}
+
+
+wrout() {
+	if test $# = 0; then
+		run fmt -w "`tput cols`"
+	else
+		run printf '%s\n' "$*" | wrout
+	fi
+}
+
+
+inform() {
+	test -n "$VERBOSE" && wrout "*** $*"
+}
+
+
+show_usage() {
+	APP=${0##*/}
+	cat <<- EOT | wrout | less -F
+	$APP - publish a bzr repository
+	
+	$APP logs into the specified (or default) remote server using ssh and
+	creates a shared "bzr" (Bazaar-NG) repository and an initial branch.
+	
+	Then $APP pushes the contents of the local branch to the newly created
+	remote repository, thus replicating the local branch to the server.
+	As a side effect, this will also set the bzr default push URL for the
+	branch.
+	
+	Finally, $APP pulls from the remote server, which will not obtain
+	any new revisions but will set the remote URL as the default pull URL
+	for the branch.
+
+	Usage: $APP [ options ... ] [ <server> ]
+		
+	where
+		
+	<server>: Specififies which ssh host to use. <server> can be omitted
+	if a default server has been set by some previous run of $APP.
+	<server> should be a DNS name or an IP-address. It may be prefixed by
+	a user account name followed by "@". It may also be followed by ":"
+	and a port number. If user or port is not specified, the normal ssh
+	defaults for the host are used.
+
+	--help, -h: Show this usage help.
+	
+	--remember: Remember <server> as the default value for future
+	invocations of $APP. This option will be enabled by default if no
+	default server has been remembered so far.
+
+	--verbose, -v: Be verbose.
+	
+	$APP assumes it will be run from the top-level directory of the local
+	branch which is to be replicated.
+	
+	If that directory is a prefix of the current user's \$HOME directory,
+	an equivalent path relative to the \$HOME-directory on the remote host
+	will be created there.
+	
+	If the current directory is not a prefix of \$HOME, the remote host
+	will use exactly the same absolute path as on the local machine.
+	
+	In both cases, after the shared repository has been created on the
+	remote host, an initial branch will be created as a subdirectory of
+	the shared repository.
+	
+	That branch will share the same basename as the directory where the
+	shared repository has been created, but the basename will be augmented
+	with an underscore and a 25-character base-35 encoded UUID.
+	
+	This should emphasize the importance of that branch as the primary
+	master branch for that project. It also helps to locate the branch
+	directory on the server after it has been moved or renamed, because
+	the UUID-part of the name will never change.
+	
+	$APP (c) 2008 by Guenther Brunthaler
+EOT
+	exit
+}
+
+
+MODE=normal
+SAVE=
+VERBOSE=
+while true; do
+	case "$1" in
+		--help | -h) show_usage;;
+		--server) MODE=server;;
+		--) shift; break;;
+		--remember) SAVE=Y;;
+		--verbose | -v) VERBOSE=Y;;
+		-*) die "Unsupported option '$1'!";;
+		*) break;;
+	esac
+	shift
+done
+if test $MODE = server; then
+	SUBDIR=$1
+	test x"${HOME#/}" != x"$HOME" \
+		|| die "\$HOME ('$HOME') is not an absolute path!"
+	test x"${SUBDIR#/}" = x"$SUBDIR" && SUBDIR=$HOME/$SUBDIR
+	test -e "$SUBDIR" && die "'$SUBDIR' already exists!"
+	run mkdir -p "$SUBDIR"
+	run cd "$SUBDIR"
+	run bzr init-repo --no-trees --rich-root-pack .
+	MASTER=${SUBDIR##*/}_`uuidgen.pl 1`
+	test $? = 0 || die "Could not generate master directory name!"
+	run bzr init "$MASTER"
+	MASTER=$SUBDIR/$MASTER
+	printf '%s\n' $MASTER
+else
+	SERVER=$1
+	RCFILE=$HOME/.${0##*/}
+	if test -z "$SERVER"; then
+		if test -f "$RCFILE"; then
+			inform "Loading default specification from '$RCFILE'."
+			. "$RCFILE"
+		fi
+		test -n "$SERVER" || die "Server specification required!"
+	else
+		test -e "$RCFILE" || SAVE=Y
+	fi
+	if test -n "$SAVE"; then
+		inform "Saving server specification '$SERVER' as" \
+			"default to '$RCFILE'."
+		printf 'SERVER="%s"\n' "$SERVER" > "$RCFILE"
+	fi
+	SERVERSPEC=$SERVER
+	PWD=`pwd`
+	PWD=${PWD#$HOME/}
+	set --
+	USER=${SERVER%%@*}
+	if test x"$USER" != x"$SERVER"; then
+		set -- "$@" -l "$USER"
+		SERVER=${SERVER#$USER@}
+	fi
+	PORT=${SERVER##*:}
+	if test x"$PORT" != x"$SERVER"; then
+		set -- "$@" -p "$PORT"
+		SERVER=${SERVER%:$PORT}
+	fi
+	set -- ssh "$@" "$SERVER" "$0" --server "$PWD"
+	inform `printf "executing >>>$*<<<\n" "$*"`
+	MASTER=`"$@"`
+	test $? = 0 || die "Remote could not generate master directory name!"
+	test x"${MASTER#/}" != x"$MASTER" \
+		|| die "Remote master ('$MASTER') is not an absolute path!"
+	URL=bzr+ssh://$SERVERSPEC$MASTER
+	inform "Remote master directory '$MASTER' has been set up."
+	inform "Syncing with '$URL'."
+	run bzr push --remember "$URL"
+	run bzr pull --remember "$URL"
+fi

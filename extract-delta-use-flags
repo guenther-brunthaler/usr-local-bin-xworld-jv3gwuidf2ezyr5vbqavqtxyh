@@ -1,0 +1,15 @@
+#! /bin/sh
+# Display a list of USE flags which have changed
+# from the output of 'emerge --update --deep --newuse world'.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/extract-delta-use-flags $
+# $Author: root(xvaio) $
+# $Date: 2006-09-11T12:36:23.315611Z $
+# $Revision: 290 $
+#
+# Written in 2006 by Guenther Brunthaler.
+
+
+emerge -puDN world | perl -ne '
+   print map "$_\n", grep s/\*$//, split /\s+/, $1 if /USE="(.*?)"/
+' | sort -u

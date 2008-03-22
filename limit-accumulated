@@ -1,0 +1,49 @@
+#! /bin/sh
+# Filter similar to "head". But instead of
+# counting input lines, this filter
+# will add together the floating point values
+# from a specified column of the input file.
+# The filter will output all lines until the sum
+# reaches a specified limit.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/limit-accumulated $
+# $Author: root(xtreme) $
+# $Date: 2006-09-29T03:32:55.137104Z $
+# $Revision: 313 $
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	exit 1
+}
+
+
+DELIM='\t'
+FIELD=1
+OUT=0
+COPTS=
+while true; do
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch custering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	case "$COPT" in
+		--) break;;
+		-d) DELIM="$1"; shift;;
+		-f) FIELD="$1"; shift;;
+		-o) OUT="$1"; shift;;
+		*) die "Unknown option '$COPT'!";;
+	esac
+done
+test $# -ge 1 || die "Missing argument - limit for accumulated sum!"
+LIMIT="$1"; shift
+test $# = 0 || die "Unexpected excess arguments: $*"
+awk -F "$DELIM" "{ s+= \$$FIELD; if (s > $LIMIT) exit; print \$$OUT; }"

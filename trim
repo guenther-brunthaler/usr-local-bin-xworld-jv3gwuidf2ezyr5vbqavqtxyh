@@ -1,0 +1,20 @@
+#!/usr/bin/perl
+# Filter to remove leading and trailing whitespace from lines.
+# It also eliminates all adjacent whitespace within a line
+# following a whitespace character.
+#
+# Note that you might also use "expand" before applying
+# this filter in order to convert any tabs to spaces.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/trim $
+# $Author: root $
+# $Date: 2006-12-01T02:37:34.488687Z $
+# $Revision: 464 $
+
+
+while (defined($_= <>)) {
+   s/^\s+//;
+   s/\s*$/\n/;
+   s/(?<=\s)\s+//g;
+   print;
+}

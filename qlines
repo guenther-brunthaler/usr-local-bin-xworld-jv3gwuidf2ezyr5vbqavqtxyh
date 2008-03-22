@@ -1,0 +1,35 @@
+#!/bin/sh
+#
+# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
+# $Author: root $
+# $Date: 2006-08-27T09:44:37.131062Z $
+# $Revision: 289 $
+
+
+VERSION='$Revision: 1.4 $'
+while true; do
+	case $1 in
+		--help) OPT_HELP=1;;
+		--version)
+			echo "Version $(
+				echo $VERSION |
+				sed -e 's/[^0-9]*\([0-9]\{1,\}\(\.[0-9]\)*\)[^0-9]*.*/\1/'
+			)"
+			exit
+			;;
+		*) break;;
+	esac
+	shift
+done
+while getopts h OPT; do
+	case $OPT in
+		h) OPT_HELP=1;;
+		?) exit 1;;
+	esac
+done
+shift $(($OPTIND - 1))
+if test $OPT_HELP; then
+	echo "qlines - filter for quoting input lines"
+	exit
+fi
+sed -e 's/"/\\"/g;s/^/"/;s/$/"/'

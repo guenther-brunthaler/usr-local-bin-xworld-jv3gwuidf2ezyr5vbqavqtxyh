@@ -1,0 +1,131 @@
+#!/usr/bin/perl -w
+# Rename the files in the specified directory subtree in such a way that the
+# file extension contains all lower case characters only.
+# Does nothing if the file extension is already in all lowercase.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/lcase-extension $
+# $Author: root $
+# $Date: 2007-01-25T14:41:43.092125Z $
+# $Revision: 525 $
+
+
+use strict;
+use Cwd;
+use Getopt::Std;
+use File::Spec::Functions qw(no_upwards updir catdir catfile);
+
+
+our($app, $done, $total, $opt_q, $opt_v);
+
+
+sub VERSION_MESSAGE {
+   foreach ('$Revision: 525 $', '$Date: 2007-01-25T14:41:43.092125Z $') {
+      my $v= $_;
+      $v =~s/\s*\$\s*//g;
+      print "$v\n";
+   }
+   print "Author: Guenther Brunthaler\n";
+}
+
+
+sub HELP_MESSAGE {
+   print <<".";
+
+$app - rename file extensions to lower case
+
+Rename the files in the specified directory subtree in such a way that the
+file extension contains all lower case characters only. Does nothing if the
+file extension is already in all lowercase.
+
+Usage: $app [ <options> ] dirpath ...
+
+where <options> is one or more of:
+-v: Be extra verbose.
+-q: Be quiet.
+
+.
+   VERSION_MESSAGE;
+}
+
+
+# Process relative subtree $dir which refers to absolute path $dir.
+# This will be done by temporarily changing the current directory
+# to $dir, and then changing back to the current directory.
+# If $parent is true, it is assumed the current directory can be
+# reachend by changing to the parent directory of $dir.
+# If $parent is false, the current directory will be determined
+# from the current process state (which is less efficient).
+sub process {
+   my($dir, $full, $parent)= @_;
+   my(@subdirs, @files, $e, $n);
+   $parent=
+      $parent
+      ? updir
+      : getcwd || die "Cannot locate current directory: $!"
+   ;
+   unless (chdir $dir) {
+      warn "Cannot enter directory '$full': $!";
+      return;
+   }
+   if (opendir DIR, '.') {
+      while (defined($e= readdir DIR)) {
+         next unless no_upwards $e;
+         unless (lstat $e) {
+            $e= catfile $full, $e;
+            warn "Skipping '$e' - cannot lstat: $!";
+            next;
+         }
+         if (-d _) {
+            # Ignore directory symlinks.
+            push @subdirs, $e unless -l _;
+         } else {
+            # But rename file symlinks like normal files.
+            push @files, $e if -f _;
+         }
+      }
+      closedir DIR or die $!;
+   } else {
+      warn "Cannot read directory '$full': $!";
+   }
+   foreach $e (sort @files) {
+      ++$total;
+      $n= $e;
+      $n =~ s/(?<=\.)([^.]+)$/ lc $1 /e;
+      next if $n eq $e;
+      if (rename $e, $n) {
+         if ($opt_v) {
+            $e= catfile $full, $e; $n= catfile $full, $n;
+            print "Renamed '$e' into '$n'.\n";
+         }
+         ++$done;
+      } else {
+         $e= catfile $full, $e; $n= catfile $full, $n;
+         warn "Could not rename '$e' into '$n': $!";
+      }
+   }
+   @files= ();
+   foreach $e (sort @subdirs) {
+      &process($e, catdir($full, $e), 1);
+   }
+   chdir $parent
+      or die "Cannot go back to parent of directory '$parent': $!"
+   ;
+}
+
+
+$app= $0;
+$app =~ s!^.*[\\/:]!!;
+$Getopt::Std::STANDARD_HELP_VERSION= 1;
+unless (getopts 'qv') {
+   usage:
+   print STDERR "Run with --help as argument for help.\n";
+   exit 1;
+}
+if (File::Spec->case_tolerant) {
+   die "Will not work on case-tolerant filesystems!";
+}
+$done= $total= 0;
+foreach my $basedir (@ARGV ? @ARGV : '.') {
+   &process($basedir, $basedir);
+}
+print "Renamed $done file(s) out of $total total file(s).\n" unless $opt_q;

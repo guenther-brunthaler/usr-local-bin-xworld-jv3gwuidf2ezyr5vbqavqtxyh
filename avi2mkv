@@ -1,0 +1,171 @@
+#! /bin/sh
+# AVI to Matroska conversion.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/avi2mkv $
+# $Author: root $
+# $Date: 2007-06-28T17:04:59.782901Z $
+# $Revision: 809 $
+
+
+usage() {
+	cat <<- "."
+	avi2mkv - convert AVI movie into MKV container format
+	
+	Processes all *.avi files in the current directory.
+	Unless the --keep-originals option is also given, the
+	original files will be deleted after conversion, but
+	only if that conversion has been 100 % successful.
+
+	Usage: avi2mkv [ options ] [ <source_dir> ]
+	
+	<source_dir>:
+	  If specified, a 'cd' to this directory is done first
+	  before the *.avi files are searched for.
+
+	options:
+	--help, -h: Display this help text.
+	--verbose, -v: Verbose operation.
+	--dry-run, --simulate, -n:
+	  Just print what would be done, but don't actually
+	  do anything.
+	--english, -e: Assume English rather than German contents.
+	--english-audio:
+	  Override audio track settings only, assuming
+	  English contents rather than German.
+	--english-video:
+	  Override video track settings only, assuming
+	  English contents rather than German.
+	--keep-unsafe
+	  Normally, when the movie converter reports a warning,
+	  this is handled exactly as if an error was encountered:
+	  A warning message is displayed, the output file
+	  is discarded, and the original file is left untouched.
+	  If this option has been specified, the generated
+	  output file will not be discarded, even tough it might
+	  might consist of unusable contents only.
+	  In either case, the original file will *not* be removed!
+	--outdir <dir>, -o <dir>:
+	  Directory where to put converted files.
+	  Defaults to <source_dir>.
+	--keep-originals:
+	  Using this option disables the automatic removal
+	  of successfully converted input files.
+
+	Version 1.0
+	Written by Guenther Brunthaler in 2006.
+.
+}
+                                                                                                                             
+
+die() {
+	{
+		echo "ERROR: $*"
+		echo "Use $0 --help for help."
+	} >& 2
+	exit 1
+}
+                                                        
+
+# Start of command line processing.
+# Define presets.
+VERBOSE=0
+ALANG=ger; VLANG=$ALANG
+OUTDIR=
+WORKDIR=
+DRY=0
+UNSAFE=0
+KEEP=0
+#
+COPTS=
+while true; do
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch clustering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case "$COPT" in
+		--) break;; # Must be first!
+                --help | -h) usage; exit;;
+		--version)
+			# Sychronize this with the usage text!
+			echo "Version 1.0"
+			exit;;
+		--verbose | -v) VERBOSE=1;;
+		--dry-run | --simulate | -n) DRY=1;;
+		--english | -e) ALANG=eng; VLANG=$ALANG;;
+		--english-audio) ALANG=eng;;
+		--english-video) VLANG=eng;;
+		--keep-unsafe) UNSAFE=1;;
+		--keep-originals) KEEP=1;;
+		-o | --outdir) OUTDIR="$1"; shift;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+# Shift off ordinal arguments.
+test $# -ge 1 && { WORKDIR="$1"; shift; }
+#test $# -ge 1 || die "Missing argument - limit for accumulated sum!"
+#LIMIT="$1"; shift
+# Check for excess arguments.
+test $# = 0 || die "Unexpected excess arguments: $*"
+# End of command line processing.
+CPFX=
+test $DRY = 1 && CPFX=echo
+while [ "$OUTDIR" != "${OUTDIR%/}" ]; do
+	OUTDIR="${OUTDIR%/}"
+done
+if [ -n "$WORKDIR" ]; then
+	while [ "$WORKDIR" != "${WORKDIR%/}" ]; do
+		WORKDIR="${WORKDIR%/}"
+	done
+	cd "$WORKDIR" || die "Cannot 'cd' to directory '$WORKDIR'."
+fi
+for M in *.avi; do
+	MK="${OUTDIR}${OUTDIR:+/}${M%.avi}.mkv"
+	if [ -f "$MK" ]; then
+		echo "$MK already exists - skipping"
+		
+	else 
+		echo "Converting '$M' into '$MK'..."
+		# Some mkvmerge options:
+		# <tid>: track index according to --track-order.
+		# <fid>: file ID, nth input file. First one has <fid> 0.
+		# <sid>: Id as identified by mkvmerge -i <orig_file>.
+		# --output <outname>: (-o) set output file name.
+		# --title <movie_name>
+		# --default-language <language>: Used unless overridden.
+		# --language <tid>:<language>: e. g. "ger" or "eng".
+		# --default-track <tid>: Sets "default" flag also for track.
+		# --track-order <fid:tid,...>: trk # <tid> from file # <fid>.
+		# --track-name <tid:name>: Optional.
+		# --atracks <sid,...>: (-a) Audio tracks to copy.
+		# --vtracks <sid,...>: (-d) Video tracks to copy.
+		# --stracks <sid,...>: (-s) Subtitle tracks to copy.
+		# --noaudio: (-A) Don't copy any audio track.
+		# --novideo: (-D) Don't copy any video track.
+		# --nosubs: (-S) Don't copy any subtitle track.
+		if $CPFX mkvmerge --output "$MK" \
+			--language 0:$VLANG --language 1:$ALANG \
+			--default-track 0 --default-track 1 \
+			--atracks 1 --vtracks 0 --nosubs "$M" \
+			--track-order 0:0,0:1
+		then
+			if [ "$KEEP" -eq 0 ]; then
+				$CPFX rm "$M" \
+					|| die "Cannot remove old file '$M'!"
+			fi
+		else
+			if [ "$?" -ne 1 ] || [ "$UNSAFE" -eq 0 ]; then
+				$CPFX rm "$MK" 2> /dev/null
+				echo "Conversion failed!" >& 2
+			fi
+		fi
+	fi
+done

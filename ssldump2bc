@@ -1,0 +1,68 @@
+#! /usr/bin/perl -w
+#
+# Convert OpenSSL hex keydump into hex constant suitable for "bc".
+# In case of an error, an error message will be inserted into
+# the input stream, but it will otherwise be left unaltered.
+#
+# Don't forget that in 'bc':
+#
+# * Hex digits must be all upper case.
+#
+# * Variable names must be all lower case.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/ssldump2bc $
+# $Author: root $
+# $Date: 2006-12-01T21:01:33.061878Z $
+# $Revision: 468 $
+
+
+my($c, $nerr);
+
+
+sub finish {
+   my $llen= 80;
+   my $sep= "\\";
+   my $btc;
+   $c= uc $c;
+   while (length($c) > $llen) {
+      print substr($c, 0, $btc= $llen - length $sep), $sep, "\n";
+      substr($c, 0, $btc)= '';
+   }
+   print $c, "\n" if $c;
+   undef $c;
+   $nerr= '';
+}
+
+
+$nerr= '';
+while (defined($_= <>)) {
+   if (!defined $nerr) {
+      print;
+   } elsif (
+      /^
+         [ ]{4}
+         (?:
+            ( (?: [0-9a-f]{2} : ){14} [0-9a-f]{2} ) :
+         |
+            ( (?: [0-9a-f]{2} : ){1,13} [0-9a-f]{2} )
+         )
+         \s*
+      $/x
+   ) {
+      $nerr.= $_;
+      $_= $1 || $2;
+      tr/://d;
+      if ($c) {
+         $c.= $_;
+      } else {
+         $c= $_;
+      }
+      finish if $2;
+   } else {
+      print $nerr;
+      undef $nerr;
+      print "*** ERROR in OpenSSL key hexdump syntax:\n";
+      print;
+   }
+}
+finish if $c;

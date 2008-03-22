@@ -1,0 +1,114 @@
+#! /bin/sh
+#
+# Filter taking a TAR archive from stdin and writing a script
+# for decompressing that TAR to stdout.
+#
+# The TAR archive will be attempted to be compressed with either
+# GZIP or BZIP2 compression using the best compression options.
+# Whether or not the TAR archive will actually be compressed
+# depends on the resulting length - the shortest version will
+# be used.
+#
+# The generated script will contain the compressed or
+# uncompressed TAR in BASE-64 encoding and will use OpenSSL
+# for BASE-64 decoding.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/bbs-package-tar $
+# $Author: root $
+# $Date: 2006-11-26T15:21:41.419451Z $
+# $Revision: 428 $
+#
+# Written in 2006 by Guenther Brunthaler.
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	exit 1
+}
+
+RM() {
+	rm "$1" || die "Could not remove '$1'!"
+}
+
+# Args: varname, file.
+get_size() {
+	local SZ_kbn1g43q9a8ez9r0muuwyh41e
+	SZ_kbn1g43q9a8ez9r0muuwyh41e="`stat --format %s "$2"`" \
+		|| die "Could not stat '$2'!"
+	eval $1=$SZ_kbn1g43q9a8ez9r0muuwyh41e
+}
+
+# Args: packer executable, compression options, decompression options.
+test_packer() {
+	local SZ F
+	F="$T.$1"
+	"$1" $2 < "$T" > "$F" || die "$1 failure!"
+	get_size SZ "$F"
+	if [ $SZ -lt $BEST ]; then
+		BEST=$SZ
+		TAROPTS="$3"
+	else
+		RM "$F"
+	fi
+}
+
+# $Args: packer executable
+rename_back() {
+	local F
+	F="$T.$1"
+	if [ -e "$F" ]; then
+		test -e "$T" && RM "$T"
+		mv "$F" "$T" || die "Cannot rename '$F' into '$T'!"
+	fi
+}
+
+usage_help() {
+	echo "Usage: ${0##*/} [ <options> ... ] [ -- <tar-options> ]"
+	cat <<-'.'
+
+	where <option> is one of the following:
+	--help, -h, --usage: Display this text.
+	
+	--:
+	 Any options after this will be passed through to TAR
+	 by the generated script as additional extraction options.
+	 This will typically be used for the TAR "-p" option.
+
+	Written in 2006 by Guenther Brunthaler.
+
+	$Date: 2006-11-26T15:21:41.419451Z $
+	$Revision: 428 $
+.
+	exit
+}
+
+while true; do
+	case "$1" in
+		-h | --help | --usage ) shift; usage_help;;
+		-- ) shift; break;;
+		-* | --* ) echo "Unsupported option '$1'!" >& 2; exit 1;;
+		* ) break;;
+	esac
+	shift
+done
+which openssl > /dev/null 2>& 1 || {
+	die "OpenSSL is required for BASE-64 encoding!"
+}
+T="/tmp/~${0##*/}_$$.tmp"
+cat > "$T" || die "Broken pipe!"
+get_size RAWSZ "$T"
+BEST=$RAWSZ
+TAROPTS="-xv"
+test_packer gzip -9 -xvz
+test_packer bzip2 -9 -xvj
+rename_back gzip
+rename_back bzip2
+cat << END
+#! /bin/sh
+which openssl > /dev/null 2>& 1 \\
+|| { echo "OpenSSL is required for BASE-64 decoding!" >&2; exit 1;}
+END
+echo 'openssl enc -d -a << END | tar' "$TAROPTS${1:+ }$*"
+openssl base64 < "$T"
+echo "END"
+RM "$T"

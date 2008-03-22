@@ -1,0 +1,56 @@
+#!/bin/sh
+# Converts the argument files from Windows to UTF-8 charset.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/win2utf8-multiple $
+# $Author: root(xvaio) $
+# $Date: 2006-08-25T10:11:33.105470Z $
+# $Revision: 245 $
+
+
+
+FROM="WINDOWS-1252"
+INTO="UTF-8"
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	exit 1
+}
+
+
+inform() {
+	test -n "$VERBOSE" && echo "$*" >& 2
+}
+
+
+VERBOSE=
+while [ -n "$1" ]; do
+	case "$1" in
+		--verbose | -v) VERBOSE=1;;
+		*) break;;
+	esac
+	shift
+done
+inform "Starting conversion of the following files:"
+for FILE in "$@"; do
+	TEMP="$FILE.${0##*/}.$$"
+	inform "Converting file '$FILE' from $FROM into $INTO..."
+	test -e "$TEMP" && {
+		die "Temporary file '$TEMP' already exists! Aborting."
+	}
+	test -f "$FILE" || {
+		die "Specified $FROM input file '$FILE' does not exist!"
+	}
+	iconv -f "$FROM" -t "$INTO" "$FILE" > "$TEMP" || {
+		die \
+			"Could not convert $FROM file '$FILE'" \
+			"into $INTO file '$TEMP'!"
+	}
+	cat "$TEMP" > "$FILE" || {
+		die \
+			"Could not copy back $INTO contents from" \
+			"converted file '$TEMP' into '$FILE'!"
+	}
+	rm "$TEMP" || die "Could not remove temporary file '$TEMP'!"
+done
+inform "Done converting all the files listed above."

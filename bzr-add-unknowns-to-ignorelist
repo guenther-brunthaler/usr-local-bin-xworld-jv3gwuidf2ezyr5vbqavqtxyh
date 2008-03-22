@@ -1,0 +1,59 @@
+#! /bin/sh
+
+die() {
+	echo "ERROR: $*" >& 2
+	exit 1
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<<: return code ${?}!"
+}
+
+
+# Assign output of command $2 ... to variable with name $1.
+assign() {
+	local vn_4scr2rdlrgkqfkc6p035hkwmj val_4scr2rdlrgkqfkc6p035hkwmj
+	local rc_4scr2rdlrgkqfkc6p035hkwmj
+	vn_4scr2rdlrgkqfkc6p035hkwmj=$1
+	shift
+	val_4scr2rdlrgkqfkc6p035hkwmj=`"$@"`
+	rc_4scr2rdlrgkqfkc6p035hkwmj=$?
+	if test $rc_4scr2rdlrgkqfkc6p035hkwmj != 0; then
+		die "Could not execute >>>$*<<<:" \
+			"return code ${rc_4scr2rdlrgkqfkc6p035hkwmj}!"
+	fi
+	eval "$vn_4scr2rdlrgkqfkc6p035hkwmj=\$val_4scr2rdlrgkqfkc6p035hkwmj"
+}
+
+
+BZR=/usr/bin/bzr
+
+
+EDITOR=${EDITOR:-$VISUAL}
+run test -f "$EDITOR"
+assign ROOT "$BZR" root
+run cd "$ROOT"
+assign TF tempfile
+trap 'rm "$TF"' 0
+run "$BZR" ls --unknown | while read ENTRY; do
+	run test -e "$ENTRY"
+	printf '/%s\n' "$ENTRY"
+done | {
+	test -e .bzrignore && run cat .bzrignore
+	run echo '=== new entries ==='
+	run cat
+} > "$TF"
+if run tail -n1 "$TF" | run fgrep -q '=== new entries ==='; then
+	echo "Nothing unknown."
+	exit
+fi
+assign OLDSUM md5sum -b "$TF"
+run "$EDITOR" "$TF"
+assign NEWSUM md5sum -b "$TF"
+if test "$OLDSUM" = "$NEWSUM"; then
+	die "Required modifications have not been made!"
+fi
+run sort -u "$TF" > .bzrignore
+echo "'$ROOT/.bzrignore' has been updated and sorted."

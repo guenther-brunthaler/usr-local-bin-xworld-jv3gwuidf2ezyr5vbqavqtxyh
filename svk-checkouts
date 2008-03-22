@@ -1,0 +1,65 @@
+#! /usr/bin/perl -w
+# Display all SVK checkout paths or execute the same command
+# for all of them (similar to xargs).
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/svk-checkouts $
+# $Author: root(xtreme) $
+# $Date: 2006-10-12T10:15:42.527705Z $
+# $Revision: 327 $
+
+
+use strict;
+
+
+my($st, $co, @co, $r, @cmd, $filt);
+
+
+sub unfilt {
+   return unless $filt;
+   $filt= select $filt or die "Cannot unselect filter: $!";
+   close $filt or die "Cannot close filter pipe: $!";
+}
+
+
+open IN, 'svk co -l |' or die "Could not get SVK checkout list: $!";
+$st= 0;
+while (defined($_= <IN>)) {
+   if ($st == 0) {
+      next unless /^={10}/;
+      $st= 1;
+   } else {
+      next unless ($co)= /^[^\t]+\t(.*?)\s*$/;
+      push @co, $co;
+   }
+}
+close IN or die;
+@co= sort @co;
+unless (@ARGV) {
+   print "List of SVK checkout paths:\n";
+   print map "$_\n", @co;
+   exit;
+}
+if ($ARGV[0] =~ /^(?:st|stat|status)$/) {
+   open FILT, q"| grep '^[^?]' | cat -n" or die "Cannot create status filter: $!";
+   $filt= select FILT or die $!;
+}
+foreach $co (@co) {
+   (@cmd)= ("svk", @ARGV, $co);
+   if ($r= system @cmd) {
+      if ($? == -1) {
+         unfilt;
+         die "Failed to execute '@cmd': $!";
+      } elsif ($? & 127) {
+         unfilt;
+         die
+            sprintf "'@cmd' died with signal %d, %s coredump"
+               , $? & 127, $? & 128 ? "with" : "without"
+         ;
+      }
+      else {
+         unfilt;
+         die sprintf "'@cmd' exited with value %d", $? >> 8;
+      }
+   }
+}
+unfilt;

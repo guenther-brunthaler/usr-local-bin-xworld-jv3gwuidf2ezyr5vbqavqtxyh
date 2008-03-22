@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+# Changes the indentation of specified source files.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/reindent $
+# $Author: root(xvaio) $
+# $Date: 2006-08-28T22:05:31.809519Z $
+# $Revision: 261 $
+
+
+use strict;
+use ReplacementFile_F467BD49_CBA4_11D5_9920_C23CC971FBD2;
+
+
+my $usage= << ".";
+Usage: $0 <from_spec> <into_spec> <file> ...
+
+$0 changes the indentation of the specified source files
+from <from_spec> into <into_spec>.
+
+Both <from_spec> and <into_spec> have the same format and specify
+a unit of indentation.
+
+The format is an integer representing a repeat count followed by either
+the letter "t" for tabulator characters or "s" for spaces.
+
+For instance,
+
+$0 1t 4s test.cpp
+
+changes all lines which begin with one or more groups of 4 tabulator character
+into the same number of groups, consisting of 4 space characters each.
+
+Note: The replacements will be done at the beginning of lines only.
+
+Also note that any trailing whitespace at the end of lines will be disposed.
+
+(C) 2006 by Guenther Brunthaler
+.
+
+
+my($i, $sin, $tin, $rf, $in, $out);
+for ($i= 1; $i <= 2; ++$i) {
+   die $usage unless @ARGV;
+   my($count, $c)= shift() =~ /^(\d+)\s*(s|t)$/;
+   die $usage unless defined $c;
+   $c= ($c eq 't' ? "\t" : " ") x $count;
+   if ($i == 1) {$sin= $c} else {$tin= $c}
+}
+$rf= new Lib::ReplacementFile;
+while (@ARGV) {
+   ($out, $in)= $rf->create(-original_name => shift);
+   print "Converting file '", $rf->original_name, "'...\n";
+   while (defined($_= <$in>)) {
+      s/\s+$//;
+      pos= 0;
+      s/\G$sin/$tin/og;
+      print $out "$_\n";
+   }
+   $rf->commit;
+}

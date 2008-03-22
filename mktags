@@ -1,0 +1,28 @@
+#!/bin/sh
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/mktags $
+# $Author: root $
+# $Date: 2007-03-02T21:03:39.114682Z $
+# $Revision: 588 $
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	exit 1
+}
+
+
+chk4() {
+	which "$1" > /dev/null 2>& 1
+}
+
+
+if chk4 ctags; then
+	find -type f | xargs \
+		ctags -d --globals --members -T --declarations \
+			-o tags 2> /dev/null
+elif chk4 exuberant-ctags; then
+		exuberant-ctags -f tags --recurse
+else
+	die "No supported ctags utility has been installed!"
+fi

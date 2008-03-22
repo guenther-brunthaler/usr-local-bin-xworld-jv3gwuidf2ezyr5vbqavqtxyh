@@ -1,0 +1,51 @@
+#!/bin/sh
+# Checkout the specified SVK repository at the current directory
+# but don't modify any files in the current directory.
+# This can recover a detached checkout.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/svk-reattach-checkout $
+# $Author: root(xvaio) $
+# $Date: 2006-11-09T04:24:45.948642Z $
+# $Revision: 379 $
+
+
+TMPDIR="~svk_reattach_$$.tmp"
+
+
+die() {
+	echo $@ >& 2
+	exit 1
+}
+
+
+# Args: return_code, cmd, args.
+die_cmd() {
+	local RC
+	RC="$1"; shift
+	die "$@ failed return code $RC!"
+}
+
+
+SVK() {
+	svk $@ || die_cmd $? svk "$@"
+}
+
+
+RM() {
+	rm $@ || die_cmd $? rm "$@"
+}
+
+
+Usage() {
+	echo "Invalid Arguments!" >& 2
+	die "Usage: $0 <checkout-svk-depot-path>"
+}
+
+
+test -e "$TMPDIR" && die "Directory '$TMPDIR' is in the way - remove it!"
+DEPOTPATH="$1"; shift
+test -n "$DEPOTPATH" || Usage
+test -z "$1" || Usage
+SVK checkout "$DEPOTPATH" "$TMPDIR"
+RM --recursive --force "$TMPDIR"
+SVK checkout --relocate "$DEPOTPATH" .

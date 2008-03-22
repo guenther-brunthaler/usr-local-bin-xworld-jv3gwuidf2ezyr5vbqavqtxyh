@@ -1,0 +1,60 @@
+#! /bin/sh
+# Use 'find' and 'sort' to display a list of the
+# most recently used (in terms of 'last access' time)
+# files.
+# The output is intended to be easily parsable and
+# consists of 3 tab-separated columns:
+# * Last access time (sorted most recent file first)
+# * Byte size of the file
+# * file / pathname as returned by find.
+# Arguments: Starting directory for the search.
+# Any additional options (specified after '--')
+# such as "-maxdepth" will be put through to 'find'.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/ls-mru $
+# $Author: root(xtreme) $
+# $Date: 2006-09-29T03:32:52.272892Z $
+# $Revision: 312 $
+
+
+. /usr/local/bin/functions/qin.sh
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	exit 1
+}
+
+reqarg() {
+	local ARG
+	ARG="$1"; shift
+	test -n "$ARG" && return
+	die "Missing required argument - $*!"
+}
+
+
+REMOTE=""
+while true; do
+	case "$1" in
+		--ssh)
+			shift; reqarg "$1" "SSH remote site specification"
+			REMOTE="$1"
+			;;
+		--) shift; break;;
+		-*) die "Invalid option '$1'!";;
+		*) break;;
+	esac
+	shift
+done
+reqarg "$1" "search starting directory"; STARTDIR="$1"; shift
+(
+	if [ -z "$REMOTE" ]; then
+		cd "$STARTDIR" || die "Cannot 'cd' to '$STARTDIR': $!!"
+		find "$@" -type f -printf '%AY-%Am-%AdT%AH:%AM:%AS\t%s\t%p\n'
+	else
+		ssh "$REMOTE" "\
+			cd $(qin "$STARTDIR") && \
+			find $@ -type f -printf \
+				'%AY-%Am-%AdT%AH:%AM:%AS\t%s\t%p\n'"
+	fi
+) | LC_ALL=C sort -rk 1,2

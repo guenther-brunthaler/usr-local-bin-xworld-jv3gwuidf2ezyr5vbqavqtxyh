@@ -1,0 +1,108 @@
+#!/bin/sh
+# Anti-virus scanning script.
+#
+# Invokes all configured anti-virus scanners that
+# are installed on the current system.
+#
+# Recursively scans the current directory if called
+# without any arguments.
+#
+# Otherwise, scans all arguments that are files
+# for viruses. All arguments that are directories
+# are scanned recursively.
+#
+# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
+# $Author: root $
+# $Date: 2006-08-27T09:44:37.131062Z $
+# $Revision: 289 $
+
+LOG_FILE=".vscan/vscan.log"
+OPTIONS="--detect-broken --block-encrypted --block-max --max-files=20000 --max-space=100M --bell -r"
+#
+VERSION='$Revision: 1.14 $'
+while true; do
+	case $1 in
+		--help) OPT_HELP=1;;
+		--version)
+			echo "Version $(
+			echo $VERSION |
+			sed -e 's/[^0-9]*\([0-9]\{1,\}\(\.[0-9]\)*\)[^0-9]*.*/\1/'
+			)"
+			exit
+			;;
+		--verbose) OPT_VERBOSE=1;;
+		--infected) OPT_INFECTED=1;;
+		--pause) OPT_PAUSE=1;;
+		*) break;;
+	esac
+	shift
+done
+while getopts hpiv OPT; do
+	case $OPT in
+		h) OPT_HELP=1;;
+		i) OPT_INFECTED=1;;
+		v) OPT_VERBOSE=1;;
+		p) OPT_PAUSE=1;;
+		?) exit 1;;
+	esac
+done
+shift $(($OPTIND - 1))
+if test $OPT_HELP; then
+	echo "vscan - scan files/directories for malware"
+	echo "Options:"
+	echo "--help, -h: This help"
+	echo "--version: Show version information"
+	echo "--infected, -i: Show only infected files"
+	echo "--pause, -p: Wait for Return key when done"
+	exit
+fi
+test $OPT_INFECTED && OPTIONS="$OPTIONS --infected"
+LOG_FILE=~/$LOG_FILE
+VSCAN_DIR=$(dirname "$LOG_FILE")
+test -d "$VSCAN_DIR" || mkdir -p "$VSCAN_DIR"
+echo "Verlassen Sie den Datei-Betrachter mit 'q'" > "$LOG_FILE"
+echo "oder benutzen Sie die Cursor-Tasten," >> "$LOG_FILE"
+echo "den Dateiinhalt am Bildschirm zu scrollen." >> "$LOG_FILE"
+test $OPT_VERBOSE && echo Executing: /usr/bin/clamscan $OPTIONS --log="$LOG_FILE" "$@"
+/usr/bin/clamscan $OPTIONS --log="$LOG_FILE" "$@"
+RC=$?
+echo
+if [ $RC -eq 0 ]; then
+	echo "*** Alles OK: Keine Viren wurden gefunden."
+else
+	if [ $RC -eq 1 ]; then
+		RC=1
+		echo "********************************"
+		echo "*** EIN VIRUS WURDE GEFUNDEN ***"
+		echo "***  ODER EINE DATEI KONNTE  ***"
+		echo "*** NICHT UNTERSUCHT WERDEN! ***"
+		echo "********************************"
+		echo
+		echo "Auch im letzteren Fall sollten sie der Datei nicht trauen,"
+		echo "da nicht sicher gestellt werden kann dass sie virenfrei ist."
+		echo "(Oft kommt es etwa vor, dass ein Archiv deshalb nicht"
+		echo "untersucht werden kann, da es zu groß oder verschlüsselt ist."
+		echo "Da der Scanner das Archiv dann nicht untersuchen kann, kann"
+		echo "er auch nicht ausschließen, dass der Inhalt verseucht sein"
+		echo "könnte. Daher erfolgt in diesem Fall die obige Meldung,"
+		echo "da die Harmlosigkeit des Inhalts mangels Überprüfbarkeit"
+		echo "nicht garantiert werden kann.)"
+		echo
+		echo "Für den Fall, dass nicht mehr sämtliche Namen aller verseuchten"
+		echo "Dateien am Bildschirm sichtbar sein sollten, können Sie das Log"
+		echo "des Scan-Vorganges einsehen, welches eine Aufstellung aller"
+		echo "verseuchter bzw. problematischer Dateien enthält."
+		echo
+		read -p "Wollen Sie das Log des Scan-Vorganges einsehen [j/N]? "
+		case ${REPLY:0:1} in
+			N | "" | n) ;;
+			*)	clear; less "$LOG_FILE";;
+		esac
+	else
+		RC=2
+	fi
+fi
+if [ -n "$OPT_PAUSE" ]; then
+	read -p "Press [Return] to continue. "
+fi
+exit $RC

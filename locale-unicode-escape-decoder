@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/locale-unicode-escape-decoder $
+# $Author: root(xvaio) $
+# $Date: 2006-08-27T11:02:50.623454Z $
+# $Revision: 254 $
+
+
+while (defined($_= <>)) {
+   s/
+      <U00 ([[:xdigit:]]{2}) >
+   /
+      my $c= pack "H2", $1;
+      my $b= unpack "C", $c;
+      if ( $b < 0x20 || $b >= 0x7f || $c =~ m![<>"']!) {
+         $c= sprintf "<U%04X>", $b;
+      }
+      $c;
+   /gex;
+   print;
+}

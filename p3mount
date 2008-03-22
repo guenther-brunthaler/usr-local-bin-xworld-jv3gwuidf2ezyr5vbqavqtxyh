@@ -1,0 +1,7 @@
+#! /bin/sh
+#
+# Mount or unmount (toggle) encrypted personal directory.
+# Written in 2008 by Guenther Brunthaler.
+
+
+exec encfs-mount --non-empty ~/p/p2/p3

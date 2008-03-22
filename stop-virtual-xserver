@@ -1,0 +1,28 @@
+#! /bin/sh
+# Stops a virtual frame-buffer X11 server, which has been
+# started via "start-virtual-xserver" before.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/stop-virtual-xserver $
+# $Author: root $
+# $Date: 2007-05-14T17:45:08.452368Z $
+# $Revision: 686 $
+
+
+if [ -z "$DISPLAY" ]; then
+	echo "No DISPLAY variable has been set."
+	echo 'Please set up $DISPLAY before running'
+	echo "this script via a statement like"
+	echo '$ DISPLAY=:1'
+	echo '$ export DISPLAY'
+	echo '$ stop-virtual-xserver'
+	echo "assuming your virtual X11-server has been started"
+	echo "on display ':1'."
+	exit 1
+fi
+echo "Stopping virtual frame-buffer X11 server on DISPLAY '$DISPLAY'!"
+# Haha - a one-liner only!
+vncserver -kill "$DISPLAY" || exit
+echo "Don't forget to"
+echo '$ unset DISPLAY'
+echo 'now, because $DISPLAY does no longer refer to an active X11-server'
+echo '(on the SSH-controlled remote machine).'

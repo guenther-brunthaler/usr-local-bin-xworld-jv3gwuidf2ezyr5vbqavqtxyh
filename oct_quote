@@ -1,0 +1,22 @@
+#!/bin/sh
+# Filter which converts all nonprintables except for ASCII LF
+# into C escape sequences.
+# When symlinked to "oct_unquote", converts back again.
+# This tool is very handy for editing emails which
+# use different character encodings in its various MIME parts.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/oct_quote $
+# $Author: root $
+# $Date: 2007-07-13T16:54:21.252864Z $
+# $Revision: 831 $
+
+
+if [ x${0%unquote} = x$0 ]; then
+	perl -pe '
+	  s/([\\\x00-\x09\x0b-\x1f\x7f-\xff])/
+	     sprintf "\\%03o", ord $1
+	  /ge
+	'
+else
+	perl -pe 's/\\(\d{3})/chr oct $1/ge'
+fi

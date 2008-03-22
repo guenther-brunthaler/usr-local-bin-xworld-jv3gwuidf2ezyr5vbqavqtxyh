@@ -1,0 +1,355 @@
+#! /usr/bin/perl -w
+# Rename file name arguments into normalized names.
+# Normalization changes unpretty things, e. g. converting
+# runs of multiple spaces into a single space.
+#
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/normalize-filenames $
+# $Author: root $
+# $Date: 2007-06-15T22:29:59.408273Z $
+# $Revision: 798 $
+
+
+use strict;
+use Getopt::Std;
+
+
+our($app, $opt_N, $opt_C, $opt_X, $opt_m, $opt_l);
+
+
+sub VERSION_MESSAGE {
+   foreach ('$Revision: 798 $', '$Date: 2007-06-15T22:29:59.408273Z $') {
+      my $v= $_;
+      $v =~s/\s*\$\s*//g;
+      print "$v\n";
+   }
+   print "Author: Guenther Brunthaler\n";
+}
+
+
+sub HELP_MESSAGE {
+   print <<".";
+
+$app - normalize file names
+
+Analyzes each provided file name and creates a normalized version of it.
+
+If the normalized version of a file name differs from the file name as it
+is currently present, the file will be renamed into the normalized version
+of its name.
+
+Normalization always has a chance to generate name collisions.
+
+In order to accommodate to that, colliding entries will have an integer
+counter suffix added to their new names, leading to names such as "Picture
+1.jpg", "Picture 2.jpg" etc.
+
+The number of digits in the counter will be chosen so that all names in
+the same collision group will be printed in the right order when sorting
+them by file name.
+
+An undo log file will also be created. This is a shell script which, when
+run, will rename the renamed files back to their original names.
+
+Usage: $app [ <options> ] files ...
+
+where <options> is one or more of:
+
+-N:
+   No test. Really do things. By default, only a simulation of the
+   operation is performed, displaying what would be done.
+   Use this option to actually perform the operations.
+
+-C: 
+   Do not ignore trailing integer indices (such as from previous renames).
+   Otherwise, a name like "A mountain 01.jpg" will be considered the same
+   as "A mountain 14.jpg" or "A mountain.jpg", and all matching names will
+   be assigned new trailing integer indices in order to avoid name
+   collisions.
+
+-X:
+   Do not try to normalize file extensions. If this option is not
+   specified, anything not containing a dot or a blank is considered a
+   filename extension if preceded by a dot optionally being followed by
+   whitespace (optional whitespace may also follow the extension).
+
+   All extensions containing all uppercase characters or such starting
+   with an upper case character and being followed by only lower case
+   characters is assumed to be an un-normalized file name extension, and
+   will be converted to all lower case.
+
+-m:
+   If a word contains a lower case character followed by an upper case
+   character, ". CHECK_THIS " is inserted between the mixed case characters.
+   For instance, "MrSmith" will be converted into "Mr. CHECK_THIS Smith".
+
+-l:
+   Write a log file. Normally, $app does not write
+   a log file of all changes into the current directory.
+   Use this option in order to generate a log file.
+
+.
+   VERSION_MESSAGE;
+}
+
+
+$app= $0;
+$app =~ s!^.*[\\/:]!!;
+$Getopt::Std::STANDARD_HELP_VERSION= 1;
+unless (getopts 'NlCXm') {
+   usage:
+   print STDERR "Run with --help as argument for help.\n";
+   exit 1;
+}
+
+
+{
+   package LogFile;
+   
+   
+   sub new {
+      my(undef, $app)= @_;
+      my($self, @d);
+      local *LOG;
+      @d= localtime;
+      @d= ($d[5] + 1900, $d[4] + 1, @d[reverse 0 .. 3]);
+      $self= bless {
+         name => sprintf "%s-%04u%02u%02u-%02u%02u%02u.log", $app, @d
+      };
+      print "Creating log file '$self->{name}'.\n";
+      open LOG, '>', $self->{name}
+         or die "Could not create '$self->{name}': $!"
+      ;
+      print LOG "# Created by $app on ";
+      printf LOG "%04u-%02u-%02u %02u:%02u:%02u.\n\n", @d;
+      $self->{fh}= *LOG{IO};
+      return $self;
+   }
+   
+   
+   sub print {
+      my $fh= shift()->{fh};
+      print $fh @_;
+   }
+   
+   
+   sub remove_on_close {
+      shift()->{wipe}= 1;
+   }
+   
+   
+   DESTROY {
+      my $self= shift;
+      close $self->{fh} or die "Cannot close log file '$self->{name}': $!";
+      return unless $self->{wipe};
+      print "Removing useless log file '$self->{name}'.";
+      unlink($self->{name}) == 1 or die "Error removing file: $!";
+   }
+}
+
+
+sub wr {
+   $opt_l->print(@_) if $opt_l;
+   print @_;
+}
+
+
+sub ann() {
+   wr "SIMULATION: " unless $opt_N;
+}
+
+
+{
+   package Subst;
+   
+   
+   sub new {
+      return bless {sb => {}, index => int rand 1e4};
+   }
+
+
+   # Returns true if $name is unique and has not been re-routed.
+   # Otherwise returns false and set up a mapping from
+   # the name to a non-existing file system object name.
+   sub unique {
+      my($self, $name)= @_;
+      return 1 unless -e $name;
+      my $nf= "%s.${$}-out_of_way-%u.tmp";
+      my $new;
+      do {
+         $new= sprintf $nf, $name, $self->{index}++;
+      } while -e $new;
+      $self->{sb}->{$name}= $new;
+      return undef;
+   }   
+
+
+   # Forget substitution if it exists.
+   sub forget {
+      my($self, $name)= @_;
+      delete $self->{sb}->{$name};
+   }
+   
+
+   # Returns the re-routed version of $name or $name itself
+   # if it has not been re-routed.
+   sub get {
+      my($self, $name)= @_;
+      return $self->{sb}->{$name} || $name;
+   }
+   
+
+   # This object assumes there will be no re-routed names
+   # left when it is destroyed.
+   # Otherwise, an error will be thrown.
+   DESTROY {
+      my $self= shift;
+      return unless %{$self->{sb}};
+      print STDERR "Unresolved out-of-the-way names left:\n";
+      foreach (sort keys %{$self->{sb}}) {
+         print "File >>>$self->{sb}->{$_}<<<\n";
+      }
+   }
+}
+
+
+sub normalize($) {
+   local $_= shift;
+   # Characters to be normally only followed by a blank.
+   s/(?<=[])}?,;.:!])/ /g;
+   # Characters to be normally only preceded by a blank.
+   s/(?=[{[<(])/ /g;
+   # Characters to be normally preceded and followed by a blank.
+   s?([-+*/^=#<>|&%])? $1 ?g;
+   # Characters separated by a blank.
+   s/(?<=\d)(?=[a-df-z])/ /gi;
+   s/([[:lower:]])([[:upper:]])/$1. CHECK_THIS $2/g if $opt_m;
+   # Remove whitespace between characters that support repetition.
+   s/([-.:;,!?&|+*#])\s+\1/$1$1/g;
+   # Remove whitespace around comma or decimal group separators.
+   s/(\d)\s*([._',])\s*(\d)/$1$2$3/g;
+   # Remove whitespace between opening or closing brackets.
+   s/([{[(<])\s*([{[(<])/$1$2/g;
+   s/([])}>])\s*([])}>])/$1$2/g;
+   # Remove spaces from "[YY]YYMMDD [-:] HHMM[SS]"
+   s/
+      (
+         (?: \D | \b ) (?: \d\d ) \d\d\d\d\d\d
+      )
+      \s* ( [-:] ) \s*
+      (
+         \d\d\d\d (?: \d\d ) (?: \D | \b )
+      )
+   /$1$2$3/gx;
+   # Strip leading and trailing whitespace.
+   s/^\s+|\s+$//g;
+   # Convert runs of whitespace to a single blank.
+   s/\s+/ /g;
+   # Ucase first character at beginning of name containing mixed case.
+   s/^([[:lower:]])/\u$1/ if lc ne uc;
+   # Ucase first character after something like date/time.
+   s/^
+      (
+         # Date.
+         (?: \d\d )? \d\d # Year.
+         -? \d\d # Month.
+         -? \d\d # Day.
+         # Time.
+         (?:
+            [-\s_]
+            \d\d # Hours.
+            [-:]? \d\d # Minutes.
+            (?:
+               [-:]? \d\d # Seconds.
+               (?:
+                  [-:,.]? \d+ # Fraction of seconds.
+               )?
+            )?
+         )?
+         # Separator.
+         \s+
+      )
+      ([[:lower:]])
+   /$1\u$2/x;
+   return $_;
+}
+
+
+sub mv($$) {
+   my($old, $new)= @_;
+   ann; wr qq'Renaming\n\tfrom "$old"\n\tinto "$new"...\n';
+   return unless $opt_N;
+   if ($old eq $new) {
+      die "Cannot rename a file into itself!";
+   }
+   rename $old, $new or die "Rename operation failed return code $?";
+}
+
+
+my(%f);
+srand 42 unless $opt_N;
+{
+   my($new, $ext, $bn, $ppfx);
+   # $f{$NEW_NAME}->[$INDEX] == $OLD_NAME
+   # Determine collision groups.
+   foreach my $old (@ARGV) {
+      # Separate path prefix from file name.
+      ($ppfx, $bn)= $old =~ m!^((?:.*/)?)([^/]*)$!;
+      # Separate basename from filename extension.
+      ($bn, $ext)= $bn =~ /^
+         \s* (.*?) # Base name.
+         (?:
+            \s* [.] \s*
+            ( [^.\s]+?  ) # Extension.
+         )?
+         \s*
+      $/x;
+      # Normalize extension.
+      if (
+         $ext && $ext =~ /^
+            (?:
+               [[:upper:]] [^[:upper:]]*
+               | [^[:lower:]]+
+            )
+         $/x 
+      ) {
+         $ext= lc $ext unless $opt_X;
+      }
+      $ext= $ext ? ".$ext" : '';
+      # Normalize basename.
+      $bn =~ s/\s+\d{1,6}$// unless $opt_C;
+      $bn= normalize $bn;
+      $new= $ppfx . $bn . $ext;
+      # Add to collision group.
+      push @{$f{$new}||= []}, $old;
+   }
+}
+# Remove collision groups that would have no effect.
+{
+   my($ar);
+   foreach my $k (keys %f) {
+      delete $f{$k} if @{$ar= $f{$k}} == 1 && $ar->[0] eq $k;
+   }
+}
+# Set up the log file, if any.
+$opt_l and $opt_l= new LogFile($app);
+# Rename.
+{
+   my($ar, $f, $old, $new, $i);
+   my $r= 0;
+   my $oow= new Subst;
+   foreach my $k (sort keys %f) {
+      $f= @{$ar= $f{$k}};
+      $f= '%s' . ($f == 1 ? '' : sprintf ' %%0%uu', length $f);
+      for ($i= 0; $i < @$ar; ++$i) {
+         $new= sprintf $f, $k, $i + 1;
+         $old= $ar->[$i];
+         unless ($oow->unique($new)) {
+            mv $new, $oow->get($new); ++$r;
+         }
+         mv $oow->get($old), $new; ++$r;
+         $oow->forget($old);
+      }
+   }
+   ann; wr sprintf "%u file(s) have been renamed.\n", $r;
+   $opt_l->remove_on_close if $opt_l && $r == 0;
+}

@@ -1,0 +1,292 @@
+#! /bin/cat
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/diff-smart $
+# $Author: root $
+# $Date: 2007-11-12T07:18:34.361398Z $
+# $Revision: 1028 $
+
+
+. /etc/importer_jh7tgj4vn9zxp88l71gv42837.sh \
+	args_7zka1ij3mnldphmival237bjm \
+	diff_files_654jerb60jqt2i7xm14i7758l \
+	counter_1y5wtbsy6v2bu0nen60b3b40u
+alias die=die_jl7xc8yjv2lcb8xksvymhtyuq
+alias inc=inc_hy0qesn34fgp06q2l4miiubg0
+alias varget=varget_f850dx2dyn4idhk23vt4hgeu2
+
+
+alias usage=usage_egefmn125cfgw7w3i8rzmxlbt
+usage() {
+	cat <<- "."
+	diff-smart - 2 and 3-way diff using the best tool
+
+	Starts the best tool available for displaying the
+	differences between two or three files.
+
+	Usage: diff-smart [ options ] <old> <new> [ <foreign_new> ]
+
+	<old>:
+	  The old version of the file to be compared.
+	  If the files to be compared have no inheritance
+	  relationship, this is just the first file to be compared.
+
+	<new>:
+	  The new version of the file to be compared.
+	  If the files to be compared have no inheritance
+	  relationship, this is just the second file to be compared.
+
+	<foreign_new>:
+	  The alternative new version of the file to be compared,
+	  obtained from some other source.
+	  If the files to be compared have no inheritance
+	  relationship, this is just the third file to be compared.
+	  If this argument is missing, a conventional 2-way
+	  comparison is made.
+	  If this argument is present, a 3-way comparison is made.
+
+	options:
+
+	--text-only, --no-gui, -t:
+	  Disable GUI mode even if it is available.
+	--batch, -b: No interactivity at all. Implies --text-only.
+	--always-interactive, --pager, -p:
+	  Use a pager for output even if not necessary.
+	--help, -h: Display this help text.
+	--verbose, -v: Verbose operation.
+	--dry-run, --simulate, -n:
+	  Just print what would be done, but don't actually
+	  do anything.
+
+	Return values:
+
+	0: Comparison successful; whether or not there have been
+	differences.
+
+	1: An error occurred.
+
+	The tools will return a status code of 2 if any errors
+	occur during processing.
+
+	Version 1.0
+	Written by Guenther Brunthaler in 2007.
+.
+}
+
+
+alias opt_init=opt_init_nxg9y27hhl9xfsvcdb2wy8t4d
+opt_init() {
+	state_u782ks4rvwlczrbrmj4t767z8=1
+}
+
+
+# Internally used.
+alias _setcopts=_setcopts_q4wb00llhjxm3sylr75veg1pj
+_setcopts() {
+	copts_2j7sazd28fhngbyjbq15jj2ua=$COPT
+}
+
+
+# Internally used.
+# $ST: Current automaton state.
+# $NARGS: Caller's $#.
+# $ARG: Caller's "$1".
+# $RET: To be set to the contents for caller's result variable.
+_opt_parse1_nwf85sfi5c7gvnswwx5bjtkjn() {
+	local COPTS TAIL
+	while true; do
+		case "$ST" in
+			"")	ST=1;; # Check default case.
+			1) 	die "opt_unknown() has not been" \
+					"called in the default case of" \
+					"the opt_parse() loop as required!"
+				;;
+			2) 	# We are scanning for named options.
+				# We don't have $COPTS.
+				if test $NARGS -eq 0; then
+					ST=30
+					continue
+				fi
+				case "$ARG" in
+					-?*) # "-x", "--xxx", or "--".
+						COPTS="$ARG"
+						_setcopts
+						inc ST
+						;;
+					*) # Not a named option.
+						ST=40
+					 	;;
+				esac
+				;;
+			3)	# Get next $ARG from caller.
+				RET=--;	inc ST
+				break
+				;;
+			4)	# Got next $ARG from caller
+				
+				;;
+			30)	# No more arguments in command line.
+				;;
+			40)	# End of named options.
+		esac
+	done
+}
+
+
+unused() {
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch clustering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+
+	case nothing in
+	--) break;; # Must be first!
+	--help | -h) usage_egefmn125cfgw7w3i8rzmxlbt; exit;;
+	--version)
+		# Sychronize this with the usage text!
+		echo "Version 1.0"
+		exit
+		;;
+	--verbose | -v) VERBOSE_NJ8D86MLRKWP22NTPQ23D877T=1;;
+	--dry-run | --simulate | -n)
+		DRY_RUN_0I14GJ9Q9LV1MUZRR636S5MHW=1
+		;;
+	*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+	# Shift off ordinal arguments.
+	#test $# -ge 1 || die "Missing argument - old file!"
+	#test $# -ge 1 && { OLD="$1"; shift; }
+	#test $# -ge 1 || die "Missing argument - new file!"
+	#test $# -ge 1 && { NEW="$1"; shift; }
+	#FOREIGN_NEW="$1"; shift
+	# Check for excess arguments.
+	test $# = 0 || die "Unexpected excess arguments: $*"
+}
+
+
+# Internally used.
+# Scope for simple local variables and no danger
+# of name clashes with caller's result variable.
+_opt_parse0_l2gxdy070zyz9jednanvgipab() {
+	local RET NARGS ARG ST
+	NARGS=$1; ARG=$2
+	ST=$state_u782ks4rvwlczrbrmj4t767z8
+	_opt_parse1_nwf85sfi5c7gvnswwx5bjtkjn
+	state_u782ks4rvwlczrbrmj4t767z8=$ST
+	opt_fnlr9j3su7gd10qll76ejkv8s=$RET
+	test $ST != 0 && return
+	opt_init
+	return 1
+}
+
+
+# Call this repeadedly in a loop, as long as this
+# function returns a success value.
+# $1: Pass in your $#.
+# $2: Pass in your "$1".
+# $3: Pass in the name of the result variable, e. g. "OPT".
+# Within the loop, the result variable must then be
+# checked for taking a proper action:
+# "++": Just shift $1 off the argument list.
+# "-x", "--xxx":
+#   A short or long option has been parsed.
+#   If the option required any arguments, call
+#   opt_arg() for getting them.
+# integer:
+#   The nth ordinal argument has been reached.
+#   "1" means the first ordinal argument.
+#   For each supported ordinal argument, opt_arg()
+#   must be called to get it.
+# Any other value: Just call opt_unknown().
+alias opt_parse=opt_parse_1a07x9i56l6vrsmytp0ehsbty
+opt_parse() {
+	# Don't pollute local namespace.
+	# It could clash with $3 otherwise.
+	local opt_fnlr9j3su7gd10qll76ejkv8s
+	test x"${1%%[0-9]}" = x || die \
+		'opt_parse_1a07x9i56l6vrsmytp0ehsbty()' \
+		'needs $# as $1!'
+	_opt_parse0_l2gxdy070zyz9jednanvgipab "$1" "$2" || return
+	varget "$3" opt_fnlr9j3su7gd10qll76ejkv8s
+}
+
+
+# Fetch an argument off the command line
+# and assign it to variable with name in $1.
+# $2 must contain a short decription of the argument.
+# The argument fetched can be either an option argument
+# or a positional argument.
+alias opt_arg=opt_arg_kttgjmnl1f9rpxuhkhjzeccc3
+opt_arg() {
+	:
+}
+
+
+# Indicate that all required positional arguments have
+# already be fetched, and that any remaining positional
+# arguments will thus be optional ones.
+# Call this only when the last mandatory positional
+# argument has just been fetched and more positional
+# arguments might follow which are considered optional.
+alias opt_sufficient=opt_sufficient_jmzycrq4yvk1uduuz3wcnlid1
+opt_sufficient() {
+	:
+}
+
+
+# Must be called if the return value of opt_parse() is
+# not handled specially by the client.
+# That is, call it as the default case.
+alias opt_unknown=opt_unknown_q7574xgkvxe53nljyx5x0xw54
+opt_unknown() {
+	local ST
+	ST=$state_u782ks4rvwlczrbrmj4t767z8
+	case "$ST" in
+		1)	ST=2;; # Default case verified.
+		4) 	die "opt_parse_1a07x9i56l6vrsmytp0ehsbty() has" \
+				"returned '++' but it wasn't checked for!"
+			;;
+		*) 	die "opt_unknown_q7574xgkvxe53nljyx5x0xw54() has" \
+				"been called in the wrong situation!"
+			;;
+	esac
+	state_u782ks4rvwlczrbrmj4t767z8=$ST
+}
+
+
+# Start of command line processing.
+opt_init
+GUI=--gui
+PAGE=--page
+WAIT=
+if false; then
+while opt_parse $# "$1" OPT; do
+	case "$OPT" in
+		--text-only | --no-gui | -t) GUI=;;
+		--batch | -b) GUI=; PAGE=;;
+		--always-interactive | --pager | -p) PAGE=; WAIT=--wait;;
+		1) opt_arg OLD "old file";;
+		2) opt_arg NEW "new file"; opt_sufficient;;
+		3) opt_arg FOREIGN_NEW "foreign new file";;
+		++) shift;;
+		*) opt_unknown;;
+	esac
+done
+fi
+# End of command line processing.
+for V_fnzd582wj4yn7lik1jtsyqy2l in GUI PAGE WAIT OLD NEW FOREIGN_NEW; do
+	varget VALUE_fnzd582wj4yn7lik1jtsyqy2l $V_fnzd582wj4yn7lik1jtsyqy2l
+	echo -n "Value[$V_fnzd582wj4yn7lik1jtsyqy2l] := "
+	echo "\"$VALUE_fnzd582wj4yn7lik1jtsyqy2l\""
+done
+exit
+diff_files_pil99nq97pgic3ppjqrphlfza \
+	--text $GUI $WAIT $PAGE \
+	-- "$OLD" "$NEW"${FOREIGN_NEW:+ }"$FOREIGN_NEW"

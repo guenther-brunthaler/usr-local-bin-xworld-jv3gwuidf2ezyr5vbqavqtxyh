@@ -1,0 +1,44 @@
+#!/bin/sh
+# Non-recursively create a list of items in the current directory that are
+# *not* under SVK version control.
+# Without the '-n', the SVK property editor for the current directory
+# will also be launched and the list file will be removed after this.
+# Use the '-n' option in order to avoid running the editor and leave
+# the generated list file alone.
+#
+# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
+# $Author: root $
+# $Date: 2006-08-27T09:44:37.131062Z $
+# $Revision: 289 $
+
+
+OUTFILE="svk-ignore"
+
+
+die() {
+	echo "$@" >& 2
+	exit 1
+}
+
+
+svk status --non-recursive | while read L; do
+	L2="${L#\?}"
+	test "$L2" = "$L" && continue
+	while true; do
+		L="${L2# }"
+		test "$L" = "$L2" && break
+		L2="$L"
+	done
+	test "$L" = "$OUTFILE" && continue
+	echo "$L"
+done | sort > "$OUTFILE"
+test $? = 0 || {
+	echo "SVK failed return code $?!"
+	exit 1
+}
+echo "File '$OUTFILE' has been generated."
+test "$1" = "-n" && exit
+test -n "$EDITOR" || die "\$EDITOR is not set!"
+echo "Press [Enter] to edit the current directory's ignore list."
+read DUMMY
+svk propedit svn:ignore . && rm "$OUTFILE"
