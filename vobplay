@@ -88,4 +88,4 @@ while true; do
 	esac
 done
 test -z "$*" && set -- *.VOB
-mplayer -af volume="${VOLUMEBOOST:-20}:1" -aid "${AUDIOLANG:-129}" "$@"
+mplayer -framedrop -af volume="${VOLUMEBOOST:-20}:1" -aid "${AUDIOLANG:-129}" "$@"
