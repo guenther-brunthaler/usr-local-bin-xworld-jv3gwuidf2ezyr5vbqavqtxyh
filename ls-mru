@@ -11,13 +11,13 @@
 # Any additional options (specified after '--')
 # such as "-maxdepth" will be put through to 'find'.
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/ls-mru $
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/xworld/ls-mru $
 # $Author: root(xtreme) $
 # $Date: 2006-09-29T03:32:52.272892Z $
 # $Revision: 312 $
 
 
-. /usr/local/bin/functions/qin.sh
+. /usr/local/bin/xworld/functions/qin.sh
 
 
 die() {

@@ -46,7 +46,7 @@ call_65khet0pxstjidx3e59ig8j3j() {
 	local NS SYSTEM_KEY
 	NS=_65khet0pxstjidx3e59ig8j3j
 	local SUFFIX VERBOSE$NS ST F$NS F
-	. /usr/local/bin/functions/lookup.sh --version 1 \
+	. /usr/local/bin/xworld/functions/lookup.sh --version 1 \
 		SYSTEM_KEY --from system-key
 	if [ "$1" = "--verbose" ]; then
 		VERBOSE_65khet0pxstjidx3e59ig8j3j=1

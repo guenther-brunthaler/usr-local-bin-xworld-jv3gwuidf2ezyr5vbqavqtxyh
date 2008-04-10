@@ -1,6 +1,6 @@
 #!/bin/false
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/functions/lookup.sh $
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/xworld/functions/lookup.sh $
 # $Author: root(xtreme) $
 # $Date: 2006-08-23T03:52:25.392812Z $
 # $Revision: 221 $
@@ -35,7 +35,7 @@
 # parent script was invoked using a relative pathname.
 #
 # Example:
-# . /usr/local/bin/functions/lookup.sh --version 1 \
+# . /usr/local/bin/xworld/functions/lookup.sh --version 1 \
 #	SIZE --into GB LOGNAME
 #
 # will use the key and pathname of the parent script

@@ -1,7 +1,7 @@
 #! /bin/false
 # qin - quote if necessary
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/functions/qin.sh $
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/xworld/functions/qin.sh $
 # $Author: root(xtreme) $
 # $Date: 2006-09-29T03:32:52.272892Z $
 # $Revision: 312 $

@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/get-script-value $
+# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/xworld/get-script-value $
 # $Author: root(xvaio) $
 # $Date: 2006-08-27T11:02:50.623454Z $
 # $Revision: 254 $
 
 
-HELPER="/usr/local/bin/functions/lookup.sh"
+HELPER="/usr/local/bin/xworld/functions/lookup.sh"
 HV=1
 
 
