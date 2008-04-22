@@ -1,0 +1,93 @@
+#! /bin/sh
+# Symlinks installed myspell dictionaries
+# for use with Mozilla Firefox and Thunderbird.
+# Can also be used to update existing symlinks.
+# Will also detect and remove outdated symlinks.
+#
+# Written in 2008 by Guenther Brunthaler
+
+
+# Where to find the installed myspell dictionaries.
+MYSPELLDICTS=/usr/share/myspell
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	exit 1
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<<: return code ${?}!"
+}
+
+
+check_symlink() {
+	local T RM
+	T=`readlink --canonicalize "$1"`
+	if test -f "$T"; then
+		# Remove symlinks to be recreated.
+		test x"${T#$MYSPELLDICTS/}" != x"$T" && RM=1
+	else
+		# Remove outdated symlinks.
+		RM=1
+	fi
+	test -z "$RM" && return
+	run rm "$1"
+}
+
+
+createlinks() {
+	local D N N2 P X COLL BAD CI
+	D=$2
+	N=${1##*/}
+	P=${1%/$N}
+	N=${N%.*}
+	# Collect extensions to be symlinked.
+	set --
+	for X in dic aff; do
+		test -f "$P/$N.$X" && set -- "$@" "$X"
+	done
+	# Mozilla expects ll-CC* names instead of ll_CC* names.
+	N2=`echo "$N" | sed -e 's/_/-/'`
+	# Collision avoidance.
+	CI=1
+	while true; do
+		BAD=
+		for X in "$@"; do
+			if test -e "$D/$N2$COLL.$X"; then
+				BAD=1
+				break
+			fi
+		done
+		test -z "$BAD" && break
+		COLL=$CI
+		CI=`expr $CI + 1`
+		test $COLL = 1 && COLL=
+		COLL=_myspell$COLL
+	done
+	for X in "$@"; do
+		run ln -s "$P/$N.$X" "$D/$N2$COLL.$X"
+	done
+}
+
+
+run test -d "$MYSPELLDICTS"
+# Add more paths to obtain symlinked copies of the
+# myspell dictionaries in the lines below if you want.
+for D in \
+	/usr/lib/mozilla-firefox/dictionaries \
+	/usr/lib/mozilla-thunderbird/dictionaries \
+; do
+	if test -d "$D"; then
+		echo "Symlinking dictionaries into $D..."
+		for L in "$D"/*; do
+			test -L "$L" && check_symlink "$L"
+		done
+		# Match only dictionaries, not thesauri or hyph* files.
+		for DICT in "$MYSPELLDICTS"/[a-z][a-z]_[A-Z][A-Z]*.dic; do
+			test -f "$DICT" && createlinks "$DICT" "$D"
+		done
+	fi
+done
