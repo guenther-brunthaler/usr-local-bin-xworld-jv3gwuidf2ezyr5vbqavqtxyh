@@ -17,9 +17,10 @@
 # $Revision: 289 $
 
 LOG_FILE=".vscan/vscan.log"
-OPTIONS="--detect-broken --block-encrypted --block-max --max-files=20000 --max-space=100M --bell -r"
+OPTIONS="--detect-broken --block-encrypted --max-files=30000\
+ --bell --recursive --detect-pua --max-scansize=300M"
 #
-VERSION='$Revision: 1.14 $'
+VERSION='$Revision: 1.15 $'
 while true; do
 	case $1 in
 		--help) OPT_HELP=1;;
