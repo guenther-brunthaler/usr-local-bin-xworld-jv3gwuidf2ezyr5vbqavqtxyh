@@ -1,0 +1,150 @@
+#! /bin/sh
+# Takes a "series.guards" file and expands a "series" file from it
+# using the "guard" tool.
+# Generates the current host's default FQDN as well as all of
+# its superdomains as symbols for "guard".
+
+
+. /usr/local/bin/xworld/functions/lookup.sh --version 1 \
+	--namespace default_fqdn_7j3gzlr5fqubs0u8t1epwdkkh \
+	FQDN
+
+
+usage() {
+	local APP
+	APP=${0##*/}
+	fmt -w `tput cols` <<- . | less --quit-if-one-screen
+	$APP - create "series" file from "series.guards" template
+
+	$APP takes a "series.guards" file and expands a "series" file from it
+	using the "guard" tool.
+	
+	Usage: $0 [ options ]
+	
+	options:
+
+	--help, -h: Display this help text.
+	
+	--host <fqdn>, --override-host <fqdn>, --machine <fqdn>, -m <fqdn>:
+	Override the fully qualified default domain name of the current host
+	machine, using the specified instead. Useful for testing expansion of
+	the "series.guards" file for a different machine.
+
+	--check, -c: Check the validity of the "series.guards" file instead of
+	expanding the "series" file from it. Will typically detect files that
+	are missing or unused.
+	
+	--version: Display version information.
+
+	The "guard" tool is part of the "quilt" patch queue manager
+	distribution and works like a simple macro preprocessor.
+	
+	In normal operation, $APP runs the "guard" tool, feeding it
+	"series.guards" as input and letting it create "series" as its output.
+	
+	The "series.guards" consists of a list of patch files which might be
+	prefixed with conditions. Those conditions determine whether a patch
+	file is passed through to the "series" file or is discarded on output.
+	
+	The conditions are of the form +symbol, -symbol etc. (see the "guards"
+	documentation for details) which pass through patch filenames
+	depending on whether or not a specific symbol is defined or not.
+	
+	$APP automatically defines a list of symbols to be checked against
+	based on the fully qualified (default) domain name of the host
+	machine.
+	
+	To be more specific, it generates the current host's fully qualified
+	(default) domain name as a symbol, as well as all of its superdomains.
+	
+	For instance, if the current machine has the FQDN
+	"gateway2.mars.hyperspace.example.com", then the following
+	symbols will be defined:
+
+	* gateway2.mars.hyperspace.example.com
+
+	* mars.hyperspace.example.com
+
+	* hyperspace.example.com
+
+	* example.com
+
+	* com
+
+	$APP Version 1.0
+	
+	Written by Guenther Brunthaler in 2008.
+.
+}
+
+
+die() {
+	printf 'ERROR: %s\n' "$*" >& 2
+	exit 1
+}
+
+
+run() {
+	"$@" && return
+	die "Failed executing >>>$*<<<: Return code ${?}!"
+}
+
+
+# Start of command line processing.
+# Define presets.
+CHECK=
+#
+COPTS=
+while true; do
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch clustering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case "$COPT" in
+		--) break;; # Must be first!
+                --help | -h) usage; exit;;
+                --host | --override-host | --machine | -m)
+                	FQDN="$1"; shift
+                	;;
+		--version)
+			# Sychronize this with the usage text!
+			echo "Version 1.0"
+			exit;;
+		--check | -c) CHECK=1;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+# Shift off ordinal arguments.
+test $# -ge 1 && { WORKDIR="$1"; shift; }
+#test $# -ge 1 || die "Missing argument - limit for accumulated sum!"
+#LIMIT="$1"; shift
+# Check for excess arguments.
+test $# = 0 || die "Unexpected excess arguments: $*"
+# End of command line processing.
+
+run test -f series.guards
+set --
+while test -n "$FQDN"; do
+	set -- "$@" "$FQDN"
+	SUPER=${FQDN#*.}
+	if test "$SUPER" = "$FQDN"; then
+		FQDN=
+	else
+		FQDN=$SUPER
+	fi
+done
+if test -n "$CHECK"; then
+	set -- --check "$@"
+else
+	exec > series
+fi
+run guards "$@" < series.guards
