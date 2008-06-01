@@ -1,0 +1,164 @@
+#! /usr/bin/perl -w
+# Sequence number generation tool.
+#
+# Maintains a text file with sequence numbers and
+# returns the next batch of sequence numbers each time
+# it is run.
+#
+# If the file does not exist, it will be created with
+# sequence numbers starting at 1.
+#
+# The file will be locked while it is being updated
+# in order to avoid conflicts of multiple processes
+# run the generator at the same time.
+#
+# (c) 2008 by Guenther Brunthaler
+
+
+{
+   package xfile;
+   
+
+   use Fcntl qw(:flock);
+
+
+   sub new {
+      my($self, $mode, $fname)= @_;
+      $self= bless {fname => $fname}, $self;
+      {
+         local *FH;
+         open FH, $mode, $fname or $self->ioerr( "Could not open");
+         $self->{fh}= *FH{IO};
+      }
+      unless (flock $self->{fh}, LOCK_EX) {
+         close $self->{fh};
+         $self->ioerr("Could not lock");
+      }
+      return $self;
+   }
+   
+   
+   sub ioerr {
+      my($self, $doesnt)= @_;
+      die "$doesnt file '$self->{fname}': $!";
+   }
+
+   
+   DESTROY {
+      my $self= shift;;
+      flock $self->{fh}, LOCK_UN or $self->ioerr("Could not unlock");
+      close $self->{fh} or $self->ioerr("Could not finish writing");
+   }
+   
+   
+   sub seek {
+      my($self, $pos, $whence)= @_;
+      seek $self->{fh}, $pos, $whence
+         or $self->ioerr("Could not seek within")
+      ;
+   }
+   
+   
+   sub readln {
+      my $self= shift;
+      my $line;
+      unless (defined($line= readline $self->{fh})) {
+         $self->ioerr("Could not read a line of text from");
+      }
+      chomp $line;
+      return $line;
+   }
+   
+   
+   sub tell {
+      my $self= shift;
+      my $pos= tell $self->{fh};
+      $self->ioerr("Could not determine position within") unless defined $pos;
+      return $pos;
+   }
+   
+   
+   sub writeln {
+      my $self= shift;
+      my $fh= $self->{fh};
+      print $fh join(" ", @_), "\n"
+         or $self->ioerr("Could not write a line of output to")
+      ;
+   }
+   
+
+   sub autoflush {
+      my $self= shift;
+      my $ofh= select $self->{fh};
+      $|= shift;
+      select $ofh;
+   }
+}
+
+
+sub ceiling {
+   my $num= shift;
+   my $ceil= int $num;
+   ++$ceil if $ceil != $num;
+   return $ceil;
+}
+
+
+sub maxdigits {
+   use constant max_bits => 256;
+   return ceiling(log(2 ** max_bits - 1) / log(10));
+}
+
+
+use Fcntl qw(:seek :DEFAULT);
+
+
+my($npos, $pos, $seq);
+my($seqfile, $count)= @ARGV;
+if (@ARGV < 1 || @ARGV > 2 || ($count||= 1) !~ /^\d+/) {
+   die "Usage: $0 <seqfile> [ <request_count> ]";
+}
+unless (-e $seqfile) {
+   local *FH;
+   if (sysopen FH, $seqfile, O_CREAT | O_EXCL | O_WRONLY, 0660) {
+      close FH or die $!;
+   }
+}
+my $xf= new xfile '+<', $seqfile;
+$xf->seek(0, SEEK_END);
+if ($xf->tell < maxdigits) {
+   $xf->seek(0, SEEK_SET);
+   $xf->writeln('=' x maxdigits);
+   my $app= $0;
+   $app =~ s!.*[/\\:]!!;
+   $xf->writeln("This file is maintained by '$app'.");
+   $xf->writeln;
+   $seq= 0;
+} else {
+   $xf->seek(0, SEEK_SET);
+   $xf->seek($pos= $xf->readln, SEEK_SET);
+   $seq= $xf->readln;
+   $seq =~ s/.*?(?=\d+$)//;
+}
+$xf->seek(0, SEEK_CUR);
+$pos= $xf->tell;
+my $ts= do {
+   my @t= gmtime;
+   sprintf '%04u-%02u-%02u %02u:%02u:%02uZ'
+      , $t[5] + 1900, $t[4] + 1, @t[reverse 0 .. 3]
+   ;
+};
+for (my $index= 1; $index <= $count; ++$index) {
+   $xf->writeln(
+      $ts . ($index == 1 ? "" : " (# $index)")
+      , ++$seq
+   );
+   $xf->seek(0, SEEK_CUR);
+   $npos= $xf->tell;
+   $xf->seek(0, SEEK_SET);
+   $xf->autoflush(1);
+   $xf->writeln($pos);
+   $xf->autoflush(0);
+   $xf->seek($pos= $npos, SEEK_SET);
+   print $seq, "\n";
+}
