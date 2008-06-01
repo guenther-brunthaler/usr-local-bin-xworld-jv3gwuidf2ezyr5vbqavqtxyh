@@ -33,6 +33,9 @@
       {
          local *FH;
          open FH, $mode, $fname or $self->ioerr( "Could not open");
+         if ($opts{-binmode}) {
+            binmode FH or $self->ioerr("Could not turn off translation for");
+         }
          $self->{fh}= *FH{IO};
       }
       unless (flock $self->{fh}, LOCK_EX) {
@@ -130,7 +133,7 @@ unless (-e $seqfile) {
    }
 }
 $/= "\012";
-my $xf= new xfile '+<', $seqfile, -nl => $/;
+my $xf= new xfile '+<', $seqfile, -nl => $/, -binmode => 1;
 $xf->seek(0, SEEK_END);
 if ($xf->tell < maxdigits) {
    $xf->seek(0, SEEK_SET);
