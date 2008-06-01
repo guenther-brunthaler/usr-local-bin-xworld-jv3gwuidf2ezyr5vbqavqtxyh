@@ -12,6 +12,9 @@
 # in order to avoid conflicts of multiple processes
 # run the generator at the same time.
 #
+# Should run on Linux and Windows with the same
+# data file. (Will always be kept in UNIX text format.)
+#
 # (c) 2008 by Guenther Brunthaler
 
 
@@ -23,8 +26,10 @@
 
 
    sub new {
-      my($self, $mode, $fname)= @_;
-      $self= bless {fname => $fname}, $self;
+      my($self, $mode, $fname, %opts)= @_;
+      $self= bless {
+         fname => $fname, nl => $opts{-nl} || "\012"
+      }, $self;
       {
          local *FH;
          open FH, $mode, $fname or $self->ioerr( "Could not open");
@@ -36,8 +41,8 @@
       }
       return $self;
    }
-   
-   
+
+
    sub ioerr {
       my($self, $doesnt)= @_;
       die "$doesnt file '$self->{fname}': $!";
@@ -81,7 +86,7 @@
    sub writeln {
       my $self= shift;
       my $fh= $self->{fh};
-      print $fh join(" ", @_), "\n"
+      print $fh join(" ", @_), $self->{nl}
          or $self->ioerr("Could not write a line of output to")
       ;
    }
@@ -124,7 +129,8 @@ unless (-e $seqfile) {
       close FH or die $!;
    }
 }
-my $xf= new xfile '+<', $seqfile;
+$/= "\012";
+my $xf= new xfile '+<', $seqfile, -nl => $/;
 $xf->seek(0, SEEK_END);
 if ($xf->tell < maxdigits) {
    $xf->seek(0, SEEK_SET);
