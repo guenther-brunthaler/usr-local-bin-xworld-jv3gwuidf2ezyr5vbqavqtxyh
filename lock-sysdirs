@@ -1,53 +1,16 @@
 #! /bin/sh
-
-
-MOUNT_LIST="/usr/local/etc/sysdir_locklist_2zvkhgk9u89qv46s3ws3bfgi0"
-
-
-die() {
-	printf "ERROR: %s\n" "$*" >& 2
-	exit 1
-}
-
-
-run() {
-	"$@" && return
-	die "Could not execute >>>$*<<< return code ${?}!"
-}
-
-
-wr() {
-	if test $# -gt 0; then
-		print '%s\n' "$*" | wr
-	else
-		fmt -w `tput cols`
-	fi
-}
-
-
-wrL() {
-	local LINE
-	while IFS= read -r LINE; do
-		printf "%s\n" "$LINE" | wr
-	done
-}
-
-
 show_version() {
-	local VERSION
-	VERSION=1.0
 	wrL <<-.
-	$SCRIPT version $VERSION
+	$SCRIPT version 1.0
 
 	(c) 2008 by Guenther Brunthaler.
-	May be distributed under the terms of the GPLv3.
+	Distribution is allowed under the terms of the GPLv3.
 .
 }
 
 
 show_help() {
-	LOCK=${SCRIPT#un}
-	UNLOCK=un$LOCK
+	LOCK=${SCRIPT#un}; UNLOCK=un$LOCK
 	{
 	wr <<-.
 	$SCRIPT - lock or unlock system installation directories
@@ -154,9 +117,9 @@ show_help() {
 	
 	Command line options accepted by $SCRIPT:
 		
-	--: Stop parsing for command line options. Any arguments following this option
-	will be interpreted as normal arguments, even if they star with "-" or
-	"--".
+	--: Stop parsing for command line options. Any arguments following
+	this option will be interpreted as normal arguments, even if they
+	start with "-" or "--".
 
 	--help, -h, --usage: Display this help.
 
@@ -165,14 +128,15 @@ show_help() {
 	--lock, -l: Remount the mount points as read-only. This option will be
 	enabled by default if the executable is run using the name "$LOCK".
 
-	--unlock, -u: Remount the mount points as read-write. This option will be
-	enabled by default if the executable is run using the name "$UNLOCK".
+	--unlock, -u: Remount the mount points as read-write. This option will
+	be enabled by default if the executable is run using the name
+	"$UNLOCK".
 	
-	--warn, -w: Force display of warnings which are normally suppressed. For
-	instance, $SCRIPT normally fails when re-mounting as read-write fails,
-	but will not even display a warning when remounting as read-only fails.
-	With --warn, a warning will be displayed if remounting as read-only should
-	fail.
+	--warn, -w: Force display of warnings which are normally suppressed.
+	For instance, $SCRIPT normally fails when re-mounting as read-write
+	fails, but will not even display a warning when remounting as
+	read-only fails. With --warn, a warning will be displayed if
+	remounting as read-only should fail.
 
 	--verbose, -v: Be more verbose.
 	
@@ -201,6 +165,40 @@ show_help() {
 .
 	show_version
 	} | less -F
+}
+
+
+# The file containing the list of system-specific mount points for the local
+# system.
+MOUNT_LIST="/usr/local/etc/sysdir_locklist_2zvkhgk9u89qv46s3ws3bfgi0"
+
+
+die() {
+	printf "ERROR: %s\n" "$*" >& 2
+	exit 1
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<< return code ${?}!"
+}
+
+
+wr() {
+	if test $# -gt 0; then
+		print '%s\n' "$*" | wr
+	else
+		fmt -w `tput cols`
+	fi
+}
+
+
+wrL() {
+	local LINE
+	while IFS= read -r LINE; do
+		printf "%s\n" "$LINE" | wr
+	done
 }
 
 

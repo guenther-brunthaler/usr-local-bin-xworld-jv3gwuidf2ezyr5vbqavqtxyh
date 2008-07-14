@@ -1,0 +1,152 @@
+#! /bin/sh
+show_version() {
+	wrL <<-.
+	$SCRIPT version 1.0
+
+	(c) 2008 by Guenther Brunthaler.
+	Distribution is allowed under the terms of the GPLv3.
+.
+}
+
+
+show_help() {
+	{
+	wr <<-.
+	$SCRIPT - create directories by cloning from a template directory
+	
+	$SCRIPT takes a template directory and a number of directories
+	to be created as arguments. It then creates the requested directories,
+	duplicating the ownership and attributes of the template directory.
+	
+	Without further options, the contents of the template directory
+	are not cloned, though.
+	
+	
+	Usage: $SCRIPT [options] <template_dir> [ <new_dir> ... ]
+
+	<new_dir> ... are the list of directories to be created. Missing
+	intermediate directories will not be created automatically by default,
+	so normally the parent directories must already exist.
+	
+	After each new directory has been created, chmod and chown will
+	be used on it to receive the same owner, group and permissions as
+	the <template_dir>.
+	
+	The directory timestamps are not copied.
+	
+	Caveats: The current version does not know about and thus ignores
+	ACLs.
+	
+	
+	Command line options accepted by $SCRIPT:
+		
+	--: Stop parsing for command line options. Any arguments following
+	this option will be interpreted as normal arguments, even if they
+	start with "-" or "--".
+
+	--help, -h, --usage: Display this help.
+
+	--version, -V: Show version information.
+
+	
+	"Switch clustering" for short-options (single-dash options) is
+	supported. For instance, when specifying two separate options "-x" and
+	"-y", the combined option argument "-xy" means exactly the same thing.
+
+	
+	Return status codes:
+	
+	$SCRIPT will return a status code of 0 for successful operation.
+	
+	It will return a status code of 1 for all severe failures.
+
+
+.
+	show_version
+	} | less -F
+}
+
+
+die() {
+	printf "ERROR: %s\n" "$*" >& 2
+	exit 1
+}
+
+
+wr() {
+	if test $# -gt 0; then
+		print '%s\n' "$*" | wr
+	else
+		fmt -w `tput cols` || cat
+	fi
+}
+
+
+wrL() {
+	local LINE
+	while IFS= read -r LINE; do
+		printf "%s\n" "$LINE" | wr
+	done
+}
+
+
+require_arg() {
+	local ARGC; ARGC=$1; shift
+	test $ARGC -eq 0 && die "Missing argument: $*!"
+}
+
+
+SCRIPT=${0##*/}
+COPTS=
+while true; do
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch clustering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case "$COPT" in
+		--) break;; # Must be first!
+		--help | -h | --usage) show_help; exit;;
+		--version | -V) show_version; exit;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+require_arg $# "Path to the template directory"; TEMPLATE=$1; shift
+test -d "$TEMPLATE" && test -x "$TEMPLATE" \
+	|| die "Template directory '$TEMPLATE' is inaccessible!"
+PERMS=`stat -L -c '%a' "$TEMPLATE"` \
+	&& OWNERS=`stat -L -c '%u:%g' "$TEMPLATE"` \
+	|| die "Cannot read attributes of template directory!"
+while test $# -gt 0; do
+	NEWDIR=$1; shift
+	test x"$NEWDIR" = x"/" && die "Cannot create the root directory!"
+	test -z "$NEWDIR" && die "Cannot create empty directory name!"
+	while test x"${NEWDIR%/}" != x"$NEWDIR"; do
+		NEWDIR=${NEWDIR%?}
+	done
+	if test x"${NEWDIR#/}" = x"$NEWDIR"; then
+		# Make relative path absolute.
+		NEWDIR=`pwd`/$NEWDIR
+	fi
+	BASENAME=${NEWDIR##*/}
+	PARENT=${NEWDIR%/$BASENAME}
+	test -z "$PARENT" && PARENT="/"
+	test -d "$PARENT" && test -x "$PARENT" \
+		|| die "Inacessible parent directory '$PARENT'!"
+	test -e "$NEWDIR" && \
+		die "File system object with name '$NEWDIR' already exists!"
+	mkdir -m "$PERMS" "$NEWDIR" \
+		|| die "Could not create directory '$NEWDIR'" \
+			"with mode $PERMS!"
+	chown "$OWNERS" "$NEWDIR" \
+		|| die "Could not change owner:group for directory" \
+			"'$NEWDIR' into $OWNERS!"
+done
