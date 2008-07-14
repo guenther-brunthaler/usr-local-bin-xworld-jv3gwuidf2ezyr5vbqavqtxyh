@@ -1,0 +1,286 @@
+#! /bin/sh
+
+
+MOUNT_LIST="/usr/local/etc/sysdir_locklist_2zvkhgk9u89qv46s3ws3bfgi0"
+
+
+die() {
+	printf "ERROR: %s\n" "$*" >& 2
+	exit 1
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<< return code ${?}!"
+}
+
+
+wr() {
+	if test $# -gt 0; then
+		print '%s\n' "$*" | wr
+	else
+		fmt -w `tput cols`
+	fi
+}
+
+
+wrL() {
+	local LINE
+	while IFS= read -r LINE; do
+		printf "%s\n" "$LINE" | wr
+	done
+}
+
+
+show_version() {
+	local VERSION
+	VERSION=1.0
+	wrL <<-.
+	$SCRIPT version $VERSION
+
+	(c) 2008 by Guenther Brunthaler.
+	May be distributed under the terms of the GPLv3.
+.
+}
+
+
+show_help() {
+	LOCK=${SCRIPT#un}
+	UNLOCK=un$LOCK
+	{
+	wr <<-.
+	$SCRIPT - lock or unlock system installation directories
+	
+	$SCRIPT allows to re-mount a list of already-mounted filesystems as
+	read-only or re-write, while leaving any other mount options
+	untouched.
+	
+	$SCRIPT is very handy if, for instance, your /usr filesystem is normally
+	mounted as read-only and you want to install new applications to /usr.
+	In this case you can use $SCRIPT to re-mount /usr as read-write, and later
+	re-mount it back to read-only as before. For example:
+.
+	wrL <<-.
+	
+	# ./configure PREFIX=/usr
+	# make
+	# $UNLOCK /usr
+	# make install
+	# $LOCK /usr
+.
+	wr <<-.
+	
+	But typically, /usr will be part of the system list for $LOCK and
+	$UNLOCK of mountpoints to be remounted by default anyway, and thus the
+	above example can be simplified even further to:
+.
+	wrL <<-.
+	
+	# ./configure PREFIX=/usr
+	# make
+	# $UNLOCK
+	# make install
+	# $LOCK
+.
+	wr <<-.
+	
+	$SCRIPT does my no means intend to replace "mount". Instead, it is
+	just a wrapper around "mount" which tries to make read-only/read-write
+	re-mounting as easy as possible to the administrator or end user (for
+	"user" mounts).
+.
+	wrL <<-.
+	
+	Usage: $LOCK [options] [ <mountpoint> ... ]
+	       $UNLOCK [options] [ <mountpoint> ... ]
+.
+	wr <<-.
+
+	$LOCK and $UNLOCK are the same executable, the only difference is that
+	$LOCK defaults to option "--lock" (see below), while $UNLOCK defaults
+	to option --unlock.
+	
+	In the following, $SCRIPT is used to refer to the name of the
+	executable.
+	
+	$SCRIPT accepts a list of mount points as its argument. If no
+	arguments are specified, a system-defined list of default mount points
+	are used instead.
+	
+	$SCRIPT then examines any of those mount points, and for those of them
+	which are actually mounted, tries to re-mount them as read-only or
+	read-write according to the effective --lock or --unlock settings.
+	
+	As it is a common problem that mount points which have open files
+	cannot be re-mounted read-only, $SCRIPT will silently ignore
+	failed attempts when trying to do so.
+	
+	The predefined list of system-defined mount points will have been
+	chosen in such a way that --unlock allows to install new software
+	into system directories, while --lock will disallow this.
+	
+	For instance, file systems like /usr and /opt are likely candicates
+	for the system-defined list of mount points to be examined.
+	
+	The system-defined list will be read from file "$MOUNT_LIST". Its
+	contents for the local system are (one mount point entry per line):
+
+.
+	if test -f "$MOUNT_LIST"; then
+		sed -e 's/^/  /' < "$MOUNT_LIST" | wrL || {
+			wr "(Cannot read file contents.)"
+		}
+	else
+		wr "(File not present on this system.)"
+	fi
+	wr <<-.
+	
+	The <mountpoint> arguments, if specified, override the contents of the
+	system-defined default mount point list.
+	
+	The specified mount points, whether given as command line arguments or
+	taken from the system-defined default list, will be checked to be
+	actually accessible.
+	
+	If a mount point turns out to be inaccessible, a warning will be
+	displayed, but processing will continue with the remaining mount
+	points and the command will not exit with a return code indicating a
+	failure.
+	
+	It is allowed to use symlinks for mount points; $SCRIPT will fully
+	resolve any symlinks before actually using them.
+	
+	
+	Command line options accepted by $SCRIPT:
+		
+	--: Stop parsing for command line options. Any arguments following this option
+	will be interpreted as normal arguments, even if they star with "-" or
+	"--".
+
+	--help, -h, --usage: Display this help.
+
+	--version, -V: Show version information.
+
+	--lock, -l: Remount the mount points as read-only. This option will be
+	enabled by default if the executable is run using the name "$LOCK".
+
+	--unlock, -u: Remount the mount points as read-write. This option will be
+	enabled by default if the executable is run using the name "$UNLOCK".
+	
+	--warn, -w: Force display of warnings which are normally suppressed. For
+	instance, $SCRIPT normally fails when re-mounting as read-write fails,
+	but will not even display a warning when remounting as read-only fails.
+	With --warn, a warning will be displayed if remounting as read-only should
+	fail.
+
+	--verbose, -v: Be more verbose.
+	
+	"Switch clustering" for short-options (single-dash options) is
+	supported. For instance, when specifying two separate options "-v" and
+	"-u", the combined option argument "-vu" means exactly the same thing.
+
+	
+	Return status codes:
+	
+	$SCRIPT will return a status code of 0 for normal operation even in
+	the case of benign warnings such as non-existing mount-points or
+	failure to re-mount a read-write mount as read-only.
+	
+	It will return a status code of 1 for all severe failures, such as the
+	inability to re-mount an already-mounted read-only filesystems as
+	read-write.
+	
+	For instance, a custom script installing software which uses $SCRIPT
+	should not continue if /usr could not be re-mounted read-write. But it
+	is usually a lesser problem if it was not possible to re-mount /usr as
+	read-only after successful installation, because some files might
+	still be locked on /usr by other processes.
+
+
+.
+	show_version
+	} | less -F
+}
+
+
+inform() {
+	test -z "$VERBOSE" && return
+	printf "Info: %s\n" "$*" | wr >& 2
+}
+
+
+warn() {
+	printf "Warning: %s\n" "$*" | wr >& 2
+}
+
+
+VERBOSE=
+FORCE_WARNINGS=
+WANT=ro
+SCRIPT=${0##*/}
+test x"${SCRIPT#unlock}" != x"$SCRIPT" && WANT=rw
+COPTS=
+while true; do
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch clustering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case "$COPT" in
+		--) break;; # Must be first!
+		--help | -h | --usage) show_help; exit;;
+		--version | -V) show_version; exit;;
+		--verbose | -v) VERBOSE=1;;
+		--lock | -l) WANT=ro;;
+		--warn | -w) FORCE_WARNINGS=1;;
+		--unlock | -u) WANT=rw;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+if test $# -eq 0; then
+	set --
+	while IFS=: read MP; do
+		set -- "$@" "$MP"
+	done < "$MOUNT_LIST" || exit 1
+	test $# -eq 0 && die "Empty system default mountpoint list!"
+fi
+WANT_LONG="read-write"
+test x"$WANT" = x"ro" && WANT_LONG="read-only"
+PAT=
+while test $# -gt 0; do
+	DIR=$1; shift
+	test -d "$DIR" && test -r "$DIR" && test -x "$DIR" || {
+		warn "Directory "$DIR" is inaccessible."
+		continue
+	}
+	PAT="$PAT\\|"`readlink --canonicalize "$DIR"`
+done
+cat /proc/mounts | sed -e '
+	\: \('"$PAT"'\) :{
+		s/^\([^ ]*\) .* \([^ ]*\) [0-9]* [0-9]*$/\1 \2/
+		s/ \([^ ]*,\)\?\(r[ow]\)\(,[^ ]*\)\?$/:\2/
+		t
+	}
+	d
+' | while IFS=: read DEV STATE
+do
+	test x"$STATE" = x$WANT && continue
+	inform "Re-mounting $DEV as $WANT_LONG..."
+	MSG=`mount -o "remount,$WANT" "$DEV" 2>& 1 > /dev/null` || {
+		MSG="Re-mounting as $WANT_LONG failed ($MSG)!"
+		test x"$WANT" = x"rw" && die $MSG
+		if test -n "$VERBOSE" || test -n "$FORCE_WARNINGS" ; then
+			warn $MSG
+		fi
+	}
+done
+inform "Done examining mount points for possible re-mounting."
