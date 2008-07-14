@@ -1,0 +1,65 @@
+#! /bin/false
+# *Source* this; not execute!
+# Accepts a $PATH-like list of paths as argument,
+# and adds any missing components to $SANDBOX_WRITE
+
+
+# fdecl <fdeclname>
+alias fdecl=fdecl_grfxx2nkajl22uyl8he2w3w10
+names_grfxx2nkajl22uyl8he2w3w10=fdecl
+fdecl() {
+	alias $1=${1}_grfxx2nkajl22uyl8he2w3w10
+	names_grfxx2nkajl22uyl8he2w3w10="$names_grfxx2nkajl22uyl8he2w3w10 $1"
+}
+
+
+fdecl addwrite
+addwrite() {
+	local NEW OIFS
+	NEW=$1
+	OIFS=$IFS; IFS=:; set --:$SANDBOX_WRITE; IFS=$OIFS
+	while test $# -gt 0; do
+		test x"$NEW" = x"$1" && return
+		shift
+	done
+	SANDBOX_WRITE=$SANDBOX_WRITE${SANDBOX_WRITE:+:}$NEW
+}
+
+
+fdecl main
+main() {
+	test x"$1" = x"add" && test x"$2" = x"write" || {
+		echo "Usage: . modify-sandbox-pathlist" \
+			"add write \"\$PATH_LIST_VAR\""
+		return 1
+	}
+	shift; shift
+	local IFS P
+	IFS=:
+	for P in $*; do
+		test -d "$P" || continue
+		addwrite "$P"
+	done
+}
+
+
+shrt0_grfxx2nkajl22uyl8he2w3w10() {
+	local rc_grfxx2nkajl22uyl8he2w3w10
+	main "$@"
+	rc_grfxx2nkajl22uyl8he2w3w10=$?
+	set -- $names_grfxx2nkajl22uyl8he2w3w10
+	unset names_grfxx2nkajl22uyl8he2w3w10
+	local FN
+	for FN in "$@"; do
+		unset -f "${FN}_grfxx2nkajl22uyl8he2w3w10"
+		unalias "$FN"
+	done
+}
+
+
+if shrt0_grfxx2nkajl22uyl8he2w3w10 "$@"; then
+	unset -f shrt0_grfxx2nkajl22uyl8he2w3w10
+else
+	unset -f shrt0_grfxx2nkajl22uyl8he2w3w10
+	false
+fi
