@@ -1,7 +1,8 @@
 #! /bin/false
 # *Source* this; not execute!
 # Accepts a $PATH-like list of paths as argument,
-# and adds any missing components to $SANDBOX_WRITE
+# and adds any missing components to $SANDBOX_WRITE.
+# Before doing anything else, removes $HOME from write list.
 
 
 # fdecl <fdeclname>
@@ -10,6 +11,19 @@ names_grfxx2nkajl22uyl8he2w3w10=fdecl
 fdecl() {
 	alias $1=${1}_grfxx2nkajl22uyl8he2w3w10
 	names_grfxx2nkajl22uyl8he2w3w10="$names_grfxx2nkajl22uyl8he2w3w10 $1"
+}
+
+
+fdecl removewrite
+removewrite() {
+	local DEL NEW OIFS
+	DEL=$1
+	OIFS=$IFS; IFS=:; set --:$SANDBOX_WRITE; IFS=$OIFS
+	while test $# -gt 0; do
+		test x"$1" != x"$DEL" && NEW=$NEW${NEW:+:}$1
+		shift
+	done
+	SANDBOX_WRITE=$NEW
 }
 
 
@@ -35,6 +49,7 @@ main() {
 	}
 	shift; shift
 	local IFS P
+	removewrite "$HOME"
 	IFS=:
 	for P in $*; do
 		test -d "$P" || continue
@@ -43,23 +58,26 @@ main() {
 }
 
 
-shrt0_grfxx2nkajl22uyl8he2w3w10() {
-	local rc_grfxx2nkajl22uyl8he2w3w10
+# Snippet low-level runtime.
+snrt0_grfxx2nkajl22uyl8he2w3w10() {
+	local snrt0rc_grfxx2nkajl22uyl8he2w3w10
 	main "$@"
-	rc_grfxx2nkajl22uyl8he2w3w10=$?
+	snrt0rc_grfxx2nkajl22uyl8he2w3w10=$?
 	set -- $names_grfxx2nkajl22uyl8he2w3w10
 	unset names_grfxx2nkajl22uyl8he2w3w10
-	local FN
-	for FN in "$@"; do
-		unset -f "${FN}_grfxx2nkajl22uyl8he2w3w10"
-		unalias "$FN"
+	local FnctnNm
+	for FnctnNm in "$@"; do
+		unset -f "${FnctnNm}_grfxx2nkajl22uyl8he2w3w10"
+		unalias "$FnctnNm"
 	done
+	return $snrt0rc_grfxx2nkajl22uyl8he2w3w10
 }
 
 
-if shrt0_grfxx2nkajl22uyl8he2w3w10 "$@"; then
-	unset -f shrt0_grfxx2nkajl22uyl8he2w3w10
+# Invoke snippet low-level runtime.
+if snrt0_grfxx2nkajl22uyl8he2w3w10 "$@"; then
+	unset -f snrt0_grfxx2nkajl22uyl8he2w3w10
 else
-	unset -f shrt0_grfxx2nkajl22uyl8he2w3w10
+	unset -f snrt0_grfxx2nkajl22uyl8he2w3w10
 	false
 fi
