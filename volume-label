@@ -1,0 +1,159 @@
+#! /bin/sh
+show_version() {
+	wrL <<-.
+	$SCRIPT version 1.0
+
+	(c) 2008 by Guenther Brunthaler.
+	Distribution is allowed under the terms of the GPLv3.
+.
+}
+
+
+show_help() {
+	{
+	wr <<-.
+	$SCRIPT - show or change filesystem volume label
+
+	$SCRIPT displays or replaces the volume label of a volume containing
+	one of the following supported file systems: $FILESYSTEMS.
+	
+
+	Usage: $SCRIPT [ options... ] <device> [ <new_label> ]
+
+	The first argument to $SCRIPT must always be a block device containing
+	one of the supported file systems.
+	
+	If no second argument is provided, the volume label of the volume on
+	that device will be displayed.
+	
+	Otherwise, if a second argument is provided, it will be set as the new
+	volume label.
+	
+	
+	Command line options accepted by $SCRIPT:
+		
+	--: Stop parsing for command line options. Any arguments following
+	this option will be interpreted as normal arguments, even if they
+	start with "-" or "--".
+
+	--help, -h, --usage: Display this help.
+
+	--version, -V: Show version information.
+
+	
+	"Switch clustering" for short-options (single-dash options) is
+	supported. For instance, when specifying two separate options "-x" and
+	"-y", the combined option argument "-xy" means exactly the same thing.
+
+	
+	Return status codes:
+	
+	$SCRIPT will return a status code of 0 for successful operation.
+	
+	It will return a status code of 1 for all severe failures.
+
+
+.
+	show_version
+	} | less -F
+}
+
+
+die() {
+	printf "ERROR: %s\n" "$*" >& 2
+	exit 1
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>$*<<< failed return code ${?}!"
+}
+
+
+wr() {
+	if test $# -gt 0; then
+		print '%s\n' "$*" | wr
+	else
+		fmt -w `tput cols` || cat
+	fi
+}
+
+
+wrL() {
+	local LINE
+	while IFS= read -r LINE; do
+		printf "%s\n" "$LINE" | wr
+	done
+}
+
+
+require_arg() {
+	local ARGC; ARGC=$1; shift
+	test $ARGC -eq 0 && die "Missing argument: $*!"
+}
+
+
+FILESYSTEMS="VFAT, NTFS, ext2, ext3, JFS, XFS, ReiserFs"
+SCRIPT=${0##*/}
+COPTS=
+while true; do
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch clustering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case "$COPT" in
+		--) break;; # Must be first!
+		--help | -h | --usage) show_help; exit;;
+		--version | -V) show_version; exit;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+require_arg $# "Path to the device node"; DEV=$1; shift
+NEW_LABEL=$1; shift
+test $# -eq 0 || die "Too many arguments!"
+test -b "$DEV" || die "'$DEV' is not a block device!"
+case `vol_id --type "$DEV"` in
+	vfat)	if test -n "$NEW_LABEL"; then
+			run mlabel -i "$DEV" ::"$NEW_LABEL"
+		fi
+		run mlabel -i "$DEV" -s ::
+		;;
+	ntfs)	if test -n "$NEW_LABEL"; then
+			run ntfslabel "$DEV" "$NEW_LABEL"
+		fi
+		run ntfslabel "$DEV"
+		;;
+	ext[23])
+		if test -n "$NEW_LABEL"; then
+			run e2label "$DEV" "$NEW_LABEL"
+		fi
+		run e2label "$DEV"
+		;;
+	jfs)	if test -n "$NEW_LABEL"; then
+			run jfs_tune -L "$DEV" "$NEW_LABEL"
+		fi
+		run jfs_tune -l "$DEV"
+		;;
+	xfs)	if test -n "$NEW_LABEL"; then
+			run xfs_admin -L "$DEV" "$NEW_LABEL"
+		fi
+		run xfs_admin -l "$DEV"
+		;;
+	reiserfs)
+		if test -n "$NEW_LABEL"; then
+			run reiserfstune -l "$DEV" "$NEW_LABEL"
+		fi
+		run vol_id --label "$DEV"
+		;;
+	*) die "'$DEV' does not contain any of the supported file systems!";;
+esac
