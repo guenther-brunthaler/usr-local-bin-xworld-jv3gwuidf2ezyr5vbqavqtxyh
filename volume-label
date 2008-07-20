@@ -122,7 +122,7 @@ require_arg $# "Path to the device node"; DEV=$1; shift
 NEW_LABEL=$1; shift
 test $# -eq 0 || die "Too many arguments!"
 test -b "$DEV" || die "'$DEV' is not a block device!"
-case `vol_id --type "$DEV"` in
+case `vol_id --type "$DEV" 2> /dev/null` in
 	vfat)	if test -n "$NEW_LABEL"; then
 			run mlabel -i "$DEV" ::"$NEW_LABEL"
 		fi
@@ -155,5 +155,16 @@ case `vol_id --type "$DEV"` in
 		fi
 		run vol_id --label "$DEV"
 		;;
-	*) die "'$DEV' does not contain any of the supported file systems!";;
+	"")
+		die "'$DEV' does not contain any" \
+			"of the supported file systems!"
+		;;
+	*)
+		if test -z "$NEW_LABEL"; then
+			vol_id --label "$DEV"
+		else
+			die "'$DEV' does not contain any" \
+				"of the supported file systems!"
+		fi
+		;;
 esac
