@@ -1,0 +1,95 @@
+#! /usr/bin/perl -w
+# Parse Gentoo package references from standard input.
+# (C) 2008 by Guenther Brunthaler.
+# This script is free software and can
+# be distributed under the terms of the GPLv3.
+
+
+use strict;
+
+
+my @keys= qw/ALL PFX CAT NAME VER REV/;
+my($key, $value, $tpl, $out);
+if (@ARGV == 0)  {$tpl= "ALL"}
+elsif (
+   @ARGV != 1 || do {
+      $tpl= shift;
+      my $rc= 1;
+      foreach (@keys) {
+         if ($tpl =~ /(?:(?<=[^A-Z])|^)$_(?:(?=[^A-Z])|$)/) {
+            undef $rc;
+            last;
+         }
+      }
+      $rc;
+   }
+) {
+   print STDERR
+        "Usage: <template-string>\n"
+      , "where the template string may contain any of the\n"
+      , "key sybols which will be expanded:\n"
+      , join(", ", @keys), ".\n"
+   ;
+   exit 1;
+}
+while (defined($_= <>)) {
+   while (
+      /
+         \G .*?
+         ( # $1.
+            (?:
+               # Optional prefix and category.
+               (?:
+                  # Comparison prefixes.
+                  ( # $2.
+                     < | <= | = | >= | >
+                  )
+               )?
+               ( # $3.
+                  # Category.
+                  [a-zA-z0-9+_] [-a-zA-z0-9+_]*
+               )
+               \/
+            )?
+            ( # $4.
+               # Package base name.
+               (?: [a-zA-z0-9+_] [-a-zA-z0-9+_]*? )?
+               [a-zA-z0-9+_]
+            )
+            # Optional "-version-revision"-part.
+            (?:
+               -
+               ( # $5.
+                  # Package version.
+                  (?: cvs \. )?
+                  # Main part of version number.
+                  \d+ (?: \. \d+ )*
+                  [a-z]?
+                  (?: _ (?: pre | p | beta | alpha | rc ) \d* )*
+               )
+               # Option -r revision suffix.
+               (?:
+                  # Revision $rev.
+                  -
+                  ( # $6.
+                     r \d+
+                  )
+               )?
+            )?
+            # Terminator.
+            (?: (?= [^-+_[:alnum:]] ) | $ )
+         )
+      /xg
+   ) {
+      $out= $tpl;
+      foreach (
+           [ALL => $1], [PFX => $2]
+         , [CAT => $3], [NAME => $4], [VER => $5], [REV => $6]
+      ) {
+         ($key, $value)= @$_;
+         $value= "" unless defined $value;
+         $out =~ s/(?:(?<=[^A-Z])|^)$key(?:(?=[^A-Z])|$)/$value/g;
+      }
+      print "$out\n";
+   }
+}
