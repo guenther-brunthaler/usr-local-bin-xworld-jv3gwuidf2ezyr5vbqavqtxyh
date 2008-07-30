@@ -8,7 +8,7 @@
 
 
 usage() {
-	cat <<- "."
+	cat <<- .
 	
 	tightvnc-via-local-ssh-forwarding - TightVNC via SSH tunnel
 	
@@ -22,14 +22,14 @@ usage() {
 	options:
 	
 	--quality <quality>, -q <quality>:
-	  Set JPEG quality. Defaults to 1.
+	  Set JPEG quality. Defaults to $QUALITY.
 	--compression <strength>, -c <strength>:
-	  Set compression strength. Defaults to 2.
+	  Set compression strength. Defaults to $COMPRESSION.
 	--port <port>, -p <port>:
-	  Set local port to connect to. Defaults to 5900.
+	  Set local port to connect to. Defaults to $PORT.
 	--password-file <name>, -P <name>:
 	  Password file to use, as created by vncpasswd.
-	  Defaults to "$HOME/.vnc/vncpasswd".
+	  Defaults to "$PWDFILE".
 	  Specifying an empty password disables
 	  the default password usage.
 	--help, -h: Display this help text.
@@ -38,7 +38,7 @@ usage() {
 	  Just print what would be done, but don't actually
 	  do anything.
 
-	Version 1.0
+	Version $VERSION
 	Written by Guenther Brunthaler in 2007.
 .
 }
@@ -82,10 +82,11 @@ run() {
 
 # Start of command line processing.
 # Define presets.
+VERSION=8.212
 VERBOSE=
 DRY=
-QUALITY=1
-COMPRESSION=2
+QUALITY=4
+COMPRESSION=9
 PORT=5900
 PWDFILE="$HOME/.vnc/passwd"
 #
@@ -112,8 +113,7 @@ while true; do
 		--password-file | -P) PWDFILE="$1"; shift;;
                 --help | -h) usage; exit;;
 		--version)
-			# Sychronize this with the usage text!
-			echo "Version 1.0"
+			echo "Version $VERSION"
 			exit;;
 		--verbose | -v) VERBOSE=1;;
 		--dry-run | --simulate | -n) DRY=1;;
