@@ -4,4 +4,16 @@
 # Written in 2008 by Guenther Brunthaler.
 
 
-exec encfs-mount --non-empty ~/p/p2/p3
+checkopt() {
+	while test $# -gt 0; do
+		case $1 in
+			-*) ;;
+			*) echo "Bad option '$1'!" >& 2; exit 1;;
+		esac
+		shift
+	done
+}
+
+
+checkopt "$@"
+exec encfs-mount "$@" --non-empty "$HOME"/p/p2/p3

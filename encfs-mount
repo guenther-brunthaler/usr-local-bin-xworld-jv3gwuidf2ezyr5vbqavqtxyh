@@ -17,6 +17,11 @@ run() {
 }
 
 
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
 wrout() {
 	if test $# = 0; then
 		run fmt -w "`tput cols`"
@@ -86,6 +91,11 @@ EOT
 }
 
 
+canon() {
+	system readlink -f "$1"
+}
+
+
 chkdir() {
 	test x`run stat -c %a "$1"` = x700 \
 		|| die "$2 directory must be chmod 700!"
@@ -116,8 +126,7 @@ while true; do
 	shift
 done
 MOUNT=${1?Usage: %0 <enfs-mountdir>}
-run test -d "$MOUNT"
-MOUNT=`run readlink --canonicalize "$MOUNT"`
+run test -d "$MOUNT" # Can also be a symlink!
 if test x"${MOUNT%.encfs}" = x"$MOUNT"; then
 	ENC=$MOUNT.encfs
 	run test -d "$ENC"
@@ -126,6 +135,9 @@ else
 	MOUNT=${ENC%.encfs}
 	run test -d "$MOUNT"
 fi
+# Resolve symlinks only after determining the names.
+canon "$MOUNT"; MOUNT=$REPLY
+canon "$ENC"; ENC=$REPLY
 chkdir "$ENC" "Associated .encfs"
 chkdir "$MOUNT" "Mount point"
 if is_mounted "$MOUNT"; then
