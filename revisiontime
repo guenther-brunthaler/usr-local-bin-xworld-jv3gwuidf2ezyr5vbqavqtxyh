@@ -1,0 +1,8 @@
+#! /bin/sh
+# Displays the current date as a (daily) "version number".
+#
+# Written in 2008 by Guenther Brunthaler
+# This (effective) one-liner ist freeware and may be
+# distributed under the terms of the GPLv3.
+
+date '+%Y %j' | awk '{print $1 - 2000 "." $2 + 0}'
