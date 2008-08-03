@@ -1,0 +1,8 @@
+#! /bin/sh
+
+
+if test x"$EUID" = x0; then
+	exec delayed-shutdown 1
+else
+	exec sudo "$@"
+fi
