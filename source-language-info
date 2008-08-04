@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$SCRIPT version 8.217
+	$SCRIPT version 8.217.1
 
 	(c) 2008 by Guenther Brunthaler.
 	Distribution is allowed under the terms of the GPLv3.
@@ -19,9 +19,24 @@ show_help() {
 	displays several lines which can be sourced as Bourne shell scripts
 	and which give information about that programming language, such as
 	comment formatting or language name.
-
+	
+	In order to minimize the chance for name clashes, all emitted
+	shell variable assignments will use variable names starting
+	with "LSI_".
 .
+	local EXT
+	for EXT in c cpp pl sh txt foobar; do
+		wr <<-.
+
+		Here is an example what $SCRIPT outputs when run as "$SCRIPT
+		.$EXT":
+
+		.
+		"$0" .$EXT | wrL
+	done
 	wrL <<-.
+
+
 	Usage: $SCRIPT [options] <source_file_name>
 	       $SCRIPT [options] <file_extension>
 .
@@ -125,9 +140,9 @@ check_extension() {
 		script) O="#";;
 		*) die
 	esac
-	echo "LANGUAGE='$L'"
-	echo "BEGIN_COMMENT='$O'"
-	echo "END_COMMENT='$C'"
+	echo "SLI_LANGUAGE='$L'"
+	echo "SLI_BEGIN_COMMENT='$O'"
+	echo "SLI_END_COMMENT='$C'"
 	exit
 }
 
