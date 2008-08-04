@@ -1,10 +1,6 @@
-#!/bin/sh
+#! /bin/sh
 # Launch TightVNC viewer through a locally-forwarded TCP tunnel.
-#
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/tightvnc-via-local-ssh-forwarding $
-# $Author: root $
-# $Date: 2007-06-28T17:04:55.497687Z $
-# $Revision: 808 $
+VERSION=8.212
 
 
 usage() {
@@ -39,7 +35,9 @@ usage() {
 	  do anything.
 
 	Version $VERSION
-	Written by Guenther Brunthaler in 2007.
+	(c) 2007 Guenther Brunthaler.
+	This source file is free software.
+	Distribution is allowed under the terms of the GPLv3.
 .
 }
                                                                                                                              
@@ -82,7 +80,6 @@ run() {
 
 # Start of command line processing.
 # Define presets.
-VERSION=8.212
 VERBOSE=
 DRY=
 QUALITY=4

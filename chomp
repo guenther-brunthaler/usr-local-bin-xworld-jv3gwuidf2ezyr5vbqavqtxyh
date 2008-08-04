@@ -1,0 +1,19 @@
+#! /usr/bin/awk -f
+# Output all lines as obtained from standard input,
+# except for the last one (where any end-of-line character
+# at its end will be stripped off).
+#
+# (c) 2008 Guenther Brunthaler.
+# This source file is free software.
+# Distribution is allowed under the terms of the GPLv3.
+
+
+{
+	if (NR > 1) print line
+	line= $0
+}
+
+
+END {
+	printf "%s", line
+}

@@ -1,0 +1,223 @@
+#! /bin/sh
+show_version() {
+	wrL <<-.
+	$SCRIPT version 8.217
+
+	(c) 2008 by Guenther Brunthaler.
+	Distribution is allowed under the terms of the GPLv3.
+.
+}
+
+
+show_help() {
+	{
+	wr <<-.
+	$SCRIPT - output copyright message
+	
+	Writes a copyright message for the currently logged-in user to
+	standard output.
+
+
+	Usage: $SCRIPT [options] [ <template_string> ]
+
+	The <template_string> must provide a hint how to format the output, i.
+	e. as what type of comment.
+	
+	Use an empty string as <template_string> for uncommented plain text.
+	
+	If no <template_string> is provided, a line is read from standard
+	input.
+	
+	If the <template_string> comment format cannot be determined, it will
+	default to Bourne shell comments.
+	
+	
+	Command line options accepted by $SCRIPT:
+		
+	--: Stop parsing for command line options. Any arguments following
+	this option will be interpreted as normal arguments, even if they
+	start with "-" or "--".
+	
+	--name <name>: The name to be used in the generated copyright message.
+	Defaults to whatever has been set using "chfn" or to the current login
+	name if no name has been set via "chfn".
+
+	--help, -h, --usage: Display this help.
+
+	--version, -V: Show version information.
+
+	"Switch clustering" for short-options (single-dash options) is
+	supported. For instance, when specifying two separate options "-v" and
+	"-u", the combined option argument "-vu" means exactly the same thing.
+
+.
+	show_version
+	} | less -F
+}
+
+
+die() {
+	{
+		echo "ERROR: $*"
+		echo "Use $SCRIPT --help for help."
+	} >& 2
+	false; exit
+}
+
+
+notice() {
+	run cat <<-.
+	(c) `date '+%Y'` by $NAME.
+	This source file is free software.
+	Distribution is allowed under the terms of the GPLv3.
+	.
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<< - returned result code ${?}!"
+}
+
+
+wr() {
+	if test $# -gt 0; then
+		print '%s\n' "$*" | wr
+	else
+		fmt -w `tput cols`
+	fi
+}
+
+
+wrL() {
+	local LINE
+	while IFS= read -r LINE; do
+		printf "%s\n" "$LINE" | wr
+	done
+}
+
+
+# Remove leading whitespace from $TEXT, placing the
+# removed whitespace into $WS.
+parse_ws() {
+	local STRIPPED
+	WS=
+	while true; do
+		STRIPPED="${TEXT#[ 	]}"
+		test x"$STRIPPED" = x"$TEXT" && break
+		WS=$WS${TEXT%$STRIPPED}
+		TEXT=$STRIPPED
+	done
+}
+
+
+# Remove trailing whitespace from $TEXT, placing the
+# removed whitespace into $WS.
+backparse_ws() {
+	local STRIPPED
+	WS=
+	while true; do
+		STRIPPED="${TEXT%[ 	]}"
+		test x"$STRIPPED" = x"$TEXT" && break
+		WS=$WS${TEXT#$STRIPPED}
+		TEXT=$STRIPPED
+	done
+}
+
+
+# Inserts a backslash before each character in $PATTERN.
+quote() {
+	local STRIPPED OUT
+	while true; do
+		STRIPPED=${PATTERN#?}
+		test x"$STRIPPED" = x"$PATTERN" && break
+		OUT=$OUT\\${PATTERN%$STRIPPED}
+		PATTERN=$STRIPPED
+	done
+	PATTERN=$OUT
+}
+
+
+# Define presets.
+NAME=
+# Start of command line processing.
+SCRIPT=${0##*/}
+COPTS=
+while true; do
+	if test -z "$COPTS"; then
+		case $1 in
+			-?*) COPTS=$1; shift;;
+			*) break;;
+		esac
+	fi
+	if test x"${COPTS#--}" = x"$COPTS"; then
+		TAIL=${COPTS#-?}; # Switch clustering.
+		COPT=${COPTS%$TAIL}; COPTS=${TAIL:+-}$TAIL
+	else
+		COPT=$COPTS; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case $COPT in
+		--) break;; # Must be first!
+		--name) NAME=$1; shift;;
+		--help | -h | --usage) show_help; exit;;
+		--version | -V) show_version; exit;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+# Process remaining non-option arguments.
+if test $# -eq 0; then
+	IFS="" read TPL
+else
+	TPL=$*
+fi
+# Separate any whitespace prefix from template.
+TEXT=$TPL; parse_ws; TPL=$TEXT; PREFIX=$WS
+# Determine "open comment" token, and also assumed "closed comment" token.
+CC=""
+case $TPL in
+	"") OC="";;
+	"//"*) OC="//";;
+	"/*"*) OC="/*"; CC="*/";;
+	"(*"*) OC="(*"; CC="*)";;
+	"{"*) OC="{"; CC="}";;
+	";"*) OC=";";;
+	*) OC="#";;
+esac
+# Try to parse "open comment" token off the template.
+PATTERN=$OC; quote
+if test x"${TPL#$PATTERN}" = x"$TPL"; then
+	# Not possible, assume template is plain text and no comment.
+	OC=$PREFIX
+	CC=
+	CWS=
+else
+	TPL=${TPL#$PATTERN}
+	OC=$PREFIX$OC
+	# Include any whitespace following the "open comment" token
+	# into the output line prefix.
+	TEXT=$TPL; parse_ws; OWS=$WS
+	OC=$OC$OWS
+	# Strip any trailing whitespace from template.
+	backparse_ws; TPL=$TEXT
+	# Try to parse "close comment" token off the end of the template.
+	PATTERN=$CC; quote
+	TPL=${TPL%$PATTERN}
+	# Remember any remaining trailing whitespace as "closing whitespace".
+	TEXT=$TPL; backparse_ws; CWS=$WS; TPL=$TEXT
+	# Special case: If the template is empty now,
+	# set the closing whitespace equal to the opening one.
+	test -n "$CC" && test -z "$TPL" && CWS=$OWS
+	# Clear closing whitespace if there is no "close comment" token.
+	test -z "$CC" && CWS=
+fi
+if test -z "$NAME"; then
+	# Get user name.
+	LOGNAME="`run id -un`"
+	NAME="`grep "^$LOGNAME:" /etc/passwd | cut -d: -f5 | cut -d, -f1`"
+	test -n "$NAME" || NAME=$LOGNAME
+fi
+# Print notice.
+notice | while IFS="" read LINE; do
+	run printf "%s\n" "$OC$LINE${LINE+$CWS}$CC"
+done
