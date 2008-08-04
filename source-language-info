@@ -1,0 +1,196 @@
+#! /bin/sh
+show_version() {
+	wrL <<-.
+	$SCRIPT version 8.217
+
+	(c) 2008 by Guenther Brunthaler.
+	Distribution is allowed under the terms of the GPLv3.
+.
+}
+
+
+show_help() {
+	{
+	wr <<-.
+	$SCRIPT - display information about source file language
+	
+	
+	Given a source file name or a source file extension as argument,
+	displays several lines which can be sourced as Bourne shell scripts
+	and which give information about that programming language, such as
+	comment formatting or language name.
+
+.
+	wrL <<-.
+	Usage: $SCRIPT [options] <source_file_name>
+	       $SCRIPT [options] <file_extension>
+.
+	wr <<-.
+
+	<source_file_name> can either be the name of an existing or
+	non-existing source file.
+	
+	In both cases, extraction of the file extension will be
+	attempted first.
+	
+	If the file name does not have any file extension, the contents
+	of the file will be analyzed if it exists using the "file"
+	utility, trying to determine its type that way.
+	
+	If a <file_extension> with a leading period is specified, such
+	as in ".pl", it will always be interpreted as a file extension.
+	
+	If a <file_extension> is just specified without the period (e. g.
+	"pl"), interpretation of an existing file name is attempted first, but
+	the name will be used as a file extension if no file of that name is
+	found.
+	
+	If no file extension could be determined using any of the above
+	methods, plain text file format will be assumed (i. e. not a source
+	file).
+
+	
+	Command line options accepted by $SCRIPT:
+		
+	--: Stop parsing for command line options. Any arguments following
+	this option will be interpreted as normal arguments, even if they
+	start with "-" or "--".
+	
+	--help, -h, --usage: Display this help.
+
+	--version, -V: Show version information.
+
+	"Switch clustering" for short-options (single-dash options) is
+	supported. For instance, when specifying two separate options "-v" and
+	"-u", the combined option argument "-vu" means exactly the same thing.
+
+
+.
+	show_version
+	} | less -F
+}
+
+
+wr() {
+	if test $# -gt 0; then
+		print '%s\n' "$*" | wr
+	else
+		local COLS
+		COLS=`tput cols`
+		fmt -w ${COLS:-70}
+	fi
+}
+
+
+wrL() {
+	local LINE
+	while IFS= read -r LINE; do
+		printf "%s\n" "$LINE" | wr
+	done
+}
+
+
+die() {
+	wrL <<-. >& 2
+		ERROR: ${*:-Internal error!}
+		Use $SCRIPT --help for help.
+	.
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<< - returned result code ${?}!"
+}
+
+
+check_extension() {
+	local L G
+	case $1 in
+		"") L="plain text"; G=text;;
+		pl | pm) L="perl"; G=script;;
+		cpp | C | cxx | c++ | inl | hpp | hxx | h++)
+			L="C++"; G=C++
+			;;
+		c | h) L="C"; G=C;;
+		sh | awk | sed) L=$1; G=script;;
+		*) return 1;;
+	esac
+	local O C
+	case $G in
+		text) ;;
+		C++) O="//";;
+		C) O="/*"; C="*/";;
+		script) O="#";;
+		*) die
+	esac
+	echo "LANGUAGE='$L'"
+	echo "BEGIN_COMMENT='$O'"
+	echo "END_COMMENT='$C'"
+	exit
+}
+
+
+check_file() {
+	local X
+	case $1 in
+		*"Bourne shell script"*) X=sh;;
+		*" C program"*) X=c;;
+		*" C++ program"*) X=cpp;;
+		*) return 1;;
+	esac
+	check_extension "$X"
+}
+
+
+# Define presets.
+# Start of command line processing.
+SCRIPT=${0##*/}
+COPTS=
+while true; do
+	if test -z "$COPTS"; then
+		case $1 in
+			-?*) COPTS=$1; shift;;
+			*) break;;
+		esac
+	fi
+	if test x"${COPTS#--}" = x"$COPTS"; then
+		TAIL=${COPTS#-?}; # Switch clustering.
+		COPT=${COPTS%$TAIL}; COPTS=${TAIL:+-}$TAIL
+	else
+		COPT=$COPTS; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case $COPT in
+		--) break;; # Must be first!
+		--help | -h | --usage) show_help; exit;;
+		--version | -V) show_version; exit;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+# Process remaining non-option arguments.
+test $# -ne 1 && die "Incorrect number of arguments."
+# End of command line processing.
+SUBJECT=$1
+EXT=${SUBJECT##*.}
+if test x"$SUBJECT" != x"$EXT"; then
+	# An extension has been specified.
+	check_extension "$EXT"
+	check_extension ""
+	die
+fi
+if test ! -f "$SUBJECT"; then
+	# Argument must be an extension itself then.
+	check_extension "$SUBJECT"
+	check_extension ""
+	die
+fi
+# Argument is an existing file.
+SUBJECT="`run readlink -f \"$SUBJECT\"`" || {
+	check_extension ""
+	die
+}
+check_file "`file \"$SUBJECT\" 2> /dev/null`"
+check_extension ""
+die
