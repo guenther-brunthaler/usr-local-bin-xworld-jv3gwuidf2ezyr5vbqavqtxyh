@@ -1,5 +1,9 @@
 #! /bin/sh
-# Displays the current date as a (daily) "version number".
+# Displays the current date/time as a "version number".
+# First digit: Year - 2000.
+# Second digit: Day within year ("cal -j").
+# Third digit: Time of day 0 - 999.
+# Date / time is always interpreted as UTC only!
 #
 # Written in 2008 by Guenther Brunthaler
 # This (effective) one-liner ist freeware and may be
