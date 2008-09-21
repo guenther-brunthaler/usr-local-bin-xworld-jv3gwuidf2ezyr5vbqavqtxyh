@@ -5,4 +5,10 @@
 # This (effective) one-liner ist freeware and may be
 # distributed under the terms of the GPLv3.
 
-date -u '+%Y %j' | awk '{print $1 - 2000 "." $2 + 0}'
+
+date -u '+%Y %j %H %M %S' | awk '{
+	print $1 - 2000 "." $2 + 0 "." int( \
+		(($3 * 60 + $4) * 62 + $5) * 1000 \
+		/ (24 * 60 * 62) \
+	)
+}'
