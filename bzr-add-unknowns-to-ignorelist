@@ -1,5 +1,6 @@
 #! /bin/sh
 
+
 die() {
 	echo "ERROR: $*" >& 2
 	exit 1
@@ -37,11 +38,12 @@ assign ROOT "$BZR" root
 run cd "$ROOT"
 assign TF tempfile
 trap 'rm "$TF"' 0
-run "$BZR" ls --unknown | while read ENTRY; do
+run "$BZR" ls --unknown | while IFS= read ENTRY; do
 	run test -e "$ENTRY"
-	printf '/%s\n' "$ENTRY"
+	printf './%s\n' "$ENTRY"
 done | {
-	test -e .bzrignore && run cat .bzrignore
+	# Convert absolute paths into top-level relative ones.
+	test -e .bzrignore && sed -e 's,^/,./,' < .bzrignore
 	run echo '=== new entries ==='
 	run cat
 } > "$TF"
