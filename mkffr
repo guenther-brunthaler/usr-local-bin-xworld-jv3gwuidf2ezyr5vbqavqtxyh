@@ -1,0 +1,72 @@
+#! /bin/sh
+# Makefile file list reformatter.
+#
+# Replace / update a file list in a Makefile.
+#
+# If the input is (without the quotes, "<tab>" means "\t")
+#
+# "<tab>old1 \"
+# "<tab>old2 \"
+# "<tab>old3"
+# "new1"
+# "new2"
+#
+# then the output will be
+#
+# "<tab>old1 \"
+# "<tab>old2 \"
+# "<tab>old3 \"
+# "<tab>new1 \"
+# "<tab>new2"
+#
+# Written by Guenther Brunthaler in 2008.
+
+
+while true; do
+	case $1 in
+		--)
+			shift;
+			test $# -eq 0 || set -- --error
+			continue
+			;;
+		--version) echo "${0##/*} version 8.281"; exit;;
+		-h | --help)
+			echo "Usage: ${0##/*} -a | -d"
+			set -- --version
+			continue
+			;;
+		"")
+			if test $# -eq 0; then
+				break
+			fi
+			set -- --error;	continue
+			;;
+		*)
+			echo "Invalid arguments. Try '${0##/*} --help'." >& 2
+			false; exit
+			;;
+	esac
+	shift
+done
+awk '
+	function wrline() {
+		if (have) {
+			sub("[\t \\\\]+$", "", line)
+			sub("^[\t ]+", "", line)
+			printf "\t%s", line
+			if (!last) printf " \\"
+			print ""
+		}
+	}
+
+	{
+		wrline()
+		line= $0
+		have= 1
+	}
+	
+	END {
+		last= 1
+		wrline()
+	}
+'
