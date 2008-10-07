@@ -9,15 +9,20 @@
 # "<tab>old2 \"
 # "<tab>old3"
 # "new1"
+# "./new2"
 # "new2"
 #
 # then the output will be
 #
+# "<tab>new1 \"
+# "<tab>new2 \"
+# "<tab>new3 \"
 # "<tab>old1 \"
 # "<tab>old2 \"
-# "<tab>old3 \"
-# "<tab>new1 \"
-# "<tab>new2"
+# "<tab>old3"
+#
+# (The order of entries has changed because the file names have
+# been sorted. Sorting is binary, i. e. it ignores locale settings.)
 #
 # Written by Guenther Brunthaler in 2008.
 
@@ -48,11 +53,18 @@ while true; do
 	esac
 	shift
 done
+export LC_ALL
+LC_ALL=C
 awk '
+	{
+		sub("^[\t ]+", "")
+		sub("[\t \\\\]+$", "")
+		sub("^\\./", "")
+		print
+	}
+' | sort | awk '
 	function wrline() {
 		if (have) {
-			sub("[\t \\\\]+$", "", line)
-			sub("^[\t ]+", "", line)
 			printf "\t%s", line
 			if (!last) printf " \\"
 			print ""
