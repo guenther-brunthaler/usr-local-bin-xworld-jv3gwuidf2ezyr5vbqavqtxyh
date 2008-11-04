@@ -1,0 +1,10 @@
+#! /bin/sh
+# Written in 2008 by Guenther Brunthaler.
+# Create all possible pairs from input input lines, maintaining their order.
+# The pairs will be separated by a tabulation character.
+
+FIRST=
+while IFS= read NEXT; do
+	test -n "$FIRST" && printf '%s\t%s\n' "$FIRST" "$NEXT"
+	FIRST=$NEXT
+done
