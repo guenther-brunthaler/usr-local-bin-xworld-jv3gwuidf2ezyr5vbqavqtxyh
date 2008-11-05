@@ -1,0 +1,81 @@
+#! /bin/sh
+# Import the numbered patches from a separate directory
+# into a quilt "series" file and corresponding patch files with
+# the numeric file name prefix stripped.
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>$*<< failed, return code ${?}!"
+}
+
+
+wr() {
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt -w `tput cols`
+	fi
+}
+
+
+case $1 in
+	-h | --help)
+		wr <<- EOF
+		Usage: ${0##*/} [ <import-dir> ] [ <quilt-patches-outdir> ]
+		
+		Processes the files with a numeric prefix in <import-dir> in
+		lexicographical order (including any subdirectories) and
+		copying them into <quilt-patches-outdir>.
+		
+		In the latter directory, a file "series" will also be created,
+		listing the patches according to their import sorting order.
+		
+		The numeric prefixes will be removed from the copied files
+		along with any following dash, space or underscore character.
+		
+		The output directory will be created if necessary.
+		
+		<import-dir> defaults to '.'
+		
+		<quilt-patches-outdir> defaults to 'patches'
+		
+		EOF
+		exec "$0" --version
+		;;
+	--version)
+		wr "${0##*/} Version 8.310"
+		wr "Written in 2008 by Guenther Brunthaler."
+		exit
+		;;
+esac
+INDIR=${1:-.}
+OUTDIR=${2:-patches}
+
+
+run test -d "$INDIR"
+test -d "$OUTDIR" || run mkdir "$OUTDIR"
+
+exec 5> "$OUTDIR/series" || die "Could not create file '$OUTDIR/series'!"
+COUNTER=0
+run find "$INDIR" -type f -name '[0-9]*' | LC_ALL=C run sort | { \
+	while IFS= read PATCH; do
+		test $COUNTER = 0 \
+			&& echo "Importing into directory tree '$OUTDIR':"
+		OUT=${PATCH#$INDIR/}
+		OUT=`printf '%s\n' "$OUT" | sed -e 's,^[0-9][0-9]*[-_ ],,'`
+		run printf '%s\n' "$OUT" >& 5
+		OUT=$OUTDIR/$OUT
+		echo "Patch '$OUT'..."
+		run cat "$PATCH" > "$OUT"
+		COUNTER=`expr $COUNTER + 1`
+	done
+	exec 5>& - || die "Could not finish writing file '$OUTDIR/series'!"
+	echo "Done. Imported a total of $COUNTER patches."
+}

@@ -1,0 +1,62 @@
+#! /bin/sh
+# Export the patches from a quilt series file into a
+# separate directory as numbered patches.
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>$*<< failed, return code ${?}!"
+}
+
+
+wr() {
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt -w `tput cols`
+	fi
+}
+
+
+case $1 in
+	-h | --help)
+		wr <<- EOF
+		Usage: ${0##*/} [ <quilt-patches-dir> ] [ <output-dir> ]
+		
+		The output directory will be created if necessary.
+		
+		<quilt-patches-dir> defaults to 'patches'
+		
+		<output-dir> defaults to 'exported-patches'
+		
+		EOF
+		exec "$0" --version
+		;;
+	--version)
+		wr "${0##*/} Version 8.310"
+		wr "Written in 2008 by Guenther Brunthaler."
+		exit
+		;;
+esac
+PATCHES=${1:-patches}
+OUTDIR=${2:-exported-patches}
+
+
+run test -d "$PATCHES"
+test -d "$OUTDIR" || run mkdir "$OUTDIR"
+exec 5< "$PATCHES/series" || die "File '$PATCHES/series' not found!"
+COUNTER=1
+while IFS= read PATCH <& 5; do
+	PNAME=`printf '%03d' $COUNTER`_$PATCH
+	echo "Emitting patch '$OUTDIR/$PNAME'..."
+	run cat "$PATCHES/$PATCH" > "$OUTDIR/$PNAME"
+	COUNTER=`expr $COUNTER + 1`
+done
+exec 5<&-
+echo "Done. `expr $COUNTER - 1` patches total."
