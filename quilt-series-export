@@ -27,13 +27,13 @@ wr() {
 case $1 in
 	-h | --help)
 		wr <<- EOF
-		Usage: ${0##*/} [ <quilt-patches-dir> ] [ <output-dir> ]
+		Usage: ${0##*/} [ <output-dir> [ <quilt-patches-dir> ] ]
 		
 		The output directory will be created if necessary.
 		
-		<quilt-patches-dir> defaults to 'patches'
-		
 		<output-dir> defaults to 'exported-patches'
+		
+		<quilt-patches-dir> defaults to 'patches'
 		
 		EOF
 		exec "$0" --version
@@ -44,8 +44,8 @@ case $1 in
 		exit
 		;;
 esac
-PATCHES=${1:-patches}
-OUTDIR=${2:-exported-patches}
+OUTDIR=${1:-exported-patches}
+PATCHES=${2:-patches}
 
 
 run test -d "$PATCHES"
