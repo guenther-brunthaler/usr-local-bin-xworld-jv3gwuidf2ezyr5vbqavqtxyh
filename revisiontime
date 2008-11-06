@@ -1,9 +1,11 @@
 #! /bin/sh
 # Displays the current date/time as a "version number".
-# First digit: Year - 2000.
-# Second digit: Day within year ("cal -j").
-# Third digit: Time of day 0 - 999.
+# First component: Year - 2000.
+# Second component: Day within year ("cal -j").
+# Third component: Time of day 1 - 999.
 # Date / time is always interpreted as UTC only!
+# This will create revision numbers that can be globally compared
+# without being affected by the local time zone setting.
 #
 # Written in 2008 by Guenther Brunthaler
 # This (effective) one-liner ist freeware and may be
@@ -12,7 +14,8 @@
 
 date -u '+%Y %j %H %M %S' | awk '{
 	print $1 - 2000 "." $2 + 0 "." int( \
-		(($3 * 60 + $4) * 62 + $5) * 1000 \
+		(($3 * 60 + $4) * 62 + $5) * (1000 - 1) \
 		/ (24 * 60 * 62) \
+		+ 1 \
 	)
 }'
