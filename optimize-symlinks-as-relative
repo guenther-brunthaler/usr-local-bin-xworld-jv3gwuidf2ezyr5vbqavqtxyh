@@ -19,6 +19,12 @@ show_help() {
 	Supported options:
 	EOF
 	wr . <<- EOF
+	--dry-run, -n: Show what would be done, but don't actually do
+	anything.
+	EOF
+	wr . <<- EOF
+	--verbose, -v: Display additional diagnostic messages.
+	--silent, --quiet, -q: Display nothing unless errors occur.
 	--help, -h: Display this text.
 	--version: Display version information.
 	EOF
@@ -166,27 +172,36 @@ APP=${0##*/}
 LINEWIDTH=
 tty -s <& 1 && run system tput cols
 LINEWIDTH=${REPLY:-70}
-case $1 in
-	-h | --help) show_help | less -F; exit;;
-	--version) show_version; exit;;
-	--) shift;;
-	-*) die "Unknown option '$1'!"
-esac
+DRY=
+VERBOSE=
+while true; do
+	case $1 in
+		-h | --help) show_help | less -F; exit;;
+		--version) show_version; exit;;
+		--dry-run | -n) DRY=Y;;
+		--verbose | -v) VERBOSE=Y;;
+		--silent | --quiet | -q) exec > /dev/null;;
+		--) shift; break;;
+		-*) die "Unknown option '$1'!";;
+		*) break;;
+	esac
+	shift
+done
 CONV=0
 while test $# -gt 0; do
 	SOURCE=$1; shift
 	# Remove any redundant trailing context.
-	REPLY=$1
 	while true; do
-		case $REPLY in
+		case $SOURCE in
 			. | */. | */ )
-				REPLY=${REPLY%?}
+				SOURCE=${SOURCE%?}
 				;;
 			*) break;;
 		esac
 	done
 	# Only handle symlinks.
 	test -L "$SOURCE" || continue
+	test "$VERBOSE" && echo "Examining symlink \"$SOURCE\"..."
 	# Remember the old symlink conents.
 	system readlink "$SOURCE"
 	OLD_TARGET=$REPLY
@@ -220,9 +235,15 @@ while test $# -gt 0; do
 	# If empty, make it ".".
 	REL="${REL:-.}"
 	# Check whether old target was different.
-	test x"$OLD_TARGET" = x"$REL" && continue
+	if test x"$OLD_TARGET" = x"$REL"; then
+		test "$VERBOSE" && echo "Symlink already optimal."
+		continue
+	fi
 	echo "Converting '$SOURCE' to shortest relative path..."
-	run ln -snf "$REL" "$SOURCE"
+	if test "$DRY" || test "$VERBOSE"; then
+		echo "ln -snf \"$REL\" \"$SOURCE\""
+	fi
+	test "$DRY" || run ln -snf "$REL" "$SOURCE"
 	CONV=`expr $CONV + 1`
 done
 echo "Converted $CONV symlinks to optimal relative form."
