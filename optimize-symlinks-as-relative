@@ -1,0 +1,228 @@
+#! /bin/sh
+show_version() {
+	wr . <<- EOF
+	$APP Version 8.315"
+	(c) 2008 by Guenther Brunthaler.
+
+	This script is free software.
+	Distribution is allowed under the terms of the GPLv3.
+	EOF
+}
+
+
+show_help() {
+	wr <<- EOF
+	$APP - Convert existing symlinks to optimal relative form
+	
+	Usage: $APP [ <option> ... ] <symlink> ...
+
+	Supported options:
+	EOF
+	wr . <<- EOF
+	--help, -h: Display this text.
+	--version: Display version information.
+	EOF
+	wr <<- EOF
+
+	Description:
+	
+	$APP expects a list of existing symlinks as its arguments.
+	
+	For each symlink, it checks the symlink's current target.
+	
+	If the target is currently specified as an absolute path, it is
+	converted into the most efficient relative path (see below).
+	
+	If the target is already a relative symlink but does not have the most
+	efficient form, it is converted to the most efficient form as well.
+	
+	Otherwise, if the symlink is already using the most efficient relative
+	form, it will not be changed.
+	
+	The most efficient relative form for a symlink target representation
+	is considered to be a relative path which is either "." or starts with
+	as few as ".." as possible, then being followed by as many normal
+	non-symlink path components as required to reach the target.
+	
+	While there may exist shorter forms (which make use of existing other
+	symlinks as shortcuts), this "most efficient" form will reach the
+	symlink target with a minimum of path component traversals and will
+	require only a single symlink lookup by the kernel.
+	
+	You might wonder why to use relative symlinks at all?
+	
+	Consider this:
+	
+	* If they refer to a location within the same directory subtree,
+	moving the whole directory subtree to a different location will
+	invalidate all absolute symlinks pointing into that tree, while
+	relative symlinks from within the same subtree will be unaffected by
+	the move operation.
+	
+	* The computer where your account resides might become re-organized.
+	For instance, initially your home directory might be /home/joe. But
+	after migration to a larger server with more users, your home
+	directory might be relocated to something like /home/j/joe or even
+	/home/user/jo/j/joe. If you used any absolute symlinks in your home
+	directory, you are have to fix all of them.
+	
+	* Something terrible happened to your computer and you had to boot
+	from an emergency repair disc. You want to access your home partition
+	from there, but you cannot mount it as /home because the repair disc
+	already has something mounted as /home. So you have to mount your home
+	partition somewhere else, say on /mnt/home. If you used absolute
+	symlinks, none of them will work. Relative symlinks will continue to
+	work.
+	
+	* You are cross-compiling a new UNIX installation from scratch. Part
+	of the time you have to run tools from your regular system, but at
+	other times you have to work from within a chroot jail. If you used
+	absolute symlinks, they will work either only from within the chroot
+	jail, or only from your regular system. Relative symlinks, on the
+	other hand, will work in both cases.
+	
+	* You are using rsync or some other backup tool to create a backup of
+	your current system on an external hard drive. The most current backup
+	is always present as a literal copy of your files as they were on your
+	live system at the time of the backup; older versions of the files
+	might be stored as binary deltas. This means you can just mount your
+	backup partition and walk around within it. But what about symlinks?
+	If you used absolute symlinks, they will now refer to your live system
+	rather than to your mounted backup partition! This can be very
+	dangerous, because you might think you are accessing files from the
+	backup, while in reality you are accessing files from your live
+	system! If you had used relative symlinks instead, they would still
+	refer to the backup partition as expected.
+	
+	* You just want to rename directories. For instance, let's say until
+	now you had a directory $HOME/staroffice, but for some reasons you
+	want to change the name into $HOME/openoffice.org now. If there is a
+	hierarchy of sub-directories below that directory, containing symlinks
+	to various places within that hierarchy, this will continue to work if
+	you used relative symlinks. If you used absolute symlinks instead, you
+	are screwed.
+
+	EOF
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>$*<< failed, return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+# Wrap stdin or arguments to $LINEWIDTH characters.
+# If $1 is ".", wrap only but do not fill paragraphs.
+wr() {
+	local S
+	if test x"$1" = x"."; then
+		S=-s; shift
+	fi
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt $S -w $LINEWIDTH
+	fi
+}
+
+
+# Split the first path component of "$1" off into $PREFIX
+# and set REPLY to the rest of the path (which may be empty).
+split_first() {
+	REPLY=$1
+	while true; do
+		case $REPLY in
+			. | ./* | /* )
+				REPLY=${REPLY#?}
+				;;
+			*) break;;
+		esac
+	done
+	PREFIX=${REPLY%%/*}
+	if test x"$PREFIX" != x"$REPLY"; then
+		REPLY=${REPLY#*/}
+	else
+		PREFIX=$REPLY
+		REPLY=
+	fi
+}
+
+
+APP=${0##*/}
+# Determine output line width.
+LINEWIDTH=
+tty -s <& 1 && run system tput cols
+LINEWIDTH=${REPLY:-70}
+case $1 in
+	-h | --help) show_help | less -F; exit;;
+	--version) show_version; exit;;
+	--) shift;;
+	-*) die "Unknown option '$1'!"
+esac
+CONV=0
+while test $# -gt 0; do
+	SOURCE=$1; shift
+	# Remove any redundant trailing context.
+	REPLY=$1
+	while true; do
+		case $REPLY in
+			. | */. | */ )
+				REPLY=${REPLY%?}
+				;;
+			*) break;;
+		esac
+	done
+	# Only handle symlinks.
+	test -L "$SOURCE" || continue
+	# Remember the old symlink conents.
+	system readlink "$SOURCE"
+	OLD_TARGET=$REPLY
+	# Make $TARGET the absolute path of the symlink target.
+	system readlink -f "$SOURCE"
+	TARGET=$REPLY
+	# Set anchor as the parent directory of the symlink.
+	system dirname "$SOURCE"
+	system readlink -f "$REPLY"
+	ANCHOR=$REPLY
+	# Remove all shared leading path components.
+	while true; do
+		split_first "$ANCHOR"; NEW_ANCHOR=$REPLY
+		test -n "$PREFIX" || break
+		ANCHOR_PREFIX=$PREFIX
+		split_first "$TARGET"; NEW_TARGET=$REPLY
+		test x"$ANCHOR_PREFIX" = x"$PREFIX" || break
+		ANCHOR=$NEW_ANCHOR; TARGET=$NEW_TARGET
+	done
+	# Transform each path component left in $ANCHOR
+	# into ".." a component.
+	REL=
+	while true; do
+		split_first "$ANCHOR"
+		test -n "$PREFIX" || break
+		ANCHOR=$REPLY
+		REL="$REL${REL:+/}.."
+	done
+	# Add the remaining components of the target path.
+	test -n "$TARGET" && REL="$REL${REL:+/}$TARGET"
+	# If empty, make it ".".
+	REL="${REL:-.}"
+	# Check whether old target was different.
+	test x"$OLD_TARGET" = x"$REL" && continue
+	echo "Converting '$SOURCE' to shortest relative path..."
+	run ln -snf "$REL" "$SOURCE"
+	CONV=`expr $CONV + 1`
+done
+echo "Converted $CONV symlinks to optimal relative form."
