@@ -19,7 +19,7 @@ usage() {
 	$APP takes a "series.guards" file and expands a "series" file from it
 	using the "guard" tool.
 	
-	Usage: $0 [ options ]
+	Usage: $APP [ options ]
 	
 	options:
 
@@ -28,11 +28,24 @@ usage() {
 	--host <fqdn>, --override-host <fqdn>, --machine <fqdn>, -m <fqdn>:
 	Override the fully qualified default domain name of the current host
 	machine, using the specified instead. Useful for testing expansion of
-	the "series.guards" file for a different machine.
+	the "$SERIES_GUARDS" file for a different machine.
 
-	--check, -c: Check the validity of the "series.guards" file instead of
-	expanding the "series" file from it. Will typically detect files that
-	are missing or unused.
+	--check, -c: Check the validity of the "$SERIES_GUARDS" file instead
+	of expanding the "$SERIES" file from it. Will typically detect files
+	that are missing or unused.
+
+	--series-file <path>, -s <path>: Override the default location
+	("$SERIES") for the 'series' file which contains the list of patches
+	to be applied (patch paths are relative to the top-level directory
+	from where the patches will be applied). Note that this file will be
+	overwritten if it already exists.
+
+	--series-guards-file <path>, -g <path>: Override the default location
+	("$SERIES_GUARDS") for the template file which will be expanded using
+	the 'guards' tool giving the actual 'series' file to be used. The
+	output of the expansion will be written to the 'series' file
+	("$SERIES" or whatever has been specified for the
+	'--series-file'-option).
 	
 	--version: Display version information.
 
@@ -40,11 +53,13 @@ usage() {
 	distribution and works like a simple macro preprocessor.
 	
 	In normal operation, $APP runs the "guard" tool, feeding it
-	"series.guards" as input and letting it create "series" as its output.
+	"$SERIES_GUARDS" as input and letting it create "$SERIES" as its
+	output.
 	
-	The "series.guards" consists of a list of patch files which might be
+	The "$SERIES_GUARDS" consists of a list of patch files which might be
 	prefixed with conditions. Those conditions determine whether a patch
-	file is passed through to the "series" file or is discarded on output.
+	file is passed through to the "$SERIES" file or is discarded on
+	output.
 	
 	The conditions are of the form +symbol, -symbol etc. (see the "guards"
 	documentation for details) which pass through patch filenames
@@ -71,7 +86,7 @@ usage() {
 
 	* com
 
-	$APP Version 1.0
+	$APP Version 8.323
 	
 	Written by Guenther Brunthaler in 2008.
 .
@@ -93,6 +108,8 @@ run() {
 # Start of command line processing.
 # Define presets.
 CHECK=
+SERIES=series
+SERIES_GUARDS=$SERIES.guards
 #
 COPTS=
 while true; do
@@ -120,6 +137,8 @@ while true; do
 			echo "Version 1.0"
 			exit;;
 		--check | -c) CHECK=1;;
+		--series-file | -s) SERIES="$1"; shift;;
+		--series-guards-file | -g) SERIES_GUARDS="$1"; shift;;
 		*) die "Unknown option '$COPT'!";; # Must be last!
 	esac
 done
@@ -131,7 +150,7 @@ test $# -ge 1 && { WORKDIR="$1"; shift; }
 test $# = 0 || die "Unexpected excess arguments: $*"
 # End of command line processing.
 
-run test -f series.guards
+run test -f "$SERIES_GUARDS"
 set --
 while test -n "$FQDN"; do
 	set -- "$@" "$FQDN"
@@ -145,6 +164,6 @@ done
 if test -n "$CHECK"; then
 	set -- --check "$@"
 else
-	exec > series
+	exec > "$SERIES"
 fi
-run guards "$@" < series.guards
+run guards "$@" < "$SERIES_GUARDS"
