@@ -1,19 +1,17 @@
 #! /bin/sh
-# Takes a "series.guards" file and expands a "series" file from it
-# using the "guard" tool.
-# Generates the current host's default FQDN as well as all of
-# its superdomains as symbols for "guard".
+show_version() {
+	wr . <<- EOF
+	$APP Version 8.324
+	(c) 2008 by Guenther Brunthaler.
+
+	This script is free software.
+	Distribution is allowed under the terms of the GPLv3.
+	EOF
+}
 
 
-. /usr/local/bin/xworld/functions/lookup.sh --version 1 \
-	--namespace default_fqdn_7j3gzlr5fqubs0u8t1epwdkkh \
-	FQDN
-
-
-usage() {
-	local APP
-	APP=${0##*/}
-	fmt -w `tput cols` <<- . | less --quit-if-one-screen
+show_help() {
+	wr <<- EOF
 	$APP - create "series" file from "series.guards" template
 
 	$APP takes a "series.guards" file and expands a "series" file from it
@@ -75,27 +73,39 @@ usage() {
 	For instance, if the current machine has the FQDN
 	"gateway2.mars.hyperspace.example.com", then the following
 	symbols will be defined:
-
-	* gateway2.mars.hyperspace.example.com
-
-	* mars.hyperspace.example.com
-
-	* hyperspace.example.com
-
-	* example.com
-
-	* com
-
-	$APP Version 8.323
 	
-	Written by Guenther Brunthaler in 2008.
-.
+	EOF
+	wr . <<- EOF
+	* gateway2.mars.hyperspace.example.com
+	* mars.hyperspace.example.com
+	* hyperspace.example.com
+	* example.com
+	* com
+	EOF
+	wr <<- EOF
+
+	In addition to those symbols, a number of additional symbols will be
+	defined which represent other import aspects of the machine
+	configuration.
+	
+	In the case of the local machine, the following symbols are currently
+	defined:
+	
+	EOF
+	enum_tokens display_tokens
+	echo
+	show_version
 }
 
 
+. /usr/local/bin/xworld/functions/lookup.sh --version 1 \
+	--namespace default_fqdn_7j3gzlr5fqubs0u8t1epwdkkh \
+	FQDN
+
+
 die() {
-	printf 'ERROR: %s\n' "$*" >& 2
-	exit 1
+	echo "ERROR: $*" >& 2
+	false; exit
 }
 
 
@@ -105,6 +115,72 @@ run() {
 }
 
 
+system() {
+	REPLY="`run "$@"`" || exit
+}
+
+
+# Wrap stdin or arguments to $LINEWIDTH characters.
+# If $1 is ".", wrap only but do not fill paragraphs.
+wr() {
+	local S
+	if test x"$1" = x"."; then
+		S=-s; shift
+	fi
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt $S -w $LINEWIDTH
+	fi
+}
+
+
+enum_tokens() {
+	local CALLBACK FQ SUPER CHOST
+	CALLBACK=$1
+	FQ=$FQDN
+	set --
+	while test -n "$FQ"; do
+		set -- "$@" "$FQ"
+		SUPER=${FQ#*.}
+		if test "$SUPER" = "$FQ"; then
+			FQ=
+		else
+			FQ=$SUPER
+		fi
+	done
+	CHOST=${ROOT%%/}
+	CHOST="`. $ROOT/etc/make.conf && printf '%s\n' "$CHOST"`"
+	test -n "$CHOST" || die 'Could not determine $CHOST!'
+	set -- "$@" "$CHOST" "${CHOST%%-*}"
+	$CALLBACK "$@"
+}
+
+
+display_tokens() {
+	local TOKEN
+	for TOKEN; do
+		wr . "* $TOKEN"
+	done
+}
+
+
+main() {
+	run test -f "$SERIES_GUARDS"
+	if test -n "$CHECK"; then
+		set -- --check "$@"
+	else
+		exec > "$SERIES"
+	fi
+	run guards "$@" < "$SERIES_GUARDS"
+}
+
+
+APP=${0##*/}
+# Determine output line width.
+LINEWIDTH=
+tty -s <& 1 && system tput cols
+LINEWIDTH=${REPLY:-70}
 # Start of command line processing.
 # Define presets.
 CHECK=
@@ -128,14 +204,11 @@ while true; do
 	# Any arguments are at $1 and onwards; must be shifted off.
 	case "$COPT" in
 		--) break;; # Must be first!
-                --help | -h) usage; exit;;
+                --help | -h) show_help | less --quit-if-one-screen; exit;;
                 --host | --override-host | --machine | -m)
                 	FQDN="$1"; shift
                 	;;
-		--version)
-			# Sychronize this with the usage text!
-			echo "Version 1.0"
-			exit;;
+		--version) show_version; exit;;
 		--check | -c) CHECK=1;;
 		--series-file | -s) SERIES="$1"; shift;;
 		--series-guards-file | -g) SERIES_GUARDS="$1"; shift;;
@@ -150,20 +223,4 @@ test $# -ge 1 && { WORKDIR="$1"; shift; }
 test $# = 0 || die "Unexpected excess arguments: $*"
 # End of command line processing.
 
-run test -f "$SERIES_GUARDS"
-set --
-while test -n "$FQDN"; do
-	set -- "$@" "$FQDN"
-	SUPER=${FQDN#*.}
-	if test "$SUPER" = "$FQDN"; then
-		FQDN=
-	else
-		FQDN=$SUPER
-	fi
-done
-if test -n "$CHECK"; then
-	set -- --check "$@"
-else
-	exec > "$SERIES"
-fi
-run guards "$@" < "$SERIES_GUARDS"
+enum_tokens main
