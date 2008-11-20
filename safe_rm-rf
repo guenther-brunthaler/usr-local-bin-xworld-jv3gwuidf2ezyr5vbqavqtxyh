@@ -1,0 +1,114 @@
+#! /bin/sh
+show_version() {
+	wr . <<- EOF
+	$APP Version 8.325
+	(c) 2008 by Guenther Brunthaler.
+
+	This script is free software.
+	Distribution is allowed under the terms of the GPLv3.
+	EOF
+}
+
+
+show_help() {
+	wr <<- EOF
+	$APP - Safely remove the specified directory trees
+	
+	Usage: $APP [ <option> ... ] <symlink> ...
+
+	Supported options:
+	EOF
+	wr . <<- EOF
+	--help, -h: Display this text.
+	--version: Display version information.
+	EOF
+	wr <<- EOF
+	--: Stop recognizing command line options after this option; consider
+	any following arguments as non-options, even if they look like
+	options.
+
+	Description:
+	
+	$APP expects a list of existing directory trees as its argument.
+	(Symlinks are not allowed.)
+	
+	Each directory tree is them deleted as if "rm -rf" was used, but with
+	a notable difference: mount-points are not traversed, i. e. the
+	deletions take place in the same filesystem only where the directory
+	tree's top-level directory also resides.
+
+	For instance, it is quite dangerous to delete a directory-tree with
+	"rm -rf" which contains a mounted type "procfs" directory: In this
+	case, "rm -rf" might recurse through the "cd"-links within the procfs,
+	thus deleting each and every file which is currently mounted anywhere
+	in the system!
+
+	So better use $APP in such cases.
+
+	The only disadvantage of using "$APP" versus "rm -rf" is that "$APP"
+	somewhat slower due to more overhead and that it has fewer options.
+	
+	Output: $APP will normally not output anything if everything goes well.
+	Otherwise, it will display error messages and exit.
+
+	EOF
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>$*<< failed, return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+# Wrap stdin or arguments to $LINEWIDTH characters.
+# If $1 is ".", wrap only but do not fill paragraphs.
+wr() {
+	local S
+	if test x"$1" = x"."; then
+		S=-s; shift
+	fi
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt $S -w $LINEWIDTH
+	fi
+}
+
+
+APP=${0##*/}
+# Determine output line width.
+LINEWIDTH=
+tty -s <& 1 && run system tput cols
+LINEWIDTH=${REPLY:-70}
+while true; do
+	case $1 in
+		-h | --help) show_help | less -F; exit;;
+		--version) show_version; exit;;
+		--) shift; break;;
+		-*) die "Unknown option '$1'!";;
+		*) break;;
+	esac
+	shift
+done
+if test $# -eq 0; then
+	die "No arguments specified. Run '$APP --help' for help."
+fi
+for TREE; do
+	run test -d "$TREE"
+	run test '!' -L "$TREE"
+	run find "$TREE" -xdev '!' -type d -exec rm -f -- "{}" \;
+	run find "$TREE" -xdev -depth -exec rmdir -- "{}" \;
+done
