@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 8.315
+	$APP Version 8.325
 	(c) 2008 by Guenther Brunthaler.
 
 	This script is free software.
@@ -170,6 +170,7 @@ split_first() {
 APP=${0##*/}
 # Determine output line width.
 LINEWIDTH=
+REPLY=
 tty -s <& 1 && run system tput cols
 LINEWIDTH=${REPLY:-70}
 DRY=
