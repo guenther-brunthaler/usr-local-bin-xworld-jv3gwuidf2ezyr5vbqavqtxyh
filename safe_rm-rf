@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 8.325.1
+	$APP Version 8.325.2
 	(c) 2008 by Guenther Brunthaler.
 
 	This script is free software.
@@ -32,9 +32,9 @@ show_help() {
 	$APP expects a list of existing directory trees as its argument.
 	(Symlinks are not allowed.)
 	
-	Each directory tree is them deleted as if "rm -rf" was used, but with
+	Each directory tree is then deleted as if "rm -rf" was used, but with
 	a notable difference: mount-points are not traversed, i. e. the
-	deletions take place in the same filesystem only where the directory
+	deletions take place in the same file-system only where the directory
 	tree's top-level directory also resides.
 
 	For instance, it is quite dangerous to delete a directory-tree with
@@ -48,8 +48,8 @@ show_help() {
 	The only disadvantage of using "$APP" versus "rm -rf" is that "$APP"
 	somewhat slower due to more overhead and that it has fewer options.
 	
-	Output: $APP will normally not output anything if everything goes well.
-	Otherwise, it will display error messages and exit.
+	Output: $APP will normally not output anything if everything goes
+	well. Otherwise, it will display error messages and exit.
 
 	EOF
 	show_version
