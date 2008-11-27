@@ -1,3 +1,4 @@
+./.keep
 ./adverbio
 ./alarm
 ./amlc
@@ -6,7 +7,6 @@
 ./dd_rhelp
 ./inadyn
 ./installwatch
-./.keep
 ./lp_solve
 ./prandstream
 ./reallocfile

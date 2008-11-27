@@ -1,4 +1,92 @@
 #! /bin/sh
+show_version() {
+	wr . <<- EOF
+	$APP Version 8.332
+	(c) 2008 by Guenther Brunthaler.
+
+	This script is free software.
+	Distribution is allowed under the terms of the GPLv3.
+	EOF
+}
+
+
+show_help() {
+	wr <<- EOF
+	$APP - Add files unknown to $BZR to '$IGNOREFILE'.
+	
+	Usage: $APP [ <options> ]
+
+	Supported options:
+	EOF
+	wr . <<- EOF
+	--help, -h: Display this text.
+	--version: Display version information.
+	EOF
+	wr <<- EOF
+	--: Stop recognizing command line options after this option; consider
+	any following arguments as non-options, even if they look like
+	options.
+
+	Description:
+	
+	$APP adds files unknown to $BZR to the ignore list '$IGNOREFILE'.
+	
+	Actually, it can not only add files, but also directories, symlinks or
+	anything else "$BZR st" displays as "unknown".
+	
+	However, $APP will not make any changes to '$IGNOREFILE' without
+	giving the user a chance to review the additions.
+	
+	To that end, the default text editor (as defined by the environment
+	variables \$EDITOR or \$VISUAL) will be launched with the contents of
+	the augmented '$IGNOREFILE'.
+	
+	The file in the editor will consist of the old contents of the
+	'$IGNOREFILE', followed by a marker line, followed by the unknown
+	entries.
+	
+	The user must then review the additions after the marker line, and
+	possibly change them as required.
+	
+	When everything is ok, the user should delete the marker line and save
+	the resulting file.
+	
+	$APP will then sort the updated '.bzrignore' and remove any duplicate
+	entries which might result from the sort operation.
+	
+	Alternatively, the user can decide not to save the file in the editor
+	and just exit the editor.
+	
+	In this case, no changes to '$IGNOREFILE' will be made, and $APP will
+	abort its operation.
+	
+	Rationale.
+	
+	Although not at all required by $BZR, it is a good idea to keep the
+	'$IGNOREFILE' sorted at all times.
+	
+	This guarantees a minimum of merge conflicts when different team
+	members add oder delete entries in '$IGNOREFILE': Due to the sorting,
+	new entries will always be inserted at the same position no matter
+	which member adds the entry.
+	
+	If multiple team members independently add the same ignore list entry
+	that way, all those changes will be identical and can be merged
+	automatically without a need for manual conflict resolution.
+	
+	However, sorting is normally a process which is inherently
+	locale-specific. In a worldwide distributed team this could be a
+	problem, because then the sorted '$IGNOREFILE' might not be sorted in
+	identical ways by all team members.
+	
+	$APP therefore will always apply byte-ordering when sorting, ignoring
+	the rules of the current locale. The results might not look as pretty
+	as locale-aware sorting, but they will always be the same no matter
+	what locale is in effect. Which is the only thing that counts.
+
+	EOF
+	show_version
+}
 
 
 die() {
@@ -13,44 +101,66 @@ run() {
 }
 
 
-# Assign output of command $2 ... to variable with name $1.
-assign() {
-	local vn_4scr2rdlrgkqfkc6p035hkwmj val_4scr2rdlrgkqfkc6p035hkwmj
-	local rc_4scr2rdlrgkqfkc6p035hkwmj
-	vn_4scr2rdlrgkqfkc6p035hkwmj=$1
-	shift
-	val_4scr2rdlrgkqfkc6p035hkwmj=`"$@"`
-	rc_4scr2rdlrgkqfkc6p035hkwmj=$?
-	if test $rc_4scr2rdlrgkqfkc6p035hkwmj != 0; then
-		die "Could not execute >>>$*<<<:" \
-			"return code ${rc_4scr2rdlrgkqfkc6p035hkwmj}!"
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+# Wrap stdin or arguments to $LINEWIDTH characters.
+# If $1 is ".", wrap only but do not fill paragraphs.
+wr() {
+	local S
+	if test x"$1" = x"."; then
+		S=-s; shift
 	fi
-	eval "$vn_4scr2rdlrgkqfkc6p035hkwmj=\$val_4scr2rdlrgkqfkc6p035hkwmj"
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt $S -w $LINEWIDTH
+	fi
 }
 
 
 BZR=/usr/bin/bzr
+IGNOREFILE=.bzrignore
 
 
+APP=${0##*/}
+# Determine output line width.
+LINEWIDTH=
+REPLY=
+tty -s <& 1 && run system tput cols
+LINEWIDTH=${REPLY:-70}
+test -x "$BZR"
 EDITOR=${EDITOR:-$VISUAL}
+while true; do
+	case $1 in
+		-h | --help) BZR=${BZR##*/}; show_help | less -F; exit;;
+		--version) show_version; exit;;
+		--) shift; break;;
+		-*) die "Unknown option '$1'!";;
+		*) break;;
+	esac
+	shift
+done
 run test -f "$EDITOR"
-assign ROOT "$BZR" root
+system "$BZR" root; ROOT=$REPLY
 run cd "$ROOT"
-assign TF tempfile
+system tempfile; TF=$REPLY
 trap 'rm "$TF"' 0
-if test -e .bzrignore; then
-	run sed -e 's,^/,./,' < .bzrignore | LC_ALL=C run sort -u > "$TF"
-	if cmp -s "$TF" .bzrignore; test $? != 0; then
-		echo "Updating .bzrignore to current conventions."
-		run cat "$TF" > .bzrignore
+if test -e "$IGNOREFILE"; then
+	# Convert absolute paths into top-level relative ones.
+	run sed -e 's,^/,./,' < "$IGNOREFILE" | LC_ALL=C run sort -u > "$TF"
+	if cmp -s "$TF" "$IGNOREFILE"; test $? != 0; then
+		echo "Updating '$IGNOREFILE' to current conventions."
+		run cat "$TF" > "$IGNOREFILE"
 	fi
 fi
 run "$BZR" ls --unknown | while IFS= read ENTRY; do
 	run test -e "$ENTRY"
 	printf './%s\n' "$ENTRY"
 done | {
-	# Convert absolute paths into top-level relative ones.
-	test -e .bzrignore && run cat .bzrignore
+	test -e "$IGNOREFILE" && run cat "$IGNOREFILE"
 	run echo '=== new entries ==='
 	run cat
 } > "$TF"
@@ -58,11 +168,11 @@ if run tail -n1 "$TF" | run fgrep -q '=== new entries ==='; then
 	echo "Nothing unknown."
 	exit
 fi
-assign OLDSUM md5sum -b "$TF"
+system md5sum -b "$TF"; OLDSUM=$REPLY
 run "$EDITOR" "$TF"
-assign NEWSUM md5sum -b "$TF"
+system md5sum -b "$TF"; NEWSUM=$REPLY
 if test "$OLDSUM" = "$NEWSUM"; then
 	die "Required modifications have not been made!"
 fi
-LC_ALL=C run sort -u "$TF" > .bzrignore
-echo "'$ROOT/.bzrignore' has been updated and sorted."
+LC_ALL=C run sort -u "$TF" > "$IGNOREFILE"
+echo "'$ROOT/$IGNOREFILE' has been updated and sorted."
