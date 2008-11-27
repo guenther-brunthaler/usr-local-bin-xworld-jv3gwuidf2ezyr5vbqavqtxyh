@@ -3,7 +3,7 @@
 
 die() {
 	echo "ERROR: $*" >& 2
-	exit 1
+	false; exit
 }
 
 
@@ -38,12 +38,19 @@ assign ROOT "$BZR" root
 run cd "$ROOT"
 assign TF tempfile
 trap 'rm "$TF"' 0
+if test -e .bzrignore; then
+	run sed -e 's,^/,./,' < .bzrignore | LC_ALL=C run sort -u > "$TF"
+	if cmp -s "$TF" .bzrignore; test $? != 0; then
+		echo "Updating .bzrignore to current conventions."
+		run cat "$TF" > .bzrignore
+	fi
+fi
 run "$BZR" ls --unknown | while IFS= read ENTRY; do
 	run test -e "$ENTRY"
 	printf './%s\n' "$ENTRY"
 done | {
 	# Convert absolute paths into top-level relative ones.
-	test -e .bzrignore && sed -e 's,^/,./,' < .bzrignore
+	test -e .bzrignore && run cat .bzrignore
 	run echo '=== new entries ==='
 	run cat
 } > "$TF"
@@ -57,5 +64,5 @@ assign NEWSUM md5sum -b "$TF"
 if test "$OLDSUM" = "$NEWSUM"; then
 	die "Required modifications have not been made!"
 fi
-run sort -u "$TF" > .bzrignore
+LC_ALL=C run sort -u "$TF" > .bzrignore
 echo "'$ROOT/.bzrignore' has been updated and sorted."
