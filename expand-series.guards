@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 8.325
+	$APP Version 8.337
 	(c) 2008 by Guenther Brunthaler.
 
 	This script is free software.
@@ -149,8 +149,8 @@ enum_tokens() {
 			FQ=$SUPER
 		fi
 	done
-	CHOST=${ROOT%%/}
-	CHOST="`. $ROOT/etc/make.conf && printf '%s\n' "$CHOST"`"
+	CHOST=${PORTAGE_CONFIGROOT%%/}
+	CHOST="`. "$CHOST/etc/make.conf" && printf '%s\n' "$CHOST"`"
 	test -n "$CHOST" || die 'Could not determine $CHOST!'
 	set -- "$@" "$CHOST" "${CHOST%%-*}"
 	$CALLBACK "$@"
