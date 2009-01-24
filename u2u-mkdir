@@ -1,0 +1,312 @@
+#! /bin/sh
+show_version() {
+	wr . <<- EOF
+	$APP Version 9.24
+	(c) 2008 by Guenther Brunthaler.
+
+	This script is free software.
+	Distribution is allowed under the terms of the GPLv3.
+	EOF
+}
+
+
+show_help() { wr <<- EOF
+	$APP - create a subdirectory for unrestricted user-to-user data
+	exchange
+
+	$APP creates a new subdirectory within the $U2UBASE directory. That
+	new subdirectory will have a unique secret name which cannot be
+	guessed by other users (and the permissions of the $U2UBASE directory
+	also do not allow displaying its directory listing).
+	
+	Then $APP displays the path to the created subdirectory, and by
+	default also creates a symlink to it in the current directory. (The
+	symlink can then be examined to see the path without having to write
+	down the secret subdirectory name.)
+	
+	After this the user which just ran $APP can do anything she wants with
+	the new directory. Although the new directory will be world-writable,
+	no other users will be able to locate it because its name is not known
+	to them, and it is also not possible to get a directory listing of its
+	parent directory.
+	
+	However, the user who ran $APP will typically communicate the secret
+	directory name to some other user(s) via encrypted or normal e-mail,
+	depending on how sensitive the information in the secret directory is
+	meant to be.
+	
+	Sharing knowlege of the secret directory name, those other users then
+	can also access the contents of the directory.
+	
+	
+	Usage: $APP [ options ] [ <symlink-name> ]
+	
+	where
+	
+	<symlink-name>: The name of the symlink to be created which will point
+	to the newly created subdirectory of $U2UBASE with its secret name.
+	'readlink <symlink-name>' can then be used to display the secret name.
+	If this argument is omitted and the --no-symlink option is NOT used, a
+	suitable unique symlink name will be chosen and a symlink of that name
+	will be created in the current directory. The automatically chosen
+	symlink name will be displayed in this case. If <symlink-name> does
+	not contain a path separator character (which is the forward slash '/'
+	on UNIX operating systems), then a symlink with that name will be
+	created in the current directory. Otherwise, <symlink-name> must be a
+	relative path to where the symlink should be created. Absolute paths
+	are not allowed (but as ".."-components are allowed, any directory
+	location can still be reached that way). In either case, the symlink
+	must not already exist, or an error will be displayed. However,
+	the --force option can avoid this by removing the old symlink before
+	attempting to create the new symlink.
+	
+	
+	options:
+
+	--no-symlink, -n: Do not automatically create a symlink to the created
+	directory, but write its name to standard output instead. If this
+	option is not specified, a symlink will always be created, even if
+	<symlink-name> is not provided (in that case a suitable unique name
+	will be chosen for the symlink and it will be created in the current
+	directory; the symlink's name will be written to standard output in
+	this case). If this option has been used and a <symlink-name> is also
+	provided, no symlink will be created but <symlink-name> will still be
+	used in order to synthesize parts of the secret subdirectory name
+	under $U2UBASE. See the DESCRIPTION section for more details on this.
+	
+	--force, -f: Remove an existing symlink if it already exists before
+	creating the new one. Without this option, it is an error to specify a
+	<symlink-name> which already exists. But even with this option, it is
+	an error if <symlink-name> exists but is something else than a
+	symlink. This option has only an effect if a <symlink-name> has
+	actually been specified and the --no-symlink option has not been used.
+	
+	--help, -h: Display this help text.
+	
+	--version: Display version information.
+
+
+	DESCRIPTION
+
+	$APP is a means for creating directories for ad-hoc or long-term
+	communication between an arbitrarily structured group of users.
+	
+	Access to the created directory is not governed by file-system access
+	rights, but by the knowledge of the secret directory name: Anyone who
+	knows the name can access the files in that subdirectory. (Of course,
+	file-system permissions can be used in addition to this mechanism to
+	further restrict access to the files in the secret subdirectory.)
+	
+	A typical example for usage of $APP is a set of files one user wants
+	to upload to the local machine via SSH for another user.
+	
+	Other uses are the creation of shared project- or working directories
+	which no other users should be able to see.
+	
+	$APP achieves much of the same effect directories owned by a group
+	account can provide.
+	
+	However, that would require creating a separate group account for
+	every distinct set of users which want to maintain a private
+	collaboration directory. Also, each user would need to be made a
+	member of that group. This classic approach has several problems,
+	though.
+	
+	Firstly, only special privileged users can create new group accounts
+	or assign users to them. It is nothing ordinary users can do. An even
+	if a new group account has just been created and users have been
+	assigned to it, the new group membership will not be effective to any
+	affected users who are already logged in. They will have to log out
+	and log in again before the changes become effective for them.
+	
+	Secondly, this approach can lead to a large amount of groups to be
+	created for that purpose - typically a separate group for each single
+	collaboration directory. But there are limits to the maximum number of
+	groups the system can create. Also, a large number of groups will make
+	the /etc/group file quite large, which might reduce system performance
+	if this file has to be searched frequently.
+	
+	Thirdly, many UNIX systems place restrictions on the maximum number of
+	supplementary groups a process can be a member of at the same time. If
+	the user is a member of more supplementary groups than this limit, the
+	user's shell process will not actually be a member of all those
+	groups, but only of a subset of those. If the user actually needs
+	membership of one of the missing groups, she has to use commands
+	"newgrp" or "sg" in order to run a new shell or a single command using
+	a different subset of the total set of the user's supplementary
+	groups, respectively. This is not very convenient. And although newer
+	Linux kernel versions do no longer have such restrictions, having a
+	large number of supplementary groups assigned to a process negatively
+	affects performance for some operations. It also consumes more system
+	resources.
+	
+	One way to solve the problems states above is the use of filesystem
+	access-control lists (ACLs).
+	
+	However, not all available filesystems support ACLs, and neither do
+	all filesystem managment or backup tools.
+	
+	ACLs also make directory listings harder to comprehend, because
+	separate commands have to be used in order to display any ACLs present
+	in a directory.
+	
+	The other way is using $APP which uses knowledge of a secret name
+	instead of filesystem permissions to govern access.
+	
+	Of course, ACLs are much more powerful than the simple mechanism $APP
+	provides.
+	
+	But $APP tends to be more appropriate in situations where the
+	complexities of ACLs shall be avoided or where ACLs are just not
+	available.
+	
+	Another advantage of $APP against ACLs is that $APP allows data
+	arbitration even between different persons sharing the same user
+	account.
+	
+	For instance, if your system provides a guest account, anyone logged
+	in as a guest can create a personal working directory using $APP which
+	is not known to other users which are also logged in as a guest; all
+	using the same user account. The same mechanism of course also applies
+	to any other accounts used by more than one physical person.
+	
+	ACLs cannot be used in such situations, because they can only
+	arbitrate access beween different sets of user and group accounts. But
+	in the above scenario all physical users impersonate the same system
+	user.
+
+	Also note that the subdirectories of $U2UBASE will typically be
+	subject to special system administration policies.
+	
+	For instance, a cron job might regularly check for subdirectories of
+	$U2UBASE which do not conform to the naming conventions of directories
+	created by $APP, and delete them automatically.
+	
+	In other words, never manually create subdirectories of $U2UBASE, but
+	always let $APP do it for you instead.
+	
+	How is the secret directory name actually created?
+	
+	The directory created within $U2UBASE will have a secret name
+	consisting of two components. The first component is optional and will
+	be derived from <symlink-name> if this argument has been specified.
+	
+	The second component will be a 128-bit random UUID which has been
+	created either by the kernel (obtained from $UUID_SOURCE) or by the
+	running the "$UUID_CMD" command if the kernel does not provide the
+	above pseudo file. In both cases, the generated UUID will be encoded
+	as a 25-digit base-35 number before being used as part of the secret
+	directory name.
+	
+	EOF
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Failed executing >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY="`run "$@"`" || exit
+}
+
+
+# Wrap stdin or arguments to $LINEWIDTH characters.
+# If $1 is ".", wrap only but do not fill paragraphs.
+wr() {
+	local S
+	if test x"$1" = x"."; then
+		S=-s; shift
+	fi
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt $S -w $LINEWIDTH
+	fi
+}
+
+
+U2UBASE="/home/user2user"
+UUID_SOURCE="/proc/sys/kernel/random/uuid"
+UUID_CMD="uuidgen -r"
+DEFAULT_NAME="u2u"
+APP=${0##*/}
+# Determine output line width.
+LINEWIDTH=
+REPLY=
+tty -s <& 1 && system tput cols
+LINEWIDTH=${REPLY:-70}
+# Start of command line processing.
+# Define presets.
+FORCE=
+NO_SYMLINK=
+SYMLINK=
+REPORT_AT_END=
+#
+COPTS=
+while true; do
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch clustering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case "$COPT" in
+		--) break;; # Must be first!
+		--no-symlink | -n) NO_SYMLINK=Y;;
+		--force | -f) FORCE=Y;;
+		--help | -h) show_help | less --quit-if-one-screen; exit;;
+		--version) show_version; exit;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+# Shift off ordinal arguments.
+test $# -ge 1 && { SYMLINK="$1"; shift; }
+#test $# -ge 1 || die "Missing argument - limit for accumulated sum!"
+#LIMIT="$1"; shift
+# Check for excess arguments.
+test $# = 0 || die "Unexpected excess arguments: $*"
+# End of command line processing.
+SYMNAME=$SYMLINK
+if test -z "$SYMLINK"; then
+	I=1
+	while true; do
+		if test $I != 1; then
+			SYMLINK=$DEFAULT_NAME-$I
+		else
+			SYMLINK=$DEFAULT_NAME
+		fi
+		test ! -e "$SYMLINK" && break
+		I=`expr $I + 1`
+	done
+	REPORT_AT_END=$SYMLINK
+else
+	test x"${SYMLINK#/}" = x"$SYMLINK" \
+		|| die "Absolute paths are not allowed in '$SYMLINK'!"
+	if test -e "$SYMLINK"; then
+		if test -n "$FORCE" && test -L "$SYMLINK"; then
+			run rm "$SYMLINK"
+		else
+			die "'$SYMLINK' already exists" \
+				"(you might consider using" \
+				"the --force option)!"
+		fi
+	fi
+fi
+test -n "$REPORT_AT_END" && printf '%s\n' "$REPORT_AT_END"
