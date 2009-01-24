@@ -63,7 +63,7 @@ show_help() { wr <<- EOF
 	
 	options:
 
-	--no-symlink, -n: Do not automatically create a symlink to the created
+	--no-symlink, -S: Do not automatically create a symlink to the created
 	directory, but write its name to standard output instead. If this
 	option is not specified, a symlink will always be created, even if
 	<symlink-name> is not provided (in that case a suitable unique name
@@ -74,12 +74,20 @@ show_help() { wr <<- EOF
 	used in order to synthesize parts of the secret subdirectory name
 	under $U2UBASE. See the DESCRIPTION section for more details on this.
 	
+	--mode <mode>, -m <mode>: Optional --mode argument to be passed
+	through to the mkdir command when creating the secret directory.
+	
 	--force, -f: Remove an existing symlink if it already exists before
 	creating the new one. Without this option, it is an error to specify a
 	<symlink-name> which already exists. But even with this option, it is
 	an error if <symlink-name> exists but is something else than a
 	symlink. This option has only an effect if a <symlink-name> has
 	actually been specified and the --no-symlink option has not been used.
+	
+	--dry-run, -n: Display what would be done, but don't actually do
+	anything.
+	
+	--verbose, -v: Be verbose.
 	
 	--help, -h: Display this help text.
 	
@@ -198,6 +206,22 @@ show_help() { wr <<- EOF
 	as a 25-digit base-35 number before being used as part of the secret
 	directory name.
 	
+	
+	CAVEATS
+	
+	$APP is a shell script. This means that the secret directory name has
+	to be used as the arguments to some shell commands. Although the
+	amount of time during which this is the case has been minimized as
+	much as possible, a small possibility remains that other users which
+	are monitoring the output of the "ps" command might see the secret
+	name.
+	
+	Sorry, there is nothing that can be done about it other than
+	re-implementing $APP in a different programming or scripting language.
+	
+	Usage of the --verbose option increases the chances for such a
+	monitoring attack.
+	
 	EOF
 	show_version
 }
@@ -235,10 +259,66 @@ wr() {
 }
 
 
+gen_uuid() {
+	{
+		echo "obase=35; ibase=16"
+		{
+			if test -f "$UUID_SOURCE"; then
+				run cat "$UUID_SOURCE"
+			else
+				set -- $UUID_CMD
+				run "$@"
+			fi
+		} | run tr -d '-' | LC_ALL=C run tr '[:lower:]' '[:upper:]'
+	} | LC_ALL=C POSIXLY_CORRECT=1 BC_LINE_LENGTH=99 run bc \
+	| LC_ALL=C POSIXLY_CORRECT=1 run awk '
+		{
+			alphabet= "0123456789abcdefghijklmnpqrstuvwxyz"
+			out= ""
+			for (i= 1; i < NF + 1; ++i) {
+				out= out substr(alphabet, $i + 1, 1)
+			}
+			print out
+		}
+	'
+}
+
+
+symextract() {
+	printf '%s\n' "$*" \
+		| LC_ALL=C run tr '[:upper:]' '[:lower:]' \
+		| LC_ALL=C run tr -cs '[:alnum:]' _ \
+		| run sed -e 's/^_*//' \
+		| LC_ALL=C run awk '{print substr($0, 1, 16)}' \
+		| run sed -e 's/_*$//'
+}
+
+
+shall() {
+	if test -z "$DRY_RUN"; then
+		run "$@"
+	else
+		echo "SIMULATED ONLY: >>>$*<<<" >& 2
+	fi
+}
+
+
+inform() {
+	test -z "$VERBOSE" && return
+	echo "INFO: $*" >& 2
+}
+
+
+have() {
+	which "$1" > /dev/null 2>& 1
+}
+
 U2UBASE="/home/user2user"
 UUID_SOURCE="/proc/sys/kernel/random/uuid"
 UUID_CMD="uuidgen -r"
 DEFAULT_NAME="u2u"
+SYMLINK_OPTIMIZER=optimize-symlinks-as-relative
+SYMLINK_OPTIMIZER_ARGS=-q
 APP=${0##*/}
 # Determine output line width.
 LINEWIDTH=
@@ -247,10 +327,13 @@ tty -s <& 1 && system tput cols
 LINEWIDTH=${REPLY:-70}
 # Start of command line processing.
 # Define presets.
+VERBOSE=
 FORCE=
 NO_SYMLINK=
 SYMLINK=
 REPORT_AT_END=
+DRY_RUN=
+DIR_MODE=
 #
 COPTS=
 while true; do
@@ -269,8 +352,11 @@ while true; do
 	# Any arguments are at $1 and onwards; must be shifted off.
 	case "$COPT" in
 		--) break;; # Must be first!
-		--no-symlink | -n) NO_SYMLINK=Y;;
+		--no-symlink | -S) NO_SYMLINK=Y;;
+		--mode | -m) DIR_MODE=$1; shift;;
 		--force | -f) FORCE=Y;;
+		--dry-run | -n) DRY_RUN=Y;;
+		--verbose | -v) VERBOSE=Y;;
 		--help | -h) show_help | less --quit-if-one-screen; exit;;
 		--version) show_version; exit;;
 		*) die "Unknown option '$COPT'!";; # Must be last!
@@ -283,8 +369,22 @@ test $# -ge 1 && { SYMLINK="$1"; shift; }
 # Check for excess arguments.
 test $# = 0 || die "Unexpected excess arguments: $*"
 # End of command line processing.
-SYMNAME=$SYMLINK
-if test -z "$SYMLINK"; then
+run test -d "$U2UBASE"
+SYMNAME=${SYMLINK##*/}
+if test -n "$SYMLINK"; then
+	test x"${SYMLINK#/}" = x"$SYMLINK" \
+		|| die "Absolute paths are not allowed in '$SYMLINK'!"
+	if test -z "$NO_SYMLINK"; then
+		if test -n "$FORCE" && test -L "$SYMLINK"; then
+			shall rm "$SYMLINK"
+		fi
+		if test -L "$SYMLINK" || test -e "$SYMLINK"; then
+			die "'$SYMLINK' already exists" \
+				"(you might consider using" \
+				"the --force option)!"
+		fi
+	fi
+elif test -z "$NO_SYMLINK"; then
 	I=1
 	while true; do
 		if test $I != 1; then
@@ -296,17 +396,23 @@ if test -z "$SYMLINK"; then
 		I=`expr $I + 1`
 	done
 	REPORT_AT_END=$SYMLINK
-else
-	test x"${SYMLINK#/}" = x"$SYMLINK" \
-		|| die "Absolute paths are not allowed in '$SYMLINK'!"
-	if test -e "$SYMLINK"; then
-		if test -n "$FORCE" && test -L "$SYMLINK"; then
-			run rm "$SYMLINK"
-		else
-			die "'$SYMLINK' already exists" \
-				"(you might consider using" \
-				"the --force option)!"
-		fi
+fi
+system symextract "$SYMNAME"; SYMNAME=$REPLY
+while true; do
+	system gen_uuid; TARGET=$U2UBASE/$SYMNAME${SYMNAME:+_}$REPLY
+	set -- mkdir
+	test -n "$DIR_MODE" && set -- "$@" -m "$DIR_MODE"
+	shall "$@" -- "$TARGET" && break
+	run sleep 1
+done
+inform "Hidden directory '$TARGET' has been created."
+test -n "$NO_SYMLINK" && REPORT_AT_END=$TARGET
+if test -z "$NO_SYMLINK"; then
+	shall ln -s "$TARGET" "$SYMLINK"
+	inform "Symlink '$SYMLINK' has been created."
+	if have "$SYMLINK_OPTIMIZER"; then
+		set -- "$SYMLINK_OPTIMIZER" $SYMLINK_OPTIMIZER_ARGS
+		shall "$@" "$SYMLINK"
 	fi
 fi
 test -n "$REPORT_AT_END" && printf '%s\n' "$REPORT_AT_END"
