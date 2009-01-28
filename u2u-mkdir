@@ -309,6 +309,18 @@ show_help() { wr <<- EOF
 	Usage of the --verbose option increases the chances for such a
 	monitoring attack.
 	
+	If you *really* want to exchange crucially sensitive information,
+	encrypt the files using an encryption tool like gnupg before placing
+	the files into the created directory.
+	
+	Also, change the permissions of the directory so that it can only be
+	written by you.
+	
+	Then the other user can still read the files, but no-one can change
+	the files and without knowing the decryption key also no-one can make
+	advantage of the files there.
+
+	
 	EOF
 	show_version
 }
