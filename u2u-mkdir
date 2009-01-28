@@ -15,7 +15,7 @@ show_help() { wr <<- EOF
 	exchange
 
 	$APP creates a new subdirectory within the $U2UBASE directory. That
-	new subdirectory will have a unique secret name which cannot be
+	new subdirectory will have a unique secret name which cannot easily be
 	guessed by other users (and the permissions of the $U2UBASE directory
 	also do not allow displaying its directory listing).
 	
@@ -207,6 +207,93 @@ show_help() { wr <<- EOF
 	directory name.
 	
 	
+	EXAMPLES
+	
+	If you just want to quickly set up a new directory for data exchange
+	with another user and you don't care about the name, just run
+	
+	\$ $APP
+	
+	This will create a new subdirectory with a meaningless name in
+	$U2UBASE and create a symlink to it with a name like '$DEFAULT_NAME'
+	(or '$DEFAULT_NAME-2' or '$DEFAULT_NAME-3' etc) in the current
+	directory.
+	
+	It will then print the actual name of the symlink to the terminal.
+	
+	Now you can "cd" into the directory using the symlink and do anything
+	you like there, such as copying data for the other user to that
+	directory.
+	
+	When you are done, do a "cd .." to go back to the original directory,
+	and do a
+	
+	$ readlink -f <symlink_name>
+	
+	in order to determine where the symlink actually points to. This will
+	give you the actual name of the directory in $U2UBASE where you just
+	copied the data to.
+	
+	Finally, send an e-mail to the other user, providing her with the
+	actual directory name.
+	
+	The other user can then go to that directory and get the data. No
+	other user can do this, because no-one else knows the directory name.
+	And the $U2UBASE directory does not allow displaying a listing of its
+	contents. Only who knows what's already there can find the
+	subdirectory created by you.
+	
+	Another example: You also want to set up a user-to-user data
+	exchange directory, but this time you want the symlink to have
+	a specific name, say "uploads".
+	
+	Try this:
+	
+	\$ $APP uploads
+	
+	This does the same as in the previous example, except that it uses
+	the supplied name as the name of the symlink instead of synthesizing
+	a symlink name like '$DEFAULT_NAME'.
+	
+	It also will not display the name of the symlink being created,
+	because you already know. Which means it will work silently and output
+	nothing, unless you add the --verbose option. (Of course, it *will*
+	display an error message in case something went wrong.)
+	
+	
+	NOTE
+	
+	You might be tempted to ask "Why use $APP at all? Why not just
+	creating a directory anywhere else where only the other user has
+	access to?"
+	
+	The problem is that it might not be easy to find such a place where
+	only you and the other user has access to, and no-one else.
+	
+	On a typical UNIX system, users only can create any files or
+	subdirectories in their own home directories.
+	
+	That is also the reason why users' home directories had to be
+	world-readable on such installations - otherwise no other users could
+	ever access such a directory.
+	
+	However, making users' home directories world-readable is a really bad
+	idea from the security point of view.
+	
+	Therefore, this local machine makes all users' home directories
+	accessible to their owners only, and provides an additional directory
+	$U2UBASE for inter-user data exchange.
+	
+	All users can create directories for data exchange there using this
+	$APP command.
+	
+	In order to avoid the necessity to secure the created subdirectories
+	with file-system permissions (which might not be possible unless the
+	data-exchanging users are members of a specific group account which
+	has no additional members) or ACLs, knowledge of the secret name of
+	the directory is made the actual means of access control instead.
+		
+	
 	CAVEATS
 	
 	$APP is a shell script. This means that the secret directory name has
@@ -313,7 +400,7 @@ have() {
 	which "$1" > /dev/null 2>& 1
 }
 
-U2UBASE="/home/user2user"
+U2UBASE="/home/exchange"
 UUID_SOURCE="/proc/sys/kernel/random/uuid"
 UUID_CMD="uuidgen -r"
 DEFAULT_NAME="u2u"
