@@ -95,7 +95,7 @@ getres() {
 
 
 parserez() {
-	printf '%s\n' | sed -e 's/^[0-9]*x[0-9]*$//'
+	run printf '%s\n' "$1" | run sed -e 's/^[1-9][0-9]*x[1-9][0-9]*$//'
 }
 
 
@@ -134,7 +134,7 @@ while true; do
 	esac
 done
 # End of command line processing.
-system parserez "${REZ:+(unspecified)}"
+system parserez "${REZ:-(unspecified)}"
 test -z "$REPLY" || die "Please specify a valid screen resolution!"
 system getres; OLD_REZ=$REPLY
 run xrandr -s "$REZ"
