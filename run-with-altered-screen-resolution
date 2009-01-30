@@ -1,0 +1,142 @@
+#! /bin/sh
+show_version() {
+	wr . <<- EOF
+	$APP Version 9.30
+	(c) 2008 by Guenther Brunthaler.
+
+	This script is free software.
+	Distribution is allowed under the terms of the GPLv3.
+	EOF
+}
+
+
+show_help() { wr <<- EOF
+	$APP - run a graphical application with a different screen resolution
+	
+	$APP uses the $XRANDR tool to determine the current resolution of the
+	screen, then changes it to the specified resolution and runs the
+	specified application.
+	
+	After the application finishes, $APP restores the previous screen
+	resolution.
+	
+	Good for playing old games which only provide a fixed screen
+	resolution.
+	
+	Usage: $APP [ options ] -- <application> [ <arguments> ... ]
+	
+	where
+	
+	<application> [ <arguments> ... ]: The application command line as it
+	would be called without the help of $APP. (Of course, if $APP is
+	called from a wrapper script with the same name, the actual path to
+	the executable must be specified.)
+	
+
+	options:
+	
+	--: $APP will parse for further options at this point and pass any
+	remaining arguments through to the application to be run.
+
+	--resolution <WxH>, -r <WxH>: Specify the resolution to be used for
+	running the application. Must be supported by $XRANDR. Mandatory
+	option, so it is actually not an "option" at all.
+	
+	--help, -h: Display this help text.
+	
+	--version: Display version information.
+	
+
+	EXAMPLE
+	
+	\$ $APP -r 800x600 -- /usr/games/bin/xgalaga
+	
+	
+	EOF
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Failed executing >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY="`run "$@"`" || exit
+}
+
+
+# Wrap stdin or arguments to $LINEWIDTH characters.
+# If $1 is ".", wrap only but do not fill paragraphs.
+wr() {
+	local S
+	if test x"$1" = x"."; then
+		S=-s; shift
+	fi
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt $S -w $LINEWIDTH
+	fi
+}
+
+
+getres() {
+	run xrandr | run grep '\* *$' | LC_ALL=C run awk '{print $1}'
+}
+
+
+parserez() {
+	printf '%s\n' | sed -e 's/^[0-9]*x[0-9]*$//'
+}
+
+
+XRANDR="xrandr"
+APP=${0##*/}
+# Determine output line width.
+LINEWIDTH=
+REPLY=
+tty -s <& 1 && system tput cols
+LINEWIDTH=${REPLY:-70}
+# Start of command line processing.
+# Define presets.
+REZ=
+#
+COPTS=
+while true; do
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch clustering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case "$COPT" in
+		--) break;; # Must be first!
+		--resolution | -r) REZ=$1; shift;;
+		--help | -h) show_help | less --quit-if-one-screen; exit;;
+		--version) show_version; exit;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+# End of command line processing.
+system parserez "${REZ:+(unspecified)}"
+test -z "$REPLY" || die "Please specify a valid screen resolution!"
+system getres; OLD_REZ=$REPLY
+run xrandr -s "$REZ"
+"$@"
+run xrandr -s "$OLD_REZ"
