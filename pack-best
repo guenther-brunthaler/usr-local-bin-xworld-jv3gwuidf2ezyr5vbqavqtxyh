@@ -1,0 +1,62 @@
+#! /bin/sh
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	fail; exit
+}
+
+
+run() {
+	"$@" || die "Could not execute >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+size() {
+	system stat -c %s -- "$1"
+}
+
+
+try_better() {
+	local OUT
+	OUT=$IN.$1; shift
+	run test ! -e "$OUT"
+	echo "Testing '$OUT'..."
+	run cat "$IN" | run "$@" | run cat > "$OUT"
+	size "$OUT"
+	if test "$REPLY" -lt "$SHORTEST"; then
+		run test "$REPLY" -gt 0
+		SHORTEST=$REPLY
+		test -n "$BEST" && run rm "$BEST"
+		BEST=$OUT
+	else
+		run rm "$OUT"
+	fi
+}
+
+
+pack() {
+	local IN BEST SHORTEST REPLY
+	IN=$1
+	run test -f "$IN"
+	size "$IN"; SHORTEST=$REPLY
+	try_better gz gzip -9
+	try_better bz2 bzip2 -9
+	try_better lzma lzma -9
+	if test -n "$BEST"; then
+		rm "$IN"
+	else
+		BEST=$IN
+	fi
+	echo "Shortest is $BEST ($SHORTEST bytes)."
+}
+
+
+for FILE; do
+	pack "$FILE"
+done
