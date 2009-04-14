@@ -1,6 +1,6 @@
 #! /bin/sh
 # Launch TightVNC viewer through a locally-forwarded TCP tunnel.
-VERSION=8.212
+VERSION=9.104
 
 
 usage() {
@@ -35,7 +35,7 @@ usage() {
 	  do anything.
 
 	Version $VERSION
-	(c) 2007 Guenther Brunthaler.
+	(c) 2009 Guenther Brunthaler.
 	This source file is free software.
 	Distribution is allowed under the terms of the GPLv3.
 .
@@ -47,7 +47,7 @@ die() {
 		echo "ERROR: $*"
 		echo "Use $0 --help for help."
 	} >& 2
-	exit 1
+	false; exit
 }
 
 
@@ -85,7 +85,7 @@ DRY=
 QUALITY=4
 COMPRESSION=9
 PORT=5900
-PWDFILE="$HOME/.vnc/passwd"
+PWDFILE="$HOME/.vnc/client_passwd"
 #
 COPTS=
 while true; do
