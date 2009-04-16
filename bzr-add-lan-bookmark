@@ -1,0 +1,157 @@
+#! /bin/sh
+show_version() {
+	wr . <<- EOF
+	$APP Version 9.106
+	(c) 2009 by Guenther Brunthaler.
+
+	This script is free software.
+	Distribution is allowed under the terms of the GPLv3.
+	EOF
+}
+
+
+show_help() {
+	wr <<- EOF
+	$APP - add a "lan"-bookmark to the current Bazaar branch
+	
+	Usage: $APP [ <option> ... ] [ <master-URL> ]
+
+	Supported options:
+	EOF
+	wr <<- EOF
+	--master: Sets or displays the master URL to be used when constructing
+	the bookmark. If <master-URL> is specified as an argument to $APP, the
+	master URL is set. Otherwise the current master URL is displayed
+	instead.
+	EOF
+	wr . <<- EOF
+	--help, -h: Display this text.
+	--version: Display version information.
+	EOF
+	wr <<- EOF
+
+	Description:
+	
+	$APP requires the "bookmark"-plugin for Bazaar-NG and uses it to add a
+	bookmark with name "lan" to the Bazaar-branch associated with the
+	current directory.
+
+	This bookmark will reference a branch on a "master"-machine (typically
+	within the LAN) which has a branch with the same name at exactly the
+	same absolute path.
+
+	The URL which is used as the "master"-machine can be set or displayed
+	using the --master option.
+
+	A master URL must be a valid Bazaar URL prefix after which the full
+	path to the branch directory shall be appended.
+
+	An example for a master URL is:
+
+	bzr+ssh://user@example.com:1234
+
+	Note that the master URL should not end at a slash character ("/"),
+	because the absolute paths appended to it will start with a slash
+	already.
+
+	EOF
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>$*<< failed, return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+# Wrap stdin or arguments to $LINEWIDTH characters.
+# If $1 is ".", wrap only but do not fill paragraphs.
+wr() {
+	local S
+	if test x"$1" = x"."; then
+		S=-s; shift
+	fi
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt $S -w $LINEWIDTH
+	fi
+}
+
+
+show_branch() {
+	run bzr info | run sed -e 's/^  repository branch: //;t;d'
+}
+
+
+# Global constants.
+CONFIG_SUBDIR=.config
+CONFIG_UUID=tjk32mzi2yb2j18sia9gm7et5
+
+
+APP=${0##*/}
+# Determine output line width.
+LINEWIDTH=
+REPLY=
+tty -s <& 1 && run system tput cols
+LINEWIDTH=${REPLY:-70}
+# Preset defaults.
+MASTER=
+while true; do
+	case $1 in
+		--master) MASTER=Y;;
+		-h | --help) show_help | less -F; exit;;
+		--version) show_version; exit;;
+		--) shift; break;;
+		-*) die "Unknown option '$1'!";;
+		*) break;;
+	esac
+	shift
+done
+# Shift off ordinal arguments.
+MASTER_URL=
+test -n "$MASTER" && test $# -ge 1 && { MASTER_URL="$1"; shift; }
+# Check for excess arguments.
+test $# = 0 || die "Unexpected excess arguments: $*"
+# End of command line processing.
+CFG=${HOME?:Undefined \$HOME directory!}
+CFG=${CFG%%/}
+run test -d "$CFG/."
+CFG=$CFG/$CONFIG_SUBDIR
+test -d "$CFG" || run mkdir -p "$CFG"
+run test -d "$CFG"
+CFG=$CFG/${APP}_$CONFIG_UUID.conf
+if test -n "$MASTER" && test -n "$MASTER_URL"; then
+	run printf '%s\n' "$MASTER_URL" > "$CFG"
+	wr "Master URL has been set to \"$MASTER_URL\"."
+	exit
+fi
+test -f "$CFG" || die "No master URL has been set!"
+system cat "$CFG"
+MASTER_URL=$REPLY
+if test -n "$MASTER"; then
+	wr "The current master URL is \"$MASTER_URL\"."
+	exit
+fi
+# Cd to branch directory.
+system show_branch
+run cd "$REPLY"
+# Get absolute path.
+system pwd; URL=$REPLY
+run test -d "$URL/.bzr/branch"
+# Construct bookmark URL.
+URL=$MASTER_URL$URL
+wr "Setting URL \"$URL\" as bookmark \"lan\"!"
+run bzr bookmark lan "$URL"
