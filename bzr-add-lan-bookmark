@@ -153,5 +153,5 @@ system pwd; URL=$REPLY
 run test -d "$URL/.bzr/branch"
 # Construct bookmark URL.
 URL=$MASTER_URL$URL
-wr "Setting URL \"$URL\" as bookmark \"lan\"!"
-run bzr bookmark lan "$URL"
+wr "Setting URL \"$URL\" as branch-local bookmark \"lan\"!"
+run bzr bookmark --branch lan "$URL"
