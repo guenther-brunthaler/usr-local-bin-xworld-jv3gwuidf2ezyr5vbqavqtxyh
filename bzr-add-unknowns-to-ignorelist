@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 8.332
-	(c) 2008 by Guenther Brunthaler.
+	$APP Version 9.165
+	(c) 2009 by Guenther Brunthaler.
 
 	This script is free software.
 	Distribution is allowed under the terms of the GPLv3.
@@ -156,7 +156,7 @@ if test -e "$IGNOREFILE"; then
 		run cat "$TF" > "$IGNOREFILE"
 	fi
 fi
-run "$BZR" ls --unknown | while IFS= read ENTRY; do
+run "$BZR" ls --recursive --unknown | while IFS= read ENTRY; do
 	run test -e "$ENTRY"
 	printf './%s\n' "$ENTRY"
 done | {
