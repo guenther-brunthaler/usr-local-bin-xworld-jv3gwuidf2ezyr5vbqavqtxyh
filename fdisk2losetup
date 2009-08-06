@@ -27,7 +27,7 @@ unless ($loop= shift) {
    close PT or die;
    for ($loop= 0; $h{$loop}; ++$loop) { }
 }
-unless ($img && -f $img && -r _ && $loop =~ /^\d+$/ && !@ARGV) {
+unless ($img && (-f $img || -b _) && -r _ && $loop =~ /^\d+$/ && !@ARGV) {
    die "Usage: $0 <hd-image-file> [ <loop-no> ]";
 }
 $cmd= qq'fdisk -S 63 -H 255 -C 16383 -ul "$img"';
