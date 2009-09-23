@@ -1,0 +1,3 @@
+#! /bin/sh
+eval "`emerge --ignore-default-opts --info | grep USE=`"
+printf '%s\n' "$USE" | fmt -w1 | grep -v '"' | sort -u
