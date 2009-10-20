@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 9.30
+	$APP Version 9.293
 	(c) 2008 by Guenther Brunthaler.
 
 	This script is free software.
@@ -90,7 +90,7 @@ wr() {
 
 
 getres() {
-	run xrandr | run grep '\* *$' | LC_ALL=C run awk '{print $1}'
+	run xrandr | run grep '[0-9]\* ' | LC_ALL=C run awk '{print $1}'
 }
 
 
