@@ -1,0 +1,171 @@
+#! /bin/bash
+show_version() {
+	wr . <<- EOF
+	$APP Version 9.299
+	(c) 2009 by Guenther Brunthaler.
+
+	This script is free software.
+	Distribution is allowed under the terms of the GPLv3.
+	EOF
+}
+
+
+show_help() {
+	wr <<- EOF
+	$APP - find the installation path of a dynamic link library
+	
+	Usage: $APP [ options ] <so_name>
+	
+	where
+	
+	<so_name> the library as to be loaded via dlopen(), but excluding a
+	path.
+
+	options:
+	
+	--: $APP will parse for no further options at this point and will
+	treat any remaining arguments as non-options even if they look like an
+	option.
+
+	--help, -h: Display this help text.
+	
+	--version: Display version information.
+	
+
+	EXAMPLE
+	
+	\$ $APP libc.so.6
+	
+	
+	EOF
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Failed executing >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY="`run "$@"`" || exit
+}
+
+
+# Wrap stdin or arguments to $LINEWIDTH characters.
+# If $1 is ".", wrap only but do not fill paragraphs.
+wr() {
+	local S
+	if test x"$1" = x"."; then
+		S=-s; shift
+	fi
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt $S -w $LINEWIDTH
+	fi
+}
+
+
+# Process standard options.
+# Call function client_arg() for processing application-defined options.
+# Callback details:
+# If $1 is --long_option or -x short option:
+# Return number of arguments >= 1 to shift off if option is recognized.
+# If $1 is "0": Set REPLY for requesting positional arguments.
+# Otherwise: $1 is argument request label; $2 is argument;
+# set REPLY for requesting more positional arguments.
+# Format of REPLY: "label: Argument description".
+# If label is prefixed with "?", argument is optional.
+process_args() {
+	local REPLY TAIL COPT COPTS
+	APP=${0##*/}
+	# Determine output line width.
+	LINEWIDTH=
+	REPLY=
+	tty -s <& 1 && system tput cols
+	LINEWIDTH=${REPLY:-70}
+	COPTS=
+	while :
+	do
+		if test -z "$COPTS"
+		then
+			case "$1" in
+				-?*) COPTS="$1"; shift;;
+				*) break;;
+			esac
+		fi
+		if test "${COPTS#--}" = "$COPTS"
+		then
+			TAIL="${COPTS#-?}"; # Switch clustering.
+			COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+		else
+			COPT="$COPTS"; COPTS=
+		fi
+		# Any arguments are at $1 and onwards; must be shifted off.
+		case "$COPT" in
+			--) break;; # Must be first!
+			--help | -h) show_help | less -e; exit;;
+			--version) show_version; exit;;
+			*) # Must be last!
+				client_arg "$COPT" "$@"; REPLY=$?
+				test $REPLY = 0 && {
+					die "Unknown option '$COPT'!"
+				}
+				shift `expr $REPLY - 1`
+				;;
+		esac
+	done
+	COPT=0 # Ask for 'case'-label of first argument.
+	while :
+	do
+		REPLY=; client_arg "${COPT#"?"}" "$@"
+		test x"$COPT" = x"0" || shift
+		test -n "$REPLY" || break # No more arguments requested.
+		TAIL=${REPLY#*: }; COPT="${REPLY%: $TAIL}"
+		if test $# -eq 0
+		then
+			test x"${COPT#"?"}" != x"$COPT" && break
+			die "Missing required argument: $TAIL!"
+		fi
+	done
+	test $# -eq 0 || die "Unexpected excess arguments: $*!"
+}
+
+
+# Start of command line processing.
+# Preset defaults.
+# Handle options and positional arguments.
+client_arg() {
+	case $1 in
+		0) REPLY="libname: Library base name";;
+		libname) LIBNAME=$2;;
+	esac
+}
+process_args "$@"
+# End of command line processing.
+{
+	# Generate list of (name, path) pairs.
+	run ldconfig -p \
+		| run sed 's/^'$'\t''\([^ ]*\) .*=> *\([^ ]*\) *$/\1 \2/;t;d'
+	for BASE in /lib /usr/lib
+	do
+		run printf '%s %s\n' "$LIBNAME" "$BASE/$LIBNAME"
+	done
+} | while read LNAME LPATH
+do
+	# Print the first matching entry.
+	test x"$LNAME" = x"$LIBNAME" || continue
+	test -r "$LPATH" || continue
+	run printf '%s\n' "$LPATH"
+	exit 16
+done
+# Return false if not found.
+test $? = 16
