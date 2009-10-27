@@ -31,6 +31,12 @@ show_help() {
 	
 	--version: Display version information.
 	
+	
+	RETURN VALUE
+	
+	Returns true for success or false if no matching library could be
+	found. Also, nothing will be printed in the latter case.
+	
 
 	EXAMPLE
 	
