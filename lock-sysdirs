@@ -1,28 +1,28 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$SCRIPT version 1.0
+	$APP version 9.301
 
-	(c) 2008 by Guenther Brunthaler.
+	(c) 2008 - 2009 by Guenther Brunthaler.
 	Distribution is allowed under the terms of the GPLv3.
 .
 }
 
 
 show_help() {
-	LOCK=${SCRIPT#un}; UNLOCK=un$LOCK
+	LOCK=${APP#un}; UNLOCK=un$LOCK
 	{
 	wr <<-.
-	$SCRIPT - lock or unlock system installation directories
+	$APP - lock or unlock system installation directories
 	
-	$SCRIPT allows to re-mount a list of already-mounted filesystems as
+	$APP allows to re-mount a list of already-mounted filesystems as
 	read-only or re-write, while leaving any other mount options
 	untouched.
 	
-	$SCRIPT is very handy if, for instance, your /usr filesystem is normally
+	$APP is very handy if, for instance, your /usr filesystem is normally
 	mounted as read-only and you want to install new applications to /usr.
-	In this case you can use $SCRIPT to re-mount /usr as read-write, and later
-	re-mount it back to read-only as before. For example:
+	In this case you can use $APP to re-mount /usr as read-write, and
+	later re-mount it back to read-only as before. For example:
 .
 	wrL <<-.
 	
@@ -48,10 +48,30 @@ show_help() {
 .
 	wr <<-.
 	
-	$SCRIPT does my no means intend to replace "mount". Instead, it is
-	just a wrapper around "mount" which tries to make read-only/read-write
+	$APP does my no means intend to replace "mount". Instead, it is just a
+	wrapper around "mount" which tries to make read-only/read-write
 	re-mounting as easy as possible to the administrator or end user (for
 	"user" mounts).
+	
+	Aside from the behavior described above, $LOCK and $UNLOCK provide an
+	additional feature which only applies if the script is running with
+	administrative privileges:
+	
+	* $LOCK will try to obtain to obtain the local machine's memory
+	  overcommitment strategy and save this for later use by $UNLOCK.
+	  
+	  Then $LOCK will try to establish a new memory overcommitment
+	  strategy which allows more speculative allocations, which will
+	  typically be required by builds of applications which allocate
+	  insane amounts of memory they are never actually going to use.
+	  
+	  Of course such behavior of a build process should be avoided, but in
+	  reality quite enough build processes actually work that way.
+	  (Especially large JAVA builds are known to expose this undesirable
+	  behavior.)
+	
+	* $UNLOCK will revert to the original settings for whatever memory
+	  overcommitment strategy as recorded by $LOCK.
 .
 	wrL <<-.
 	
@@ -64,24 +84,23 @@ show_help() {
 	$LOCK defaults to option "--lock" (see below), while $UNLOCK defaults
 	to option --unlock.
 	
-	In the following, $SCRIPT is used to refer to the name of the
-	executable.
+	In the following, $APP is used to refer to the name of the executable.
 	
-	$SCRIPT accepts a list of mount points as its argument. If no
-	arguments are specified, a system-defined list of default mount points
-	are used instead.
+	$APP accepts a list of mount points as its argument. If no arguments
+	are specified, a system-defined list of default mount points are used
+	instead.
 	
-	$SCRIPT then examines any of those mount points, and for those of them
+	$APP then examines any of those mount points, and for those of them
 	which are actually mounted, tries to re-mount them as read-only or
 	read-write according to the effective --lock or --unlock settings.
 	
 	As it is a common problem that mount points which have open files
-	cannot be re-mounted read-only, $SCRIPT will silently ignore
-	failed attempts when trying to do so.
+	cannot be re-mounted read-only, $APP will silently ignore failed
+	attempts when trying to do so.
 	
 	The predefined list of system-defined mount points will have been
-	chosen in such a way that --unlock allows to install new software
-	into system directories, while --lock will disallow this.
+	chosen in such a way that --unlock allows to install new software into
+	system directories, while --lock will disallow this.
 	
 	For instance, file systems like /usr and /opt are likely candicates
 	for the system-defined list of mount points to be examined.
@@ -90,7 +109,9 @@ show_help() {
 	contents for the local system are (one mount point entry per line):
 
 .
-	if test -f "$MOUNT_LIST"; then
+	if
+		test -f "$MOUNT_LIST"
+	then
 		sed -e 's/^/  /' < "$MOUNT_LIST" | wrL || {
 			wr "(Cannot read file contents.)"
 		}
@@ -111,11 +132,11 @@ show_help() {
 	points and the command will not exit with a return code indicating a
 	failure.
 	
-	It is allowed to use symlinks for mount points; $SCRIPT will fully
+	It is allowed to use symlinks for mount points; $APP will fully
 	resolve any symlinks before actually using them.
 	
 	
-	Command line options accepted by $SCRIPT:
+	Command line options accepted by $APP:
 		
 	--: Stop parsing for command line options. Any arguments following
 	this option will be interpreted as normal arguments, even if they
@@ -133,7 +154,7 @@ show_help() {
 	"$UNLOCK".
 	
 	--warn, -w: Force display of warnings which are normally suppressed.
-	For instance, $SCRIPT normally fails when re-mounting as read-write
+	For instance, $APP normally fails when re-mounting as read-write
 	fails, but will not even display a warning when remounting as
 	read-only fails. With --warn, a warning will be displayed if
 	remounting as read-only should fail.
@@ -147,15 +168,15 @@ show_help() {
 	
 	Return status codes:
 	
-	$SCRIPT will return a status code of 0 for normal operation even in
-	the case of benign warnings such as non-existing mount-points or
-	failure to re-mount a read-write mount as read-only.
+	$APP will return a status code of 0 for normal operation even in the
+	case of benign warnings such as non-existing mount-points or failure
+	to re-mount a read-write mount as read-only.
 	
 	It will return a status code of 1 for all severe failures, such as the
 	inability to re-mount an already-mounted read-only filesystems as
 	read-write.
 	
-	For instance, a custom script installing software which uses $SCRIPT
+	For instance, a custom script installing software which uses $APP
 	should not continue if /usr could not be re-mounted read-write. But it
 	is usually a lesser problem if it was not possible to re-mount /usr as
 	read-only after successful installation, because some files might
@@ -164,13 +185,20 @@ show_help() {
 
 .
 	show_version
-	} | less -F
+	} | less -e
 }
 
 
 # The file containing the list of system-specific mount points for the local
 # system.
 MOUNT_LIST="/usr/local/etc/sysdir_locklist_2zvkhgk9u89qv46s3ws3bfgi0"
+# File where to save old overcommit strategy setting.
+OLD_OVERCOMMIT_SETTING=\
+"/var/run/vm_overcommit_2zvkhgk9u89qv46s3ws3bfgi0.original"
+# Name of overcommit strategy setting for sysctl tool.
+SYSCTL_OVERCOMMIT_ATTR=vm.overcommit_memory
+# Temporary overcommit strategy while sysdirs are unlocked.
+TEMP_OVERCOMMIT_OVERRIDE=0
 
 
 die() {
@@ -185,8 +213,15 @@ run() {
 }
 
 
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
 wr() {
-	if test $# -gt 0; then
+	if
+		test $# -gt 0
+	then
 		print '%s\n' "$*" | wr
 	else
 		fmt -w `tput cols`
@@ -196,7 +231,9 @@ wr() {
 
 wrL() {
 	local LINE
-	while IFS= read -r LINE; do
+	while
+		IFS= read -r LINE
+	do
 		printf "%s\n" "$LINE" | wr
 	done
 }
@@ -216,17 +253,23 @@ warn() {
 VERBOSE=
 FORCE_WARNINGS=
 WANT=ro
-SCRIPT=${0##*/}
-test x"${SCRIPT#unlock}" != x"$SCRIPT" && WANT=rw
+APP=${0##*/}
+test x"${APP#unlock}" != x"$APP" && WANT=rw
 COPTS=
-while true; do
-	if [ -z "$COPTS" ]; then
+while
+	:
+do
+	if
+		test -z "$COPTS"
+	then
 		case "$1" in
 			-?*) COPTS="$1"; shift;;
 			*) break;;
 		esac
 	fi
-	if [ "${COPTS#--}" = "$COPTS" ]; then
+	if
+		test "${COPTS#--}" = "$COPTS"
+	then
 		TAIL="${COPTS#-?}"; # Switch clustering.
 		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
 	else
@@ -244,17 +287,37 @@ while true; do
 		*) die "Unknown option '$COPT'!";; # Must be last!
 	esac
 done
-if test $# -eq 0; then
+if
+	test $# -eq 0
+then
 	set --
-	while IFS=: read MP; do
+	while
+		IFS=: read MP
+	do
 		set -- "$@" "$MP"
 	done < "$MOUNT_LIST" || exit 1
 	test $# -eq 0 && die "Empty system default mountpoint list!"
 fi
-WANT_LONG="read-write"
-test x"$WANT" = x"ro" && WANT_LONG="read-only"
+if
+	test $WANT = ro
+then
+	WANT_LONG="read-only"
+	# Try to restore memory overcommitment strategy.
+	if
+		test -e "$OLD_OVERCOMMIT_SETTING"
+	then
+		system cat "$OLD_OVERCOMMIT_SETTING"
+		inform "Restoring old memory overcommit strategy '$REPLY'."
+		run sysctl -q -w "$SYSCTL_OVERCOMMIT_ATTR=$REPLY"
+		run rm "$OLD_OVERCOMMIT_SETTING"
+	fi
+else
+	WANT_LONG="read-write"
+fi
 PAT=
-while test $# -gt 0; do
+while
+	test $# -gt 0
+do
 	DIR=$1; shift
 	test -d "$DIR" && test -r "$DIR" && test -x "$DIR" || {
 		warn "Directory "$DIR" is inaccessible."
@@ -276,9 +339,20 @@ do
 	MSG=`mount -o "remount,$WANT" "$DEV" 2>& 1 > /dev/null` || {
 		MSG="Re-mounting as $WANT_LONG failed ($MSG)!"
 		test x"$WANT" = x"rw" && die $MSG
-		if test -n "$VERBOSE" || test -n "$FORCE_WARNINGS" ; then
+		if
+			test -n "$VERBOSE" || test -n "$FORCE_WARNINGS"
+		then
 			warn $MSG
 		fi
 	}
 done
 inform "Done examining mount points for possible re-mounting."
+# Check whether to override memory overcommitment strategy.
+{ test $WANT = ro || test -e "$OLD_OVERCOMMIT_SETTING"; } && exit
+STRATEGY=
+STRATEGY=`sysctl -n $SYSCTL_OVERCOMMIT_ATTR 2> /dev/null`
+test -z "$STRATEGY" && exit
+run printf '%s\n' "$STRATEGY" > "$OLD_OVERCOMMIT_SETTING"
+inform "Saving current memory overcommit strategy '$STRATEGY'."
+run sysctl -q -w "$SYSCTL_OVERCOMMIT_ATTR=$TEMP_OVERCOMMIT_OVERRIDE"
+inform "Setting new memory overcommit strategy '$TEMP_OVERCOMMIT_OVERRIDE'."
