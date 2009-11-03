@@ -1,0 +1,10 @@
+#! /bin/sh
+# Displays the combined up- and download byte count on the specified interface
+# (defaults to ppp0) since the interface was brought up.
+
+LC_ALL=C /sbin/ifconfig ${1:-ppp0} | perl -ne '
+	$mb= 1024 ** 2;
+	if (/RX[^0-9]*([0-9]*).*TX[^0-9]*([0-9]*)/) {
+		printf "%.2f MiB\n", ($1 + $2) / $mb;
+	}
+'
