@@ -1,0 +1,66 @@
+#! /bin/sh
+# Very primitive HTTP upload script.
+# It just accepts a single file as an argument, and starts
+# a temporary minimalistic web-server on $PORT, allowing any
+# web-browser to download the file (the name of the file is not
+# communicated to the web server).
+#
+# Great for sending files from a UNIX workstation to a Windows
+# box without a need to locally install any sort of file server
+# or web-server software. There are also no administrative
+# privileges required.
+#
+# push-http version 9.312
+# (c) 2009 by Guenther Brunthaler.
+# May be distributed under the terms of the GPLv3.
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<<: return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+# Write $* as a line of text with Internet standard line terminator.
+wrline() {
+	run printf '%s%s' "$*" "$CRLF"
+}
+
+
+# Set $REPLY to the byte size of file $1.
+filesize() {
+	system stat -c '%s' "$1"
+}
+
+
+have() {
+	which "$1" > /dev/null 2>& 1
+}
+
+
+run have nc6 # We need the netcat6 utility.
+run test $# = 1 # One argument only.
+run test -f "$1" # Which must be a file.
+PORT=10101
+system printf '\015\012x'; CRLF=${REPLY%x}
+echo "Browse to URL http://localhost:$PORT/ to download"
+echo "contents of file \"$1\" as an anonymous file."
+{
+	filesize "$1"; BYTES=$REPLY
+	wrline HTTP/1.0
+	wrline Content-Type: application/octet-stream
+	wrline Content-Length: $BYTES
+	wrline
+	cat "$1"
+} | nc6 -lXp $PORT 
