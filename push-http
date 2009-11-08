@@ -64,3 +64,5 @@ echo "contents of file \"$1\" as an anonymous file."
 	wrline
 	cat "$1"
 } | nc6 -lXp $PORT 
+echo "Press Ctrl-C to quit after the client has downloaded the file."
+nc6 -lp $PORT > /dev/null
