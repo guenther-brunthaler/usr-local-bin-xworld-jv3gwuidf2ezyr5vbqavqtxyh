@@ -1,0 +1,270 @@
+#! /bin/sh
+show_version() {
+	wr . <<- EOF
+	$APP Version 9.324
+	(c) 2009 by Guenther Brunthaler.
+
+	This script is free software.
+	Distribution is allowed under the terms of the GPLv3.
+	EOF
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Failed executing >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY="`run "$@"`" || exit
+}
+
+
+# Wrap stdin or arguments to $LINEWIDTH characters.
+# If $1 is ".", wrap only but do not fill paragraphs.
+wr() {
+	local S
+	if test x"$1" = x"."; then
+		S=-s; shift
+	fi
+	if test $# -gt 0; then
+		run printf '%s\n' "$*" | wr
+	else
+		run fmt $S -w $LINEWIDTH
+	fi
+}
+
+
+show_help() {
+	wr <<- EOF
+	$APP - create versioned incremental patches
+	
+	Usage; $APP [ <options> ... ] [ <olddir> ] <newdir>
+	
+	If <olddir> is omitted, the special directory naming conventions must
+	have been used. For instance if the patches are against a base version
+	foo-2.34, the directories will be named as follows:
+	
+	EOF
+	wr . <<- EOF
+	foo-2.34 - name of the original base version directory (patch level # 0)
+	foo-2.34p1 - name of the patched directory, patch level # 1
+	foo-2.34p1 - name of the patched directory, patch level # 2
+	EOF
+	wr <<- EOF
+	
+	and so on. Also, the patch level of each directory must match the
+	contents of file $VI which must be located in the top-level directory
+	of <newdir> and must contain a line
+	
+	#define PATCHLEVEL <integer>
+	
+	where <integer> refers to the patch level. This file might be missing,
+	in which case the patch level is assumed to be 0, referring to the
+	base version itself. If it is not missing, the patch level must be 1
+	or greater.
+	
+	$APP will refuse to create a patch if the patch levels of the old and
+	new directories are inconsistent, i. e. the new directory must have a
+	patch level 1 higher than the old directory.
+	
+	Supported options:
+
+	EOF
+	wr "--verbose, -v: Print additional diagnostic information" \
+		"to standard error in several situations."
+	wr "--help, -h: Display this help text."
+	wr "--version, -V: Display version number of this script."
+	echo
+	show_version
+}
+
+
+inform() {
+	test -z "$VERBOSE" && return
+	echo "Info: $*" >& 2
+}
+
+
+# Print the PATCHLEVEL from a #define statement in $1.
+# The first definition found will be used.
+extract_patch_level() {
+	if test ! -f "$1"
+	then
+		run echo 0
+	else
+		run sed -e '
+				s/^#define PATCHLEVEL \([1-9][0-9]*\)$/\1/
+				t; d
+			' "$1" \
+		| run head -n1
+	fi
+}
+
+
+remove_tempfile() {
+	rm "$TF"
+}
+
+
+update_patchlevel() {
+		run sed -e '
+				s/^\(#define PATCHLEVEL \)[1-9][0-9]*$/\1'$1'/
+				t c
+				b
+				: c
+				n
+				b c
+			'
+}
+
+
+APP=${0##*/}
+# Determine output line width.
+LINEWIDTH=
+REPLY=
+tty -s <& 1 && system tput cols
+LINEWIDTH=${REPLY:-70}
+# Start of command line processing.
+# Define presets.
+VERBOSE=
+#
+COPTS=
+while true; do
+	if [ -z "$COPTS" ]; then
+		case "$1" in
+			-?*) COPTS="$1"; shift;;
+			*) break;;
+		esac
+	fi
+	if [ "${COPTS#--}" = "$COPTS" ]; then
+		TAIL="${COPTS#-?}"; # Switch clustering.
+		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	else
+		COPT="$COPTS"; COPTS=
+	fi
+	# Any arguments are at $1 and onwards; must be shifted off.
+	case "$COPT" in
+		--) break;; # Must be first!
+		--help | -h) show_help | less --quit-if-one-screen; exit;;
+		--version | -V) show_version; exit;;
+		--verbose | -v) VERBOSE=Y;;
+		*) die "Unknown option '$COPT'!";; # Must be last!
+	esac
+done
+# Process positional arguments.
+if test $# -ge 2
+then
+	OLDDIR=$1; shift
+else
+	OLDDIR=
+fi
+test $# -ge 1 || die "Required argument: patched directory tree"
+NEWDIR=$1; shift
+test $# -eq 0 || die "Too many argumemts. Use --help for help."
+# End of command line processing.
+
+
+# Verify the specified directories do exist.
+test -n "$OLDDIR" && run test -d "$OLDDIR"
+run test -d "$NEWDIR"
+
+
+# Define some globals.
+VI=patchlevel.h # Version indicator file.
+UUID=fuwxqaix9c8nt279013wbtmdb # Base-35 encoded DCE UUID.
+TF=${TMPDIR:-/tmp}/${APP}_${UUID}_${$}_
+
+
+# Determine and verify involved patch levels and directory tree paths.
+if test -f "$NEWDIR"/"$VI"
+then
+	system extract_patch_level "$NEWDIR"/"$VI"; NV=$REPLY
+	CLONED_VI=
+else
+	NV=1
+	inform "Auto-creating \"$NEWDIR/$VI\"; assuming patch level $NV."
+	system date -R
+	cat <<- EOF > "$NEWDIR"/"$VI"
+		/* This file has initially been created by $APP */
+		/* on $REPLY. */
+		
+		#define PATCHLEVEL $NV
+	EOF
+	CLONED_VI=Y
+fi
+test $NV -ge 1 \
+	|| die "new tree \"$NEWDIR\" must have" \
+		"a patch level of at least 1!"
+if
+	test -z "$OLDDIR"
+then
+	BASEDIR=${NEWDIR%%[0-9]}; BASEDIR=${BASEDIR%p}
+	if test $NV -eq 1
+	then
+		test -d "$BASEDIR" || {
+			# Remove trailing "-" or "_" if it helps.
+			BASEDIR=${BASEDIR%[-_]}
+			test -d "$BASEDIR" \
+				|| die "Could not find old" \
+					"base directory \"$BASEDIR\"!"
+		}
+		OLDDIR=$BASEDIR
+	else
+		system expr $NV - 1
+		OLDDIR=${BASEDIR}p$REPLY
+		test -d "$OLDDIR" \
+			|| die "Could not find old" \
+				"patch level $REPLY directory \"$OLDDIR\"!"
+	fi
+fi
+system extract_patch_level "$OLDDIR"/"$VI"; OV=$REPLY
+system expr $OV + 1; EXP_NV=$REPLY
+if test $OV -eq $NV
+then
+	if test -n "$CLONED_VI"
+	then
+		inform "Replacing auto-generated" \
+			"\"$NEWDIR/$VI\" by \"$OLDDIR/$VI\"."
+		run cp "$OLDDIR/$VI" "$NEWDIR/$VI"
+	fi
+	# Auto-update $VI file.
+	trap remove_tempfile 0
+	inform "Assuming \"$NEWDIR/$VI\" has been cloned;" \
+		"auto-updating to patch level $EXP_NV."
+	NV=$EXP_NV
+	update_patchlevel $NV < "$NEWDIR/$VI" > "$TF"
+	run rm "$NEWDIR/$VI" # Also breaks any hard link.
+	run cat "$TF" > "$NEWDIR/$VI"
+	trap 0; remove_tempfile
+elif test $EXP_NV -ne $NV
+then
+	die "New tree has patch level $NV rather than" \
+		"expected patch level $EXP_NV!"
+fi
+
+
+# Make the diff and split it.
+trap "rm '$TF'*" 0 # Clean up temp files afterwards.
+LC_ALL=C TZ=UTC0 diff -Naur "$OLDDIR" "$NEWDIR" \
+	| run csplit -f "$TF" -n7 -s - /^diff/ {*};
+test $OV -ne 0 && run echo "Prereq: $OV"
+for P in "$TF"*
+do
+	run head -n1 "$P" \
+		| grep -q '^diff [^ ]* '"$OLDDIR/$VI"'[^-_.A-Za-z0-9]' \
+			|| continue
+	cat "$P"
+	rm "$P"
+	break
+done
+cat "$TF"*
+die "This script is still buggy. Dont trust it's output!"
+#} # > old-$OV-$NV.patch
