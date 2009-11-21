@@ -38,7 +38,7 @@ show_help() {
 	lines of (hash, metadata)-pairs, sorted by hash. This allows to find a
 	matching hash efficiently using the "look" utility.
 
-	--save-hardlink-paths <savefile>, -h <savefile>: Even when
+	--save-hardlink-paths <savefile>, -H <savefile>: Even when
 	--save-metadata has been specified, the saved metadata will not
 	include the hardlink paths but rather a hash of it. This option will
 	create an additional save file containing the hardlinked paths, each
@@ -307,7 +307,7 @@ do
 	case "$COPT" in
 		--) break;; # Must be first!
 		--save-metadata | -m) SAVE_METADATA=$1; shift;;
-		--save-hardlink-paths | -h) SAVE_HARDLINKS=$1; shift;;
+		--save-hardlink-paths | -H) SAVE_HARDLINKS=$1; shift;;
 		--help | -h | --usage) show_help; exit;;
 		--version | -V) show_version; exit;;
 		--verbose | -v) VERBOSE=1;;
