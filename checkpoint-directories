@@ -108,6 +108,7 @@ show_help() {
 	* Number of hard links
 	* UID/GID of owner
 	* Object type
+	* Number of allocated blocks and block size according to stat()
 	* Byte size as reported by "stat"
 	* Time of last modification
 	* In case of normal files, a hash over the files contents
@@ -117,22 +118,27 @@ show_help() {
 .
 	wrL <<-.
 	
-	Note that neither the inode nor the device number are among the metadata
-	to be checkpointed.
+	Note that neither the inode nor the device number are among the
+	metadata to be checkpointed.
 	
-	This allows copies of directoriy trees to be compared against each other.
+	This allows copies of directoriy trees to be compared against each
+	other.
 	
-	This restriction is rather unfortunate for hardlinked files, because it
-	does not retain the information which of the files in the tree refer
-	to the same contents.
+	This restriction is rather unfortunate for hardlinked files, because
+	it does not retain the information which of the files in the tree
+	refer to the same contents.
 	
-	In order to alleviate this, for each hardlinked file a list of (relative)
-	path names is generated which all refer to the same file, as long as the
-	file is also part of the checkpointed directory tree.
+	In order to alleviate this, for each hardlinked file a list of
+	(relative) path names is generated which all refer to the same file,
+	as long as the file is also part of the checkpointed directory tree.
 	
 	This list of relative path names is then sorted and a hash over the
 	resulting text is generated, which is included into the metadata of
 	the hardlinked file system objects.
+	
+	The fact that the number of allocated blocks is also recorded, means
+	that the amount of "sparseness" of files is also part of the
+	checkpoint metadata.
 .
 	show_version
 	} | less -e
@@ -189,6 +195,38 @@ warn() {
 }
 
 
+canonpath() {
+	system readlink -f "$1"
+}
+
+
+hashit() {
+	run md5sum -b | run cut -c-32
+}
+
+
+hashlink() {
+	run readlink "$1" | hashit
+}
+
+
+hashfile() {
+	run md5sum -b "$1" | run cut -c-32
+}
+
+
+cleanup250() {
+	test -z "$REDIR250" && return
+	exec 250>& -
+}
+
+
+cleanup() {
+	cleanup250
+	rm -r "$TFB"
+}
+
+
 VERBOSE=
 QICK=
 APP=${0##*/}
@@ -218,7 +256,6 @@ do
 		--help | -h | --usage) show_help; exit;;
 		--version | -V) show_version; exit;;
 		--verbose | -v) VERBOSE=1;;
-		--quick | -q) QUICK=1;;
 		*) die "Unknown option '$COPT'!";; # Must be last!
 	esac
 done
@@ -228,15 +265,14 @@ test $# -eq 2 || die "Incorrect number of arguments."
 CHECKPOINT_FILE=$1; shift
 SOURCE_TREE=$1; shift
 test -d "$SOURCE_TREE" || die "\"$SOURCE_TREE\" is not a directory!"
+canonpath "$SOURCE_TREE"; SOURCE_TREE=$REPLY
+run test -d "$SOURCE_TREE"
 if test -e "$CHECKPOINT_FILE"
 then
 	test -f "$CHECKPOINT_FILE" \
 		|| die "Refusing to overwrite non-file \"$CHECKPOINT_FILE\"!"
 fi
 
-
-UUID="726zjsd9l1l8af02fqy73s7am"
-TFB=${TMPDIR:-/tmp}/${APP}_${UUID}_${$}_
 LC_COLLATE="C"
 LC_NUMERIC=$LC_COLLATE
 LC_TIME=$LC_COLLATE
@@ -249,8 +285,41 @@ then
 	LANG=$LC_ALL
 	unset LC_ALL
 fi
-DBF=${TFB}dbf
-true > "$DBF"
-trap "rm \"$TFB\"*" 0
-run chmod 600 "$DBF"
-echo "Created $DBF"
+
+UUID="726zjsd9l1l8af02fqy73s7am"
+
+TFB=${TMPDIR:-/tmp}/${APP}_${UUID}_$$
+REDIR250=
+run mkdir -m 700 "$TFB"
+trap cleanup 0
+
+MAINDB=${TFB}/fsos
+LINKDB=${TFB}/hardlinks
+exec 250> "$LINKDB"; REDIR250=Y
+find "$SOURCE_TREE" | while read -r FSO
+do
+	system stat -c '%D:%i %h %t:%T,%u:%g,%f,%bx%B,%s,%Y' "$FSO"
+	ID=${REPLY%% *}; REPLY=${REPLY#* }
+	NLINKS=${REPLY%% *}; REPLY=${REPLY#* }
+	# Include $NLINKS in metadata also.
+	METADATA=$REPLY,$NLINKS
+	RELPATH=${FSO#$SOURCE_TREE}; RELPATH=${RELPATH#/}
+	if test -L "$FSO"
+	then
+		system hashlink "$FSO"
+		METADATA=$METADATA,L=$REPLY
+	elif test -d "$FSO"
+	then
+		NLINKS=1 # Do not record directory hardlinks.
+	elif test -f "$FSO"
+	then
+		system hashfile "$FSO"
+		METADATA=$METADATA,F=$REPLY
+	fi
+	if test $NLINKS -gt 1
+	then
+		echo "$ID $RELPATH" >& 250
+	fi
+	echo "$ID $NLINKS $RELPATH $METADATA"
+done > "$MAINDB"
+cleanup250
