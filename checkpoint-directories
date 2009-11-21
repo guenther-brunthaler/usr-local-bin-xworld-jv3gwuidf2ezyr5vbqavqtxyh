@@ -31,12 +31,12 @@ show_help() {
 	this option will be interpreted as normal arguments, even if they
 	start with "-" or "--".
 	
-	--save-metadata <savefile>: Only a hash over the metadata is included
-	within the checkpoint file. If this option is specified, an additional
-	file <savefile> is written containing the metadata that was used to
-	create the hashes. The file consists of lines of (hash,
-	metadata)-pairs, sorted by hash. This allows to find a matching hash
-	efficiently using the "look" utility.
+	--save-metadata <savefile>, -m <savefile>: Only a hash over the
+	metadata is included within the checkpoint file. If this option is
+	specified, an additional file <savefile> is written containing the
+	metadata that was used to create the hashes. The file consists of
+	lines of (hash, metadata)-pairs, sorted by hash. This allows to find a
+	matching hash efficiently using the "look" utility.
 
 	--help, -h, --usage: Display this help.
 
@@ -254,7 +254,7 @@ flush_linkid() {
 
 
 VERBOSE=
-QICK=
+SAVE_METADATA=
 APP=${0##*/}
 COPTS=
 while
@@ -279,6 +279,7 @@ do
 	# Any arguments are at $1 and onwards; must be shifted off.
 	case "$COPT" in
 		--) break;; # Must be first!
+		--save-metadata | -m) SAVE_METADATA=$1; shift;;
 		--help | -h | --usage) show_help; exit;;
 		--version | -V) show_version; exit;;
 		--verbose | -v) VERBOSE=1;;
@@ -326,38 +327,40 @@ TMP2=${TFB}/temp2
 TMP3=${TFB}/temp3
 # Pass 1: Locate all file system objects.
 exec 250> "$TMP1"; REDIR250=Y
+STATFMT='%D:%i %h maj=%t,min=%T,user=%u,group=%g'
+STATFMT=$STATFMT',mode=%f,alloc=%bx%B,bytes=%s,mtime=%Y'
 find "$SOURCE_TREE" | while read -r FSO
 do
-	system stat -c '%D:%i %h %t:%T,%u:%g,%f,%bx%B,%s,%Y' "$FSO"
+	system stat -c "$STATFMT" "$FSO"
 	ID=${REPLY%% *}; REPLY=${REPLY#* }
 	NLINKS=${REPLY%% *}; REPLY=${REPLY#* }
 	# Include $NLINKS in metadata also.
-	METADATA=$REPLY,$NLINKS
+	METADATA=$REPLY,links=$NLINKS
 	RELPATH=${FSO#$SOURCE_TREE}; RELPATH=/${RELPATH#/}
 	if test -L "$FSO"
 	then
 		system hashlink "$FSO"
-		METADATA=$METADATA,L=$REPLY
+		METADATA=$METADATA,symlinkhash=$REPLY
 	elif test -d "$FSO"
 	then
 		NLINKS=1 # Do not record directory hardlinks.
 	elif test -f "$FSO"
 	then
 		system hashfile "$FSO"
-		METADATA=$METADATA,F=$REPLY
+		METADATA=$METADATA,filedatahash=$REPLY
 	fi
 	if test $NLINKS -gt 1
 	then
 		echo "$ID $RELPATH" >& 250
 	fi
-	echo "$ID $NLINKS $RELPATH $METADATA"
+	echo "$ID $NLINKS $METADATA $RELPATH"
 done > "$TMP2"
 cleanup250
 # Create hardlink membership group hashes.
 run sort -t' ' -k1 "$TMP1" > "$TMP3"
 LAST_ID=
 {
-	while IFS=" " read -r ID NLINKS REPLATH METADATA
+	while IFS=" " read -r ID NLINKS METADATA RELPATH
 	do
 		if test x"$ID" != x"$LAST_ID"
 		then
@@ -369,18 +372,32 @@ LAST_ID=
 	flush_linkid
 } < "$TMP3" > "$LINKDB"
 # Incorporate hardlink hashes into main db.
-while IFS=" " read -r ID NLINKS RELPATH METADATA
+if test -n "$SAVE_METADATA"
+then
+	exec 250> "$TMP1"
+	REDIR250=Y
+fi
+while IFS=" " read -r ID NLINKS METADATA RELPATH
 do
 	if test $NLINKS -gt 1
 	then
 		system look -t" " "$ID" "$LINKDB"
 		run test -n "$REPLY" # Exactly one match must be found.
 		HASH=${REPLY##* }
-		METADATA=$METADATA,H=$HASH
+		METADATA=$METADATA,hardlinkpathshash=$HASH
 	fi
 	system hashargs "$METADATA"
 	echo "$REPLY $RELPATH"
+	if test -n "$SAVE_METADATA"
+	then
+		echo "$REPLY $METADATA" >& 250
+	fi
 done < "$TMP2" | run sort -t" " -k2 > "$MAINDB"
+if test -n "$SAVE_METADATA"
+then
+	cleanup250
+	run sort -t" " -k1,1 "$TMP1" > "$SAVE_METADATA"
+fi
 # Finally, generate the result.
 {
 	run echo "$UUID (File Format Identifier)"
