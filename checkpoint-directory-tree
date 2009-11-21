@@ -59,12 +59,12 @@ show_help() {
 	
 	Command verb "create":
 	
-	This will gather information about all the file system objects (files, directories,
-	symlinks, device files, fifos, sockets and whatever else there might be) and create
-	a hash over the metadata of each object.
+	This will gather information about all the file system objects (files,
+	directories, symlinks, device files, fifos, sockets and whatever else
+	there might be) and create a hash over the metadata of each object.
 	
-	For file objects only, a hash over the file contents is also included as part of the metadata
-	to be hashed.
+	For file objects only, a hash over the file contents is also included
+	as part of the metadata to be hashed.
 	
 	This collected data is written to the checkpoint file, prefixed by a
 	header including a hash over the remainder of the file. This means it
@@ -270,7 +270,7 @@ flush_linkid() {
 	then
 		system hashfile "$TMP1"; HASH=$REPLY
 		echo "$LAST_ID $HASH"
-		if test -n $SAVE_HARDLINKS
+		if test -n "$SAVE_HARDLINKS"
 		then
 			run sed -e "s/^/$HASH /" "$TMP1" >& 250
 		fi
