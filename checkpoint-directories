@@ -30,6 +30,13 @@ show_help() {
 	--: Stop parsing for command line options. Any arguments following
 	this option will be interpreted as normal arguments, even if they
 	start with "-" or "--".
+	
+	--save-metadata <savefile>: Only a hash over the metadata is included
+	within the checkpoint file. If this option is specified, an additional
+	file <savefile> is written containing the metadata that was used to
+	create the hashes. The file consists of lines of (hash,
+	metadata)-pairs, sorted by hash. This allows to find a matching hash
+	efficiently using the "look" utility.
 
 	--help, -h, --usage: Display this help.
 
@@ -205,6 +212,11 @@ hashit() {
 }
 
 
+hashargs() {
+	run printf '%s\n' "$*" | hashit
+}
+
+
 hashlink() {
 	run readlink "$1" | hashit
 }
@@ -224,6 +236,20 @@ cleanup250() {
 cleanup() {
 	cleanup250
 	rm -r "$TFB"
+}
+
+
+# Prints a new "$LAST_ID $HASH" if $LAST_ID is non-empty.
+# $HASH is the hash of $TMP1.
+# $TMP1 is truncated after this.
+flush_linkid() {
+	local REPLY
+	if test -n "$LAST_ID"
+	then
+		system hashfile "$TMP1"
+		echo "$LAST_ID $REPLY"
+	fi
+	true > "$TMP1"
 }
 
 
@@ -295,7 +321,11 @@ trap cleanup 0
 
 MAINDB=${TFB}/fsos
 LINKDB=${TFB}/hardlinks
-exec 250> "$LINKDB"; REDIR250=Y
+TMP1=${TFB}/temp1
+TMP2=${TFB}/temp2
+TMP3=${TFB}/temp3
+# Pass 1: Locate all file system objects.
+exec 250> "$TMP1"; REDIR250=Y
 find "$SOURCE_TREE" | while read -r FSO
 do
 	system stat -c '%D:%i %h %t:%T,%u:%g,%f,%bx%B,%s,%Y' "$FSO"
@@ -303,7 +333,7 @@ do
 	NLINKS=${REPLY%% *}; REPLY=${REPLY#* }
 	# Include $NLINKS in metadata also.
 	METADATA=$REPLY,$NLINKS
-	RELPATH=${FSO#$SOURCE_TREE}; RELPATH=${RELPATH#/}
+	RELPATH=${FSO#$SOURCE_TREE}; RELPATH=/${RELPATH#/}
 	if test -L "$FSO"
 	then
 		system hashlink "$FSO"
@@ -321,5 +351,42 @@ do
 		echo "$ID $RELPATH" >& 250
 	fi
 	echo "$ID $NLINKS $RELPATH $METADATA"
-done > "$MAINDB"
+done > "$TMP2"
 cleanup250
+# Create hardlink membership group hashes.
+run sort -t' ' -k1 "$TMP1" > "$TMP3"
+LAST_ID=
+{
+	while IFS=" " read -r ID NLINKS REPLATH METADATA
+	do
+		if test x"$ID" != x"$LAST_ID"
+		then
+			flush_linkid
+			LAST_ID=$ID
+		fi
+		run printf '%s\n' "$RELPATH" >> "$TMP1"
+	done
+	flush_linkid
+} < "$TMP3" > "$LINKDB"
+# Incorporate hardlink hashes into main db.
+while IFS=" " read -r ID NLINKS RELPATH METADATA
+do
+	if test $NLINKS -gt 1
+	then
+		system look -t" " "$ID" "$LINKDB"
+		run test -n "$REPLY" # Exactly one match must be found.
+		HASH=${REPLY##* }
+		METADATA=$METADATA,H=$HASH
+	fi
+	system hashargs "$METADATA"
+	echo "$REPLY $RELPATH"
+done < "$TMP2" | run sort -t" " -k2 > "$MAINDB"
+# Finally, generate the result.
+{
+	run echo "$UUID (File Format Identifier)"
+	run echo "Original Source Tree Path: $SOURCE_TREE"
+	system hashfile "$MAINDB"
+	run echo "$REPLY (Hash of all the lines following this one)"
+	run cat "$MAINDB"
+} > "$CHECKPOINT_FILE"
+inform "File \"$CHECKPOINT_FILE\" has been created."
