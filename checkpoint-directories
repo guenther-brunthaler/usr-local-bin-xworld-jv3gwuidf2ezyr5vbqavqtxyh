@@ -38,6 +38,14 @@ show_help() {
 	lines of (hash, metadata)-pairs, sorted by hash. This allows to find a
 	matching hash efficiently using the "look" utility.
 
+	--save-hardlink-paths <savefile>, -h <savefile>: Even when
+	--save-metadata has been specified, the saved metadata will not
+	include the hardlink paths but rather a hash of it. This option will
+	create an additional save file containing the hardlinked paths, each
+	one prefixed by the hash of the hardlink group as used in a file
+	created by --metadata file. The file will be sorted by hash. This
+	allows to find a matching hash efficiently using the "look" utility.
+
 	--help, -h, --usage: Display this help.
 
 	--version, -V: Show version information.
@@ -207,8 +215,15 @@ canonpath() {
 }
 
 
+extract_hash() {
+	# It seems md5sum may prefix the hash with escape characters.
+	# This happens for instance if the filename contains backslashes.
+	run sed -e 's/^[^0-9a-f]*\([0-9a-f]\{32\}\).*$/\1/'
+}
+
+
 hashit() {
-	run md5sum -b | run cut -c-32
+	run md5sum -b | extract_hash
 }
 
 
@@ -223,13 +238,20 @@ hashlink() {
 
 
 hashfile() {
-	run md5sum -b "$1" | run cut -c-32
+	run md5sum -b "$1" | extract_hash
 }
 
 
 cleanup250() {
 	test -z "$REDIR250" && return
+	REDIR250=
 	exec 250>& -
+}
+
+
+redir250() {
+	exec 250> "$1"
+	REDIR250=Y
 }
 
 
@@ -243,11 +265,15 @@ cleanup() {
 # $HASH is the hash of $TMP1.
 # $TMP1 is truncated after this.
 flush_linkid() {
-	local REPLY
+	local REPLY HASH
 	if test -n "$LAST_ID"
 	then
-		system hashfile "$TMP1"
-		echo "$LAST_ID $REPLY"
+		system hashfile "$TMP1"; HASH=$REPLY
+		echo "$LAST_ID $HASH"
+		if test -n $SAVE_HARDLINKS
+		then
+			run sed -e "s/^/$HASH /" "$TMP1" >& 250
+		fi
 	fi
 	true > "$TMP1"
 }
@@ -255,6 +281,7 @@ flush_linkid() {
 
 VERBOSE=
 SAVE_METADATA=
+SAVE_HARDLINKS=
 APP=${0##*/}
 COPTS=
 while
@@ -280,6 +307,7 @@ do
 	case "$COPT" in
 		--) break;; # Must be first!
 		--save-metadata | -m) SAVE_METADATA=$1; shift;;
+		--save-hardlink-paths | -h) SAVE_HARDLINKS=$1; shift;;
 		--help | -h | --usage) show_help; exit;;
 		--version | -V) show_version; exit;;
 		--verbose | -v) VERBOSE=1;;
@@ -325,8 +353,10 @@ LINKDB=${TFB}/hardlinks
 TMP1=${TFB}/temp1
 TMP2=${TFB}/temp2
 TMP3=${TFB}/temp3
+TMP4=${TFB}/temp4
 # Pass 1: Locate all file system objects.
-exec 250> "$TMP1"; REDIR250=Y
+inform "Gathering metadata for file system objects."
+redir250 "$TMP1"
 STATFMT='%D:%i %h maj=%t,min=%T,user=%u,group=%g'
 STATFMT=$STATFMT',mode=%f,alloc=%bx%B,bytes=%s,mtime=%Y'
 find "$SOURCE_TREE" | while read -r FSO
@@ -357,10 +387,12 @@ do
 done > "$TMP2"
 cleanup250
 # Create hardlink membership group hashes.
+inform "Identifying hardlink path groups."
 run sort -t' ' -k1 "$TMP1" > "$TMP3"
 LAST_ID=
+test -n "$SAVE_HARDLINKS" && redir250 "$TMP4"
 {
-	while IFS=" " read -r ID NLINKS METADATA RELPATH
+	while IFS=" " read -r ID RELPATH
 	do
 		if test x"$ID" != x"$LAST_ID"
 		then
@@ -371,12 +403,14 @@ LAST_ID=
 	done
 	flush_linkid
 } < "$TMP3" > "$LINKDB"
-# Incorporate hardlink hashes into main db.
-if test -n "$SAVE_METADATA"
+if test -n "$SAVE_HARDLINKS"
 then
-	exec 250> "$TMP1"
-	REDIR250=Y
+	cleanup250
+	run sort -t" " -k1 "$TMP4" > "$SAVE_HARDLINKS"
 fi
+# Incorporate hardlink hashes into main db.
+inform "Add hardlink group references to file system object metadata."
+test -n "$SAVE_METADATA" && redir250 "$TMP1"
 while IFS=" " read -r ID NLINKS METADATA RELPATH
 do
 	if test $NLINKS -gt 1
@@ -399,6 +433,7 @@ then
 	run sort -t" " -k1,1 "$TMP1" > "$SAVE_METADATA"
 fi
 # Finally, generate the result.
+inform "Create checkpoint file."
 {
 	run echo "$UUID (File Format Identifier)"
 	run echo "Original Source Tree Path: $SOURCE_TREE"
