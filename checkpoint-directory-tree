@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$APP version 9.325
+	$APP version 9.326
 
 	(c) 2009 by Guenther Brunthaler.
 	Distribution is allowed under the terms of the GPLv3.
@@ -341,7 +341,7 @@ then
 	unset LC_ALL
 fi
 
-UUID="726zjsd9l1l8af02fqy73s7am"
+UUID="2frm1z7e9wkx94j6s3d18rfkr"
 
 TFB=${TMPDIR:-/tmp}/${APP}_${UUID}_$$
 REDIR250=
@@ -426,7 +426,7 @@ do
 	then
 		echo "$REPLY $METADATA" >& 250
 	fi
-done < "$TMP2" | run sort -t" " -k2 > "$MAINDB"
+done < "$TMP2" | run cat -v | run sort -t" " -k2 > "$MAINDB"
 if test -n "$SAVE_METADATA"
 then
 	cleanup250
@@ -435,7 +435,7 @@ fi
 # Finally, generate the result.
 inform "Create checkpoint file."
 {
-	run echo "$UUID (File Format Identifier)"
+	run echo "$UUID (File Format Revision Identifier)"
 	run echo "Original Source Tree Path: $SOURCE_TREE"
 	system hashfile "$MAINDB"
 	run echo "$REPLY (Hash of all the lines following this one)"
