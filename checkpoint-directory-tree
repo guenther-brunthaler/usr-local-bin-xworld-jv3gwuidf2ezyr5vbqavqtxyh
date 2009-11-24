@@ -101,7 +101,8 @@ show_help() {
 	
 	The second line contains the tree location used to create the
 	checkpoint as an absolute and canonicalized path. Any symlinks will
-	have been resolved.
+	have been resolved. This path is included as-is, i. e. without any
+	character set conversion.
 	
 	The third line contains the hash over the remaining lines. If this
 	line is the same in two different checkpoint files, it is therefore
@@ -171,7 +172,19 @@ show_help() {
 	In order to decode those filenames back as they were before, use
 	commands like the following:
 	
-	echo "<the_pathname_to_be_decoded>" | iconv -f UTF-7
+	echo "<the_pathname_to_be_decoded>" | iconv -f UTF-7 -t LATIN1
+	
+	One might ask "Why Latin-1?"
+	
+	Short answer: Because it is as good as any other 8-bit character set.
+	
+	Long answer: We do not really want to encode a specific character set,
+	just 8-bit bytes. This is because POSIX path names do not have any
+	encoding associated with them; they are just treated as byte strings
+	by the kernel. And Latin-1 provides that, like most other single-byte
+	character sets. Latin-1 was chosen because it is the most basic 8-bit
+	character set for UNICODE conversions because all its code values map
+	directly to the same UNICODE code points for the same characters.
 
 
 .
@@ -299,12 +312,6 @@ flush_linkid() {
 }
 
 
-print_locale_charset() {
-	# Hmmm I have no idea how portable this is - but it worked so far.
-	locale LC_CTYPE | head -n5 | tail -n1
-}
-
-
 # Check whether executable $1 can be found in $PATH.
 have() {
 	which "$1" > /dev/null 2>& 1
@@ -314,7 +321,7 @@ have() {
 # Convert PATH names to UTF-7. This should make the output
 # independent of the system-local locale.
 asciiize() {
-	run iconv -f "$SYSTEM_CHARSET" -t UTF-7
+	run iconv -f LATIN1 -t UTF-7
 }
 
 
@@ -368,12 +375,6 @@ then
 		|| die "Refusing to overwrite non-file \"$CHECKPOINT_FILE\"!"
 fi
 
-SYSTEM_CHARSET=ASCII # Fallback to ASCII.
-if have locale
-then
-	system print_locale_charset
-	test -n "$REPLY" && SYSTEM_CHARSET=$REPLY
-fi
 LC_COLLATE="C"
 LC_NUMERIC=$LC_COLLATE
 LC_TIME=$LC_COLLATE
