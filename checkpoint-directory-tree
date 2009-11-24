@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$APP version 9.326
+	$APP version 9.328
 
 	(c) 2009 by Guenther Brunthaler.
 	Distribution is allowed under the terms of the GPLv3.
@@ -92,20 +92,25 @@ show_help() {
 	
 	Contents of a checkpoint file:
 	
-	The first line contains a version marker in order to be able to detect the
-	file format. This will always be the same text for all checkpoints created
-	by the same version of $APP.
+	The first line contains a version marker in order to be able to detect
+	the file format. This will always be the same text for all checkpoints
+	created by the same version of $APP. (This version of $APP understands
+	format version '$UUID'. If you need a version of $APP which
+	understands an older version of the format, just check out an older
+	version of the tool from upstream's version-control repository.)
 	
-	The second line contains the tree location used to create the checkpoint as
-	an absolute and canonicalized path. Any symlinks will have been resolved.
+	The second line contains the tree location used to create the
+	checkpoint as an absolute and canonicalized path. Any symlinks will
+	have been resolved.
 	
-	The third line contains the hash over the remaining lines. If this line is the same
-	in two different checkpoint files, it is therefore not necessary to also compare the
-	contents of the remaining lines: They must be identical.
+	The third line contains the hash over the remaining lines. If this
+	line is the same in two different checkpoint files, it is therefore
+	not necessary to also compare the contents of the remaining lines:
+	They must be identical.
 	
-	The fourth and following lines contain the hashes of all file system objects in
-	the directory tree, ordered lexicographically using binary byte semantics. Any
-	locale-specific collation sequences are ignored.
+	The fourth and following lines contain the hashes of all file system
+	objects in the directory tree, ordered lexicographically using binary
+	byte semantics. Any locale-specific collation sequences are ignored.
 	
 	However, the path names of the file system objects are encoded using
 	the current character encoding (LC_CTYPE), so the same character set
@@ -131,7 +136,7 @@ show_help() {
 	* In case of special devices, the device type
 	* For hardlinked files, as hash over all paths (see below)
 .
-	wrL <<-.
+	wr <<-.
 	
 	Note that neither the inode nor the device number are among the
 	metadata to be checkpointed.
@@ -154,6 +159,21 @@ show_help() {
 	The fact that the number of allocated blocks is also recorded, means
 	that the amount of "sparseness" of files is also part of the
 	checkpoint metadata.
+	
+	Another issue is the character set used to encode path names. No
+	assumptions will be made about the actual encoding of the filenames,
+	i. e. they will be considered binary strings.
+	
+	In order to include them into the checkpoint file, however, the binary
+	names will be encoded as UTF-7. This will guarantee a human-readable
+	file even if the path names contain funny characters.
+	
+	In order to decode those filenames back as they were before, use
+	commands like the following:
+	
+	echo "<the_pathname_to_be_decoded>" | iconv -f UTF-7
+
+
 .
 	show_version
 	} | less -e
@@ -233,7 +253,7 @@ hashargs() {
 
 
 hashlink() {
-	run readlink "$1" | hashit
+	run readlink "$1" | asciiize | hashit
 }
 
 
@@ -279,10 +299,30 @@ flush_linkid() {
 }
 
 
+print_locale_charset() {
+	# Hmmm I have no idea how portable this is - but it worked so far.
+	locale LC_CTYPE | head -n5 | tail -n1
+}
+
+
+# Check whether executable $1 can be found in $PATH.
+have() {
+	which "$1" > /dev/null 2>& 1
+}
+
+
+# Convert PATH names to UTF-7. This should make the output
+# independent of the system-local locale.
+asciiize() {
+	run iconv -f "$SYSTEM_CHARSET" -t UTF-7
+}
+
+
 VERBOSE=
 SAVE_METADATA=
 SAVE_HARDLINKS=
 APP=${0##*/}
+UUID="i487h9ecxztlqgruv3qjd7urc"
 COPTS=
 while
 	:
@@ -328,6 +368,12 @@ then
 		|| die "Refusing to overwrite non-file \"$CHECKPOINT_FILE\"!"
 fi
 
+SYSTEM_CHARSET=ASCII # Fallback to ASCII.
+if have locale
+then
+	system print_locale_charset
+	test -n "$REPLY" && SYSTEM_CHARSET=$REPLY
+fi
 LC_COLLATE="C"
 LC_NUMERIC=$LC_COLLATE
 LC_TIME=$LC_COLLATE
@@ -340,8 +386,6 @@ then
 	LANG=$LC_ALL
 	unset LC_ALL
 fi
-
-UUID="2frm1z7e9wkx94j6s3d18rfkr"
 
 TFB=${TMPDIR:-/tmp}/${APP}_${UUID}_$$
 REDIR250=
@@ -388,7 +432,7 @@ done > "$TMP2"
 cleanup250
 # Create hardlink membership group hashes.
 inform "Identifying hardlink path groups."
-run sort -t' ' -k1 "$TMP1" > "$TMP3"
+asciiize < "$TMP1" | run sort -t' ' -k1 > "$TMP3"
 LAST_ID=
 test -n "$SAVE_HARDLINKS" && redir250 "$TMP4"
 {
@@ -426,7 +470,7 @@ do
 	then
 		echo "$REPLY $METADATA" >& 250
 	fi
-done < "$TMP2" | run cat -v | run sort -t" " -k2 > "$MAINDB"
+done < "$TMP2" | asciiize | run sort -t" " -k2 > "$MAINDB"
 if test -n "$SAVE_METADATA"
 then
 	cleanup250
