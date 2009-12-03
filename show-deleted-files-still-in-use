@@ -1,0 +1,3 @@
+#! /bin/sh
+# Show all files or just the specified directories.
+lsof "$@" | grep -P '\bDEL\b|\(deleted\)'
