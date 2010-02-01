@@ -4,7 +4,7 @@ show_version() {
 	$SCRIPT version 1.0
 
 	(c) 2008 by Guenther Brunthaler.
-	Distribution is allowed under the terms of the GPLv3.
+	Distribution is permitted under the terms of the GPLv3.
 .
 }
 

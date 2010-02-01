@@ -5,7 +5,7 @@ show_version() {
 	(c) 2009 by Guenther Brunthaler.
 
 	This script is free software.
-	Distribution is allowed under the terms of the GPLv3.
+	Distribution is permitted under the terms of the GPLv3.
 	EOF
 }
 
