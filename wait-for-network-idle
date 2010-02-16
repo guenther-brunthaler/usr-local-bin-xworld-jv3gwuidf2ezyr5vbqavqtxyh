@@ -33,6 +33,10 @@ usage() {
 
 	options:
 	
+	--quick-check, -d: Return with exit code 1 if no waiting
+	  has been necessary after the initial delay. If this
+	  option is not specified, an exit code 1 will never be
+	  returned.
 	--initial-wait <seconds>, -i <seconds>:
 	  Wait that many seconds unconditionally before starting
 	  to monitor network load. Defaults to 60 secinds.
@@ -47,13 +51,14 @@ usage() {
 	0: The tool had to wait at least for one cycle after
 	   the initial delay (if any).
 	1: No waiting was necessary after the initial delay.
+	   (Only possible with --quick-check option.)
 	2: An error occurred.
 	
 	The tools will return a status code of 2 if any errors
 	occur during processing.
 
-	Version 1.0
-	Written by Guenther Brunthaler in 2007.
+	Version 1.1
+	Written by Guenther Brunthaler in 2010.
 .
 }
                                                                                                                              
@@ -96,7 +101,7 @@ run() {
 
 idle() {
 	# Returns 0 if idle; 1 otherwise.
-	test "$(LC_ALL=C netstat -Ainet | wc -l)" -eq 2
+	test "$(LC_ALL=C netstat -Ainet -n 2> /dev/null | wc -l)" -eq 2
 }
 
 
@@ -106,7 +111,7 @@ VERBOSE=
 DRY=
 CHECK_INTERVAL=45
 INITIAL_WAIT=60
-PROBING=1
+PROBING=0
 #
 COPTS=
 while true; do
@@ -125,11 +130,12 @@ while true; do
 	# Any arguments are at $1 and onwards; must be shifted off.
 	case "$COPT" in
 		--) break;; # Must be first!
+		--quick-check | -q) PROBING=1;;
 		--initial-wait | -i) INITIAL_WAIT="$1"; shift;;
                 --help | -h) usage; exit;;
 		--version)
 			# Sychronize this with the usage text!
-			echo "Version 1.0"
+			echo "Version 1.1"
 			exit;;
 		--verbose | -v) VERBOSE=1;;
 		--dry-run | --simulate | -n) DRY=1;;
