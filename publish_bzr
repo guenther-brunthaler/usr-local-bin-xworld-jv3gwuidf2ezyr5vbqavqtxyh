@@ -118,13 +118,13 @@ if test $MODE = server; then
 	test -e "$SUBDIR" && die "'$SUBDIR' already exists!"
 	run mkdir -p "$SUBDIR"
 	run cd "$SUBDIR"
-	run bzr init-repo --no-trees $BZR_REPO_OPTION .
+	run bzr init-repo --quiet --no-trees $BZR_REPO_OPTION .
 	which base35uuid > /dev/null 2>& 1 || {
 		test -f /etc/profile && . /etc/profile
 	}
 	MASTER=${SUBDIR##*/}_`base35uuid`
 	test $? = 0 || die "Could not generate master directory name!"
-	run bzr init "$MASTER"
+	run bzr init --quiet "$MASTER"
 	MASTER=$SUBDIR/$MASTER
 	printf '%s\n' $MASTER
 else
@@ -162,6 +162,7 @@ else
 	inform `printf "executing >>>$*<<<\n" "$*"`
 	MASTER=`"$@"`
 	test $? = 0 || die "Remote could not generate master directory name!"
+	inform "Remote server created branch \"$MASTER\"."
 	test x"${MASTER#/}" != x"$MASTER" \
 		|| die "Remote master ('$MASTER') is not an absolute path!"
 	URL=bzr+ssh://$SERVERSPEC$MASTER
