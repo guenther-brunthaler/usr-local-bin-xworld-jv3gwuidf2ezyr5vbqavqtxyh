@@ -95,10 +95,6 @@ EOT
 }
 
 
-if which uuidgen.pl > /dev/null 2>& 1; then
-	test -f /etc/profile && . /etc/profile
-	test -f ~/.bashrc && . ~/.bashrc
-fi
 MODE=normal
 SAVE=
 VERBOSE=
@@ -123,7 +119,7 @@ if test $MODE = server; then
 	run mkdir -p "$SUBDIR"
 	run cd "$SUBDIR"
 	run bzr init-repo --no-trees $BZR_REPO_OPTION .
-	MASTER=${SUBDIR##*/}_`uuidgen.pl 1`
+	MASTER=${SUBDIR##*/}_`base35uuid`
 	test $? = 0 || die "Could not generate master directory name!"
 	run bzr init "$MASTER"
 	MASTER=$SUBDIR/$MASTER
