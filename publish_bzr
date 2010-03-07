@@ -1,9 +1,12 @@
 #! /bin/sh
 
 
+BZR_REPO_OPTION=""
+
+
 die() {
 	echo "ERROR: $*" >& 2
-	exit 1
+	false; exit
 }
 
 
@@ -92,6 +95,10 @@ EOT
 }
 
 
+if which uuidgen.pl > /dev/null 2>& 1; then
+	test -f /etc/profile && . /etc/profile
+	test -f ~/.bashrc && . ~/.bashrc
+fi
 MODE=normal
 SAVE=
 VERBOSE=
@@ -115,7 +122,7 @@ if test $MODE = server; then
 	test -e "$SUBDIR" && die "'$SUBDIR' already exists!"
 	run mkdir -p "$SUBDIR"
 	run cd "$SUBDIR"
-	run bzr init-repo --no-trees --rich-root-pack .
+	run bzr init-repo --no-trees $BZR_REPO_OPTION .
 	MASTER=${SUBDIR##*/}_`uuidgen.pl 1`
 	test $? = 0 || die "Could not generate master directory name!"
 	run bzr init "$MASTER"
