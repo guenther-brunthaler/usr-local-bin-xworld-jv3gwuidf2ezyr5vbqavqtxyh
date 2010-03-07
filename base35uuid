@@ -250,7 +250,6 @@ echo "obase= 35; ibase= 16; $UUID" | run bc | while IFS= read -r
 do
 	run printf '%s' "$REPLY"
 done | run tr -d '\\ ' | LC_ALL=C run awk '{
-	# perl: print join "", "0" .. "9", "a" .. "n", "p" .. "z"
 	al= "0123456789abcdefghijklmnpqrstuvwxyz"
 	out= ""
 	for (i= 1; i < 51; i+= 2) {

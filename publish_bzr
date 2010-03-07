@@ -119,6 +119,9 @@ if test $MODE = server; then
 	run mkdir -p "$SUBDIR"
 	run cd "$SUBDIR"
 	run bzr init-repo --no-trees $BZR_REPO_OPTION .
+	which base35uuid > /dev/null 2>& 1 || {
+		test -f /etc/profile && . /etc/profile
+	}
 	MASTER=${SUBDIR##*/}_`base35uuid`
 	test $? = 0 || die "Could not generate master directory name!"
 	run bzr init "$MASTER"
