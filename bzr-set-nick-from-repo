@@ -1,0 +1,36 @@
+#! /bin/sh
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>${*}<<< failed with return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+print_branch_basename() {
+	LC_ALL=C run bzr info \
+		| LC_ALL=C run grep "parent branch" \
+		| LC_ALL=C run sed -e 's,.*/\([^/]*\)/$,\1,'
+}
+
+
+system print_branch_basename; NICK=$REPLY
+system bzr nick
+if test x"$NICK" = x"$REPLY"
+then
+	die "Current branch nickname is already '$NICK' - aborting!"
+else
+	run echo "Changing branch nickname from '$REPLY' to '$NICK'!"
+	run bzr nick "$NICK"
+fi
