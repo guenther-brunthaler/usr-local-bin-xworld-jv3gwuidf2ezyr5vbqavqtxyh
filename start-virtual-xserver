@@ -27,8 +27,8 @@ usage() {
 	  Just print what would be done, but don't actually
 	  do anything.
 
-	Version 1.0
-	Written by Guenther Brunthaler in 2007.
+	Version 10.124
+	Written by Guenther Brunthaler in 2007 - 2010.
 .
 }
                                                                                                                              
@@ -58,7 +58,7 @@ while true; do
 		esac
 	fi
 	if [ "${COPTS#--}" = "$COPTS" ]; then
-		TAIL="${COPTS#-?}"; # Switch custering.
+		TAIL="${COPTS#-?}"; # Switch clustering.
 		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
 	else
 		COPT="$COPTS"; COPTS=

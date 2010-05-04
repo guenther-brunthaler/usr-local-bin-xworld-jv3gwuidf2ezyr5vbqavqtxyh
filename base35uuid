@@ -1,7 +1,7 @@
-
+#! /bin/sh
 show_version() {
 	wrL <<-.
-	$APP version 10.66
+	$APP version 10.124
 
 	(c) 2010 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -185,7 +185,7 @@ wr() {
 	if
 		test $# -gt 0
 	then
-		print '%s\n' "$*" | wr
+		printf '%s\n' "$*" | wr
 	else
 		fmt -w `tput cols`
 	fi

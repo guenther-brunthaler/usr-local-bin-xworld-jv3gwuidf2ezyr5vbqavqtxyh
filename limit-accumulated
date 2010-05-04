@@ -14,7 +14,7 @@
 
 die() {
 	echo "ERROR: $*" >& 2
-	exit 1
+	false; exit
 }
 
 
@@ -30,7 +30,7 @@ while true; do
 		esac
 	fi
 	if [ "${COPTS#--}" = "$COPTS" ]; then
-		TAIL="${COPTS#-?}"; # Switch custering.
+		TAIL="${COPTS#-?}"; # Switch clustering.
 		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
 	else
 		COPT="$COPTS"; COPTS=
