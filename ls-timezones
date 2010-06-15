@@ -1,0 +1,9 @@
+#! /bin/sh
+# Display the installed time zones which are among the possible values
+# of the TZ environment variable.
+#
+# (c) 2010 by Guenther Brunthaler.
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+find /usr/share/zoneinfo -mindepth 1 -maxdepth 2 -type f '!' -name '*.*' \
+	| cut -d/ -f5- | sort
