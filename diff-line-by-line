@@ -1,0 +1,65 @@
+#! /bin/sh
+# Print non-matching lines of files $1 and $2.
+# The ordering of lines must be identical in both files.
+# Output is "-$line_from_1\n+\$line_from_2".
+#
+# (c) 2010 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+
+fail() {
+	RC=$?
+	test -n "$1" && RC=$1
+	test $RC = 0 && { false; RC=$?; }
+	test -z "$UNWIND" && exit $RC
+	return $RC
+}
+
+
+die() {
+	RC=$?
+	echo "ERROR: $*" >& 2
+	fail $RC
+}
+
+
+cmd_failure() {
+	die "Command >>>$1<<< failed with return code $2!"
+}
+
+
+run() {
+	"$@" ||	cmd_failure "$*" $?
+}
+
+
+system() {
+	REPLY=`UNWIND= run "$@"` || fail
+}
+
+
+test $# != 2 && {
+	die "Usage: ${0##*/} <original_file> <modified_copy>"
+}
+run test -f "$1"
+run test -f "$2"
+exec 8< "$1"
+exec 9< "$2"
+while
+	IFS= read -r L1 <& 8
+do
+	IFS= read -r L2 <& 9 || {
+		IFS= read -r L1 <& 8 && {
+			die "First file '$1' has more lines" \
+				"than second file '$2'!"
+		}
+		break
+	}
+	test x"$L1" != x"$L2" && run printf -- '-%s\n+%s\n' "$L1" "$L2"
+done
+IFS= read -r L2 <& 9 && {
+	die "Second file '$2' has more lines than first file '$1'!"
+}
+run exec 9<& -
+run exec 8<& -
