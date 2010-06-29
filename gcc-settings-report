@@ -1,0 +1,44 @@
+#! /bin/sh
+# Report GCC settings, predefined macros and search paths.
+#
+# (c) 2010 by Guenther Brunthaler.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+
+fail() {
+	RC=$?
+	test -n "$1" && RC=$1
+	test $RC = 0 && { false; RC=$?; }
+	test -z "$UNWIND" && exit $RC
+	return $RC
+}
+
+
+die() {
+	RC=$?
+	echo "ERROR: $*" >& 2
+	fail $RC
+}
+
+
+cmd_failure() {
+	die "Command >>>$1<<< failed with return code $2!"
+}
+
+
+run() {
+	"$@" ||	cmd_failure "$*" $?
+}
+
+
+system() {
+	REPLY=`UNWIND= run "$@"` || fail
+}
+
+
+UNWIND=
+system tempfile; T=$REPLY
+trap "rm \"$T\"" 0
+run gcc -v -dD -E -x c "$T" 2>& 1 | run less
