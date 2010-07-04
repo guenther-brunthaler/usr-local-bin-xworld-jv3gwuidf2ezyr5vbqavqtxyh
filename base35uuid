@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$APP version 10.124
+	$APP version 10.185
 
 	(c) 2010 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -17,6 +17,9 @@ show_help() {
 	$APP generates time-based DCE UUIDs (UUIDs are also known as GUIDs in
 	the Microsoft world) and prints them in BASE-35 encoding to standard
 	output.
+	
+	In addition, $APP can be used to convert existing UUIDs between the
+	BASE-35 and classical hexadecimal formats.
 
 	
 	Command line options accepted by $APP:
@@ -30,9 +33,28 @@ show_help() {
 	However, there is a very small chance for duplicate UUIDs generated
 	with this method.
 
-	-time, --time-based, -t: Generate UUIDs based on the current date and
+	--time, --time-based, -t: Generate UUIDs based on the current date and
 	time as well as the MAC address of the first network card. See the
 	discussion about --time-based below.
+	
+	--convert <symbol>, -c <symbol>: Convert <symbol> into the opposite
+	UUID format (BASE-35 or hex-based), depending on what format <symbol>
+	is using right now. <symbol> can either be a pure UUID representation,
+	or a symbolic name which contains a valid UUID as part of its name.
+	The UUID is extracted from <symbol> by searching for the last matching
+	substring which looks like an UUID. For the BASE-35 representation,
+	this means a string of 25 contiguous characters from the BASE-35
+	alphabet. For hex-representation, this means 32 hex-characters which
+	must be continguous except that dashes or underscores are optionally
+	allowed at the positions where the usual hex-format inserts them. In
+	both cases, the matching UUID substring must not be preceded or
+	followed by either a letter or a digit in order to considert for
+	matching at all. Both upper or lower case characters are allowed
+	within the <symbol> substring which represents a UUID, but no mixture
+	of upper and lower case characters.
+	
+	--multiformat-output, -m: Display the output in multiple formatting
+	variants.
 
 	--help, -h, --usage: Display this help.
 
@@ -207,14 +229,207 @@ warn() {
 }
 
 
-get_uc_hex_uuid() {
-	run uuidgen $@ \
-		| run tr -d - | LC_ALL=C run awk '{print toupper($0)}'
+foldcase() {
+	LC_ALL=C run awk '{print to'$1'($0)}'
+}
+
+
+secho() {
+	run printf '%s\n' "$*"
+}
+
+
+strip_sep() {
+	secho "$1" | run tr -d -- -_
+}
+
+
+uuid2upperhex() {
+	strip_sep "$*" | foldcase upper
+}
+
+
+hex2base35_helper() {
+	system uuid2upperhex "$1"
+	echo "obase= 35; ibase= 16; $REPLY" | run bc | while IFS= read -r
+	do
+		run printf '%s' "$REPLY"
+	done | run tr -d '\\ ' | LC_ALL=C run awk '{
+		al= "0123456789abcdefghijklmnpqrstuvwxyz"
+		out= ""; b35= $0
+		while (length(b35) != 50) b35= "0" b35
+		for (i= 1; i <= 49; i+= 2) {
+			dig= substr(b35, i, 2)
+			if (dig < 0 || dig >= 35) {
+				print "bad digit " dig > "/dev/stderr"
+				exit 1
+			}
+			out= out substr(al, dig + 1, 1)
+		}
+		print out
+	}'
+}
+
+
+hex2base35() {
+	local REPLY
+	system hex2base35_helper "$1"
+	secho "$REPLY"
+	test -z "$1" && return
+	system toupper "$REPLY"
+	secho "$REPLY"
+}
+
+
+sed_s() {
+	local REPSUB STR RE S
+	REPSUB=$1; shift; STR=$1; shift
+	for S
+	do
+		RE=$RE$S
+	done
+	secho "$STR" | run sed -e "s/$RE/\\$REPSUB/;t;d"
+}
+
+
+parse_base35_helper() {
+	system sed_s 2 "$1" \
+		'\(^\|.*[^'$2'0-9]\)' \
+		'\(['$3'0-9]\{25\}\)' \
+		'\($\|[^'$2'0-9].*\)'
+	test -n "$REPLY"
+}
+
+
+parse_base35() {
+	parse_base35_helper "$1" a-z a-np-z \
+	|| parse_base35_helper "$1" A-Z A-NP-Z
+}
+
+
+parse_uuid_helper() {
+	system sed_s 2 "$1" \
+		'\(^\|.*[^'$2'0-9]\)' '\(' \
+		'['$3'0-9]\{8\}' '[-_]\?' \
+		'['$3'0-9]\{4\}' '[-_]\?' \
+		'['$3'0-9]\{4\}' '[-_]\?' \
+		'['$3'0-9]\{4\}' '[-_]\?' \
+		'['$3'0-9]\{12\}' \
+		'\)' '\($\|[^'$2'0-9].*\)'
+	test -n "$REPLY"
+}
+
+
+parse_uuid() {
+	parse_uuid_helper "$1" a-z a-f \
+	|| parse_uuid_helper "$1" A-Z A-F
+}
+
+
+reformat_hex() {
+	strip_sep "$1" | foldcase lower
+}
+
+
+tolower() {
+	secho "$1" | foldcase lower
+}
+
+
+toupper() {
+	secho "$1" | foldcase upper
+}
+
+
+base35tohex_helper() {
+	secho "$1" | LC_ALL=C run awk '{
+		al= "0123456789abcdefghijklmnpqrstuvwxyz"
+		for (i= 1; i <= length(al); ++i) {
+			lu[substr(al, i, 1)]= i - 1
+		}
+		print("v= 0")
+		for (i= 1; i < length($0); ++i) {
+			d= lu[substr($0, i, 1)]
+			if (d < 0 || d >= 35) {
+				print "bad digit " d > "/dev/stderr"
+				exit 1
+			}
+			print("v= v * 35 + " d)
+		}
+		print("obase= 16; v")
+		
+	}' | run bc | foldcase lower
+}
+
+
+uuid_sep_helper_2() {
+	secho "$U" | cut -c$F-$T
+}
+
+
+uuid_sep_helper() {
+	system expr $F + $1; N=$REPLY
+	system expr $N - 1; T=$REPLY
+	system uuid_sep_helper_2
+	F=$N
+}
+
+
+uuid_sep() {
+	local U L1 W2 W3 W4 B5 F T N
+	system strip_sep "$1"; U=$REPLY
+	F=1
+	uuid_sep_helper 8; L1=$REPLY
+	uuid_sep_helper 4; W2=$REPLY
+	uuid_sep_helper 4; W3=$REPLY
+	uuid_sep_helper 4; W4=$REPLY
+	uuid_sep_helper 12; B5=$REPLY
+	REPLY="$L1$2$W2$2$W3$2$W4$2$B5"
+}
+
+
+prlen() {
+	run printf '%s' "$1" | run wc -c
+}
+
+
+hexvariants() {
+	local REPLY
+	secho "$1"
+	uuid_sep "$1" _
+	secho "$REPLY"
+	uuid_sep "$1" -
+	secho "$REPLY"
+	secho "{$REPLY}"
+}
+
+
+base35tohex() {
+	local REPLY U
+	system tolower "$1"
+	system base35tohex_helper "$REPLY"; U=$REPLY
+	while :
+	do
+		system prlen "$U"
+		test $REPLY = 32 && break
+		U=0$U
+	done
+	if test -n "$2"
+	then
+		hexvariants "$U"
+		system toupper "$U"; U=$REPLY
+		hexvariants "$U"
+	else
+		uuid_sep "$U" -
+		secho "$REPLY"
+	fi
 }
 
 
 APP=${0##*/}
 GENOPT=-r
+CONVERT=
+MFMT=
 COPTS=
 while
 	:
@@ -240,20 +455,27 @@ do
 		--) break;; # Must be first!
 		--time | --time-based | -t) GENOPT=-t;;
 		--random | --randomly | --random-based | -r) GENOPT=-r;;
+		--convert | -c) CONVERT=$1; shift;;
+		--multiformat-output | -m) MFMT=Y;;
 		--help | -h | --usage) show_help; exit;;
 		--version | -V) show_version; exit;;
 		*) die "Unknown option '$COPT'!";; # Must be last!
 	esac
 done
-system get_uc_hex_uuid "$GENOPT"; UUID=$REPLY
-echo "obase= 35; ibase= 16; $UUID" | run bc | while IFS= read -r
-do
-	run printf '%s' "$REPLY"
-done | run tr -d '\\ ' | LC_ALL=C run awk '{
-	al= "0123456789abcdefghijklmnpqrstuvwxyz"
-	out= ""
-	for (i= 1; i < 51; i+= 2) {
-		out= out substr(al, substr($0, i, 2) + 1, 1)
-	}
-	print(out)
-}'
+test $# = 0 || die "Unexpected arguments >>>$*<<<!"
+if test -n "$CONVERT"
+then
+	if parse_uuid "$CONVERT"
+	then
+		system reformat_hex "$REPLY"
+		hex2base35 "$REPLY" "$MFMT"
+	elif parse_base35 "$CONVERT"
+	then
+		base35tohex "$REPLY" "$MFMT"
+	else
+		die "There is no UUID in either encoding within '$CONVERT'!"
+	fi
+else
+	system uuidgen $GENOPT
+	hex2base35 "$REPLY" "$MFMT"
+fi
