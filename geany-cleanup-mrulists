@@ -1,0 +1,64 @@
+#! /usr/bin/env lua
+-- Remove stale MRU entries form "Geany"-editor's config file.
+--
+-- (c) 2010 by Guenther Brunthaler.
+-- Distribution is permitted under the terms of the GPLv3.
+
+
+local cfgfile= (
+	os.getenv("XDG_CONFIG_HOME") or os.getenv("HOME") .. "/.config"
+) .. '/geany/geany.conf'
+local tmp= assert(io.tmpfile())
+local in_section, k, v, valid, fh, nline
+local removed= 0
+local settings= 0
+for line in io.lines(cfgfile) do
+   if string.match(line, "^%s*%[%s*files%s*%]") then
+      in_section= true
+   end
+   if in_section then
+      k, v= string.match(line, "^%s*(recent_[_%w]+s)%s*=%s*(.-)%s*$")
+      if k then
+         valid= {}
+         if not string.match(v, ";$") then
+            v= v .. ";" -- Add terminator but avoid creating empty entries.
+         end
+         for s in string.gmatch(v, "([^;]*);") do
+            if s == "" then
+               fh= nil
+            else
+               fh= io.open(s, "rb")
+               if fh then
+                  table.insert(valid, s)
+                  assert(fh:close())
+               end
+            end
+            if not fh then
+               removed= removed + 1
+            end
+         end
+         table.insert(valid, "")
+         nline= k .. "=" .. table.concat(valid, ";")
+         if nline ~= line then
+            settings= settings + 1
+            line= nline
+         end
+      end
+   end
+   assert(tmp:write(line, "\n"))
+end
+assert(tmp:seek("set"))
+--[[
+   cfgfile= cfgfile .. ".new"
+--]]
+fh= assert(io.open(cfgfile, "w"))
+for line in tmp:lines() do
+   assert(fh:write(line, "\n"))
+end
+assert(fh:close())
+assert(tmp:close())
+print(
+   string.format(
+      'Removed %d entries from %d lines of "%s".', removed, settings, cfgfile
+   )
+)
