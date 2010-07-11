@@ -1,0 +1,172 @@
+#! /usr/bin/env lua
+-- Copy settings --from file1 --to file2 (CMakeCache.txt files).
+--
+-- (c) 2010 by Guenther Brunthaler.
+-- This source file is free software.
+-- Distribution is permitted under the terms of the GPLv3.
+
+local options= {from= 1, to= 1}
+do
+   local last, oky, ovl, hvl, need_arg
+   local added= {}
+   -- Replace dummy values by tables.
+   for k, v in pairs(options) do
+      options[k]= {needed= v ~= 0}
+   end
+   -- Find aliases to add.
+   for k, v in pairs(options) do
+      for sl= 1, #k - 1 do
+         oky= string.sub(k, 1, sl)
+         if options[oky] then
+            -- Prefix collision - disallow ambiguous prefix.
+            options[oky]= nil
+         else
+            -- Allow prefix as an alias.
+            added[oky]= v;
+         end
+      end
+   end
+   -- Add aliases found.
+   for k, v in pairs(added) do
+      options[k]= v
+   end
+   local function unexpected(what)
+      error(string.format("Unexpected argument '%s'!", what), 2)
+   end
+   local function onm(name)
+      if #name == 1 then
+         name= "-" .. name
+      else
+         name= "--" .. name
+      end
+      return name
+   end
+   local function setoption(k, v)
+      if not options[k] then
+         error(string.format("Unknown option '%s'!", onm(k)))
+      end
+      if options[k].value then
+         error(
+            string.format(
+                  "Duplicate option '%s'; value '%s' has already been set!"
+               ,  k, options[k].value
+            )
+         )
+      end
+      options[k].value= v
+   end
+   for k, v in ipairs{...} do
+      if need_arg then
+         setoption(need_arg, v)
+         need_arg= nil
+      elseif last then
+         unexpected(v)
+      else
+         oky, hvl, ovl= string.match(v, "^%-%-([%w_]*)([%s=]?)%s*(.-)%s*$")
+         if oky then
+            if hvl == "" and ovl == "" then
+               last= true; oky= nil
+            end
+         else
+            oky, ovl= string.match(v, "^%-([%w_])%s*(.-)%s*$")
+            if ovl == "" then
+               hvl= ""
+            else
+               hvl= "="
+            end
+            if not oky then
+               unexpected(v)
+            end
+         end
+         if oky then
+            if hvl ~= "" then
+               setoption(oky, ovl)
+            else
+               need_arg= oky
+            end
+         end
+      end
+   end
+   if need_arg then
+      error(string.format('Missing argument for option %s!', onm(need_arg)))
+   end
+   -- Remove aliases.
+   for k in pairs(added) do
+      options[k]= nil
+   end
+   -- Explode values.
+   for k, v in pairs(options) do
+      if v.needed and not v.value then
+         error(string.format("Missing mandatory option %s!", onm(k)))
+      end
+      options[k]= v.value
+   end
+end
+print(
+   string.format(
+         'Overwriting several settings in "%s" by those from "%s".'
+      ,  options.to, options.from
+   )
+)
+local settings= {}
+local function ident(s)
+   if #s == 1 then
+      return string.match(s, "[A-Z]")
+   end
+   if #s == 2 then
+      return string.match(s, "^[A-Z][A-Z]")
+   end
+   return string.match(s, "^[A-Z][A-Z_]*[A-Z]$")
+end
+do
+   local opt, val, popt, psuf
+   for line in io.lines(options.from) do
+      opt, val= string.match(line, "^(CMAKE_[A-Z_]+):[A-Z]+%s*=%s*(.-)%s*$")
+      if opt then
+         if opt ~= "CMAKE_BUILD_TYPE" then
+            -- Must be some FLAGS.
+            popt, psuf= string.match(opt, "^CMAKE_([A-Z_]-)_FLAGS(.*)$")
+            if popt and not ident(popt) then popt= nil; end
+            if popt and psuf ~= "" then
+               -- FLAGS with suffix.
+               psuf= string.match(psuf, "^_([A-Z_]+)$")
+               if psuf and not ident(psuf) then psuf= nil; end
+               if not psuf then
+                  popt= nil
+               end
+            end
+            if not popt then
+               opt= nil
+            end
+         end
+      end
+      if opt then
+         settings[opt]= val
+      end
+   end
+end
+do
+   local tf= io.tmpfile()
+   local opt, val, vtype, nline
+   local changed= 0
+   for line in io.lines(options.to) do
+      opt, vtype, val= string.match(line, "^(CMAKE_[A-Z_]+):([A-Z_]+)%s*=")
+      if opt and not ident(vtype) then opt= nil; end
+      if opt and settings[opt] then
+         print(string.format("Copying %s:%s", opt, vtype))
+         nline= string.format("%s:%s=%s", opt, vtype, settings[opt])
+         if nline ~= line then
+            line= nline
+            changed= changed + 1
+         end
+      end
+      assert(tf:write(line, "\n"))
+   end
+   tf:seek("set")
+   local out= assert(io.open(options.to, "w"))
+   for line in tf:lines() do
+      assert(out:write(line, "\n"))
+   end
+   assert(out:close())
+   print(string.format("Changed %d lines.", changed))
+end
