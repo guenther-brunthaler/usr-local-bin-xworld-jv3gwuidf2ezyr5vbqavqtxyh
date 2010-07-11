@@ -11,11 +11,12 @@ find '(' \
 	-o -name "*.C" -o -name "*.inl" \
 	')' -type f -print0 \
 	| xargs -0 -- perl -ne '
+		$sym= quotemeta '"$SYM"';
 		while(
 			/
 				(?: ^ | (?<! [:alnum:] ) )
 				(
-					(?i: '"$SYM"' )
+					(?i: $sym )
 					_ [-\w]+
 				)
 			/gx
