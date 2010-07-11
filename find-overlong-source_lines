@@ -1,0 +1,40 @@
+#! /bin/sh
+#
+# Print a list of the source text files found in the specified
+# directory trees (defaults to the current directory tree).
+#
+# (c) 2010 by Guenther Brunthaler.
+# This script file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+
+set -e
+find-source_files "$@" | LC_ALL=C xargs -- awk '
+	function rst() {
+		m= 0; f= FILENAME; i= ARGIND; li= 0;
+	}
+
+	function nx() {
+		if (m > 79) print f ":" fl ":" flt;
+		rst();
+	}
+
+	BEGIN {
+		rst();
+	}
+
+	{
+		if (ARGIND != i) nx();
+		li= li + 1
+		xp= $0
+		gsub("\t", "        ", xp)
+		l= length(xp);
+		if (l > m) {
+			m= l; fl= li; flt= $0;
+		}
+	}
+
+	END {
+		nx();
+	}
+'

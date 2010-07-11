@@ -1,0 +1,42 @@
+#! /bin/sh
+#
+# Print a list of the source text files found in the specified
+# directory trees (defaults to the current directory tree).
+#
+# (c) 2010 by Guenther Brunthaler.
+# This script file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+
+die() {
+	printf "ERROR: %s\n" "$*" >& 2
+	false; exit
+}
+
+
+fail() {
+	die "Could not execute >>>$1<<< return code $2!"
+}
+
+
+run() {
+	"$@" && return
+	fail "$*" $?
+}
+
+
+runlt() {
+	local RC CMP
+	CMP=$1; shift
+	"$@"; RC=$?
+	test $RC -lt $CMP && return
+	fail "$*" $RC
+}
+
+
+run find "$@" '(' -name "CMake[A-Z]*" -o -name ".?*" ')' -prune \
+	-o -type f -print0 \
+| run xargs -0 -- file \
+| LC_ALL=C runlt 2 grep \
+	'[[:blank:]]\(program\|script\) text\([[:space:]]\|$\)' \
+| run cut -d: -f1 | run sort
