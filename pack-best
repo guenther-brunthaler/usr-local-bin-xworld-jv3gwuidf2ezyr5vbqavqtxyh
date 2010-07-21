@@ -66,10 +66,7 @@ do
 		*) false; exit;;
 	esac
 done
-while test $OPTIND != 1
-do
-	shift; OPTIND=`expr $OPTIND - 1`
-done
+shift `expr $OPTIND - 1`
 for FILE
 do
 	pack "$FILE"
