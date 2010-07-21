@@ -26,9 +26,10 @@ try_better() {
 	local OUT
 	OUT=$IN.$1; shift
 	run test ! -e "$OUT"
-	echo "Testing '$OUT'..."
+	run printf 'Testing "%s"...\t' "$OUT"
 	run cat "$IN" | run "$@" | run cat > "$OUT"
 	size "$OUT"
+	run printf '(%10s bytes)\n' "$REPLY"
 	if test "$REPLY" -lt "$SHORTEST"; then
 		run test "$REPLY" -gt 0
 		SHORTEST=$REPLY
@@ -47,7 +48,7 @@ pack() {
 	size "$IN"; SHORTEST=$REPLY
 	try_better gz gzip -9
 	try_better bz2 bzip2 -9
-	try_better lzma lzma -9
+	try_better xz xz -9
 	if test -n "$BEST"; then
 		rm "$IN"
 	else
