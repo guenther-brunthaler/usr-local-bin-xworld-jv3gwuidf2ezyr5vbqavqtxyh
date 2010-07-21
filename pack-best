@@ -3,7 +3,7 @@
 
 die() {
 	echo "ERROR: $*" >& 2
-	fail; exit
+	false; exit
 }
 
 
@@ -48,7 +48,7 @@ pack() {
 	size "$IN"; SHORTEST=$REPLY
 	try_better gz gzip -9
 	try_better bz2 bzip2 -9
-	try_better xz xz -9
+	test -n "$DONT_EXCLUDE_LZMA" && try_better lzma lzma -9
 	if test -n "$BEST"; then
 		rm "$IN"
 	else
@@ -58,6 +58,19 @@ pack() {
 }
 
 
-for FILE; do
+DONT_EXCLUDE_LZMA=
+while getopts L OPT
+do
+	case $OPT in
+		L) DONT_EXCLUDE_LZMA=Y;;
+		*) false; exit;;
+	esac
+done
+while test $OPTIND != 1
+do
+	shift; OPTIND=`expr $OPTIND - 1`
+done
+for FILE
+do
 	pack "$FILE"
 done
