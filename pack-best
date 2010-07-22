@@ -1,4 +1,37 @@
 #! /bin/sh
+show_version() {
+	cat <<- .
+	$APP version 10.203
+
+	(c) 2010 by Guenther Brunthaler.
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+
+
+show_help() {
+	cat <<- .
+	$APP - determine the best packer for each file argument and pack it
+	
+	Usage: $APP [ options ] file1 ...
+	
+	$APP packs each specified file with all supported packers and
+	finally selects the shortest file to remain (if no packer could make
+	a file shorter than the original, the original will remain unpacked.)
+	
+	Options:
+
+	-o: Overwrite archives. Normally, no files will ever be overwritten.
+	-k: Keep the original. Normally it is replaced by the winner.
+	-e: Use extreme packing settings. Warning: This can take REALLY long!
+	-O: Includes outdated packers like LZMA in the tests.
+	-v: Be verbose. Shows the command used to run the packer.
+	-h: Show this help.
+	-V: Show only the version information.
+
+.
+	show_version
+}
 
 
 die() {
@@ -23,13 +56,22 @@ size() {
 
 
 try_better() {
-	local OUT
+	local OUT EXTREME INFO
+	test x$1 = x-e && { EXTREME=$2; shift 2; }
+	test -n "$TRY_EXTREME_SETTINGS" && test -n "$EXTREME" && {
+		set -- "$@" $EXTREME
+	}
 	OUT=$IN.$1; shift
-	run test ! -e "$OUT"
+	test -e "$OUT" && {
+		test -n "$OVERWITE_ARCHIVES" \
+			|| die "File '$OUT' already exists!" \
+				"Use -o to enable overwriting."
+	}
 	run printf 'Testing "%s"...\t' "$OUT"
 	run cat "$IN" | run "$@" | run cat > "$OUT"
 	size "$OUT"
-	run printf '(%10s bytes)\n' "$REPLY"
+	test -n "$VERBOSE" && INFO=" with $*"
+	run printf '(%10s bytes%s)\n' "$REPLY" "$INFO"
 	if test "$REPLY" -lt "$SHORTEST"; then
 		run test "$REPLY" -gt 0
 		SHORTEST=$REPLY
@@ -48,9 +90,10 @@ pack() {
 	size "$IN"; SHORTEST=$REPLY
 	try_better gz gzip -9
 	try_better bz2 bzip2 -9
-	test -n "$DONT_EXCLUDE_LZMA" && try_better lzma lzma -9
+	try_better -e -e xz xz -9
+	test -n "$INCLUDE_OUTDATED_PACKERS" && try_better -e -e lzma lzma -9
 	if test -n "$BEST"; then
-		rm "$IN"
+		test -n "$KEEP_ORIGINAL" || rm "$IN"
 	else
 		BEST=$IN
 	fi
@@ -58,11 +101,22 @@ pack() {
 }
 
 
-DONT_EXCLUDE_LZMA=
-while getopts L OPT
+APP=${0##*/}
+INCLUDE_OUTDATED_PACKERS=
+TRY_EXTREME_SETTINGS=
+KEEP_ORIGINAL=
+VERBOSE=
+OVERWITE_ARCHIVES=
+while getopts keOvohV OPT
 do
 	case $OPT in
-		L) DONT_EXCLUDE_LZMA=Y;;
+		o) OVERWITE_ARCHIVES=Y;;
+		k) KEEP_ORIGINAL=Y;;
+		e) TRY_EXTREME_SETTINGS=Y;;
+		O) INCLUDE_OUTDATED_PACKERS=Y;;
+		v) VERBOSE=Y;;
+		h) show_help; exit;;
+		V) show_version; exit;;
 		*) false; exit;;
 	esac
 done
