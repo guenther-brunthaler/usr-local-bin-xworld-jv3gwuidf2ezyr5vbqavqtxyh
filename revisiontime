@@ -1,21 +1,105 @@
 #! /bin/sh
-# Displays the current date/time as a "version number".
-# First component: Year - 2000.
-# Second component: Day within year ("cal -j").
-# Third component: Time of day 1 - 999.
-# Date / time is always interpreted as UTC only!
-# This will create revision numbers that can be globally compared
-# without being affected by the local time zone setting.
-#
-# Written in 2008 by Guenther Brunthaler
-# This (effective) one-liner ist freeware and may be
-# distributed under the terms of the GPLv3.
+show_version() {
+	cat <<- .
+	$APP version 10.204
+
+	(c) 2010 by Guenther Brunthaler.
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
 
 
-date -u '+%Y %j %H %M %S' | awk '{
-	print $1 - 2000 "." $2 + 0 "." int( \
-		(($3 * 60 + $4) * 62 + $5) * (1000 - 1) \
-		/ (24 * 60 * 62) \
-		+ 1 \
-	)
+show_help() {
+	cat <<- .
+	$APP - synthesize a version number from the current date/time
+	
+	Usage: $APP [ options ]
+	
+	$APP displays the current date/time as a "version number", i. e.
+	as a sequence of integer number components separated by dots (".").
+
+	First component: 4-digit year minus 2000.
+	
+	Second component: Day within year ("cal -j").
+	
+	Third component (only with option '-3'): Time of day 1 - 999.
+	
+	Date / time is always interpreted as UTC only!
+	This will create revision numbers that can be globally compared
+	without being affected by the local time zone setting.
+
+	Options:
+
+	-3: Display a three-component number rather than a two-component one.
+	-h: Show this help.
+	-V: Show only the version information.
+	
+	The -3 option will typically not be used if version numbers are
+	assigned by a single person only (or by a central authority). In such
+	cases it will be much easier to just increment an integer as the third
+	component.
+	
+	For instance, let's say $APP returned a two-component revision number
+	of 10.204 for the first revision on that day. This number is then used
+	directly for that first revision. When another revision number is
+	required, the developer notices that $APP still generates 10.204 and
+	therefore adds a third component, making it 10.204.1. The next
+	revision on that day will be 10.204.2, 10.204.3 and so on.
+	
+	But things are different when a team of developers is working on a
+	project in a fully distributed fashion, and multiple team members are
+	entitled to release new versions at any time with no permanent
+	synchronization between team members.
+	
+	In this case, it is best to *not* use incremental integers as the
+	third component, but rather the -3 option of $APP.
+	
+	This will generate the third component based on the current universal
+	time, where the third component increments approximately in two-minute
+	intervals.
+	
+	This means there is only a very small chance that two team members
+	release a new version with the same revision number even without any
+	further co-ordination than agreeing to use $APP to generate revision
+	numbers.
+	
+	How is the third component calculated?
+	
+	First, the current UTC time is broken down into hours, minutes and
+	seconds. Then this is converted into the number of seconds since
+	midnight. In this calculation, it is assumed that a minute can have 62
+	seconds (60 normal seconds plus up to 2 leap seconds).
+	
+	The resulting number is then mapped linearly into the range 1 to 999.
+	(This means the third component will always be within the bounds of
+	that range.)
+
+.
+	show_version
+}
+
+
+
+
+APP=${0##*/}
+THREE=0
+while getopts 3hV OPT
+do
+	case $OPT in
+		3) THREE=1;;
+		h) show_help; exit;;
+		V) show_version; exit;;
+		*) false; exit;;
+	esac
+done
+date -u '+%Y %j %H %M %S '$THREE | awk '{
+	three= ""
+	if ($6) {
+		three= "." int( \
+			(($3 * 60 + $4) * 62 + $5) * (1000 - 1) \
+			/ (24 * 60 * 62) \
+			+ 1 \
+		)
+	}
+	print $1 - 2000 "." $2 + 0 three
 }'
