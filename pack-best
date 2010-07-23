@@ -23,9 +23,14 @@ show_help() {
 
 	-o: Overwrite archives. Normally, no files will ever be overwritten.
 	-k: Keep the original. Normally it is replaced by the winner.
-	-e: Use extreme packing settings. Warning: This can take REALLY long!
-	-O: Includes outdated packers like LZMA in the tests.
-	-v: Be verbose. Shows the command used to run the packer.
+	-e: Always use extreme packing settings.
+	    Warning: This can take REALLY REALLY long for large archives!
+	-E <bytes>: Set threshold for automatically using -e for short files.
+	    For all files shorter than this size, -e will enabled
+	    automatically. The default is -E $EXTREME_THRESHOLD.
+	    Use -E 0 to disable automatic selection of -e entirely.
+	-2: Includes second choice packers like LZMA in the tests.
+	-v: Be verbose. Shows more details of the tests.
 	-h: Show this help.
 	-V: Show only the version information.
 
@@ -55,23 +60,48 @@ size() {
 }
 
 
-try_better() {
-	local OUT EXTREME INFO
-	test x$1 = x-e && { EXTREME=$2; shift 2; }
-	test -n "$TRY_EXTREME_SETTINGS" && test -n "$EXTREME" && {
-		set -- "$@" $EXTREME
-	}
-	OUT=$IN.$1; shift
-	test -e "$OUT" && {
+write_ok() {
+	test -e "$1" && {
 		test -n "$OVERWITE_ARCHIVES" \
-			|| die "File '$OUT' already exists!" \
+			|| die "Output file '$1' already exists!" \
 				"Use -o to enable overwriting."
 	}
-	run printf 'Testing "%s"...\t' "$OUT"
+}
+
+
+try_better() {
+	local OUT EXTREME
+	test x$1 = x-e && { EXTREME=${TRY_EXTREME:+$2}; shift 2; }
+	OUT=$IN.$1
+	test -n "$EXTREME" && {
+		try_better "$@" $EXTREME
+		test -e "$OUT" && {
+			# Extreme settings were best so far.
+			EXTREME=$OUT.extreme
+			# Move out of the way.
+			write_ok "$EXTREME"
+			run mv "$OUT" "$EXTREME"
+			# Retry with normal settings.
+			try_better "$@"
+			if test -e "$OUT"
+			then
+				# Normal settings better than extreme ones.
+				run rm "$EXTREME"
+			else
+				# Extreme settings still better.
+				mv "$EXTREME" "$OUT"
+			fi
+			return
+		}
+	}
+	shift
+	write_ok "$OUT"
+	test -n "$VERBOSE" && run printf 'Testing "%s"...\t' "$OUT"
 	run cat "$IN" | run "$@" | run cat > "$OUT"
 	size "$OUT"
-	test -n "$VERBOSE" && INFO=" with $*"
-	run printf '(%10s bytes%s)\n' "$REPLY" "$INFO"
+	test -n "$VERBOSE" && {
+		run printf '(%10s bytes with %s)\n' "$REPLY" "$*"
+	}
 	if test "$REPLY" -lt "$SHORTEST"; then
 		run test "$REPLY" -gt 0
 		SHORTEST=$REPLY
@@ -84,14 +114,25 @@ try_better() {
 
 
 pack() {
-	local IN BEST SHORTEST REPLY
+	local IN BEST SHORTEST REPLY TRY_EXTREME
 	IN=$1
 	run test -f "$IN"
 	size "$IN"; SHORTEST=$REPLY
+	if test $SHORTEST -lt $EXTREME_THRESHOLD
+	then
+		TRY_EXTREME=Y
+	else
+		TRY_EXTREME=$TRY_EXTREME_SETTINGS
+	fi
+	test -z "$VERBOSE" && {
+		run printf 'Testing "%s" (%s bytes)...\n' "$IN" "$SHORTEST"
+	}
 	try_better gz gzip -9
 	try_better bz2 bzip2 -9
 	try_better -e -e xz xz -9
-	test -n "$INCLUDE_OUTDATED_PACKERS" && try_better -e -e lzma lzma -9
+	test -n "$INCLUDE_2ND_CHOICE_PACKERS" && {
+		try_better -e -e lzma lzma -9
+	}
 	if test -n "$BEST"; then
 		test -n "$KEEP_ORIGINAL" || rm "$IN"
 	else
@@ -102,18 +143,20 @@ pack() {
 
 
 APP=${0##*/}
-INCLUDE_OUTDATED_PACKERS=
+INCLUDE_2ND_CHOICE_PACKERS=
 TRY_EXTREME_SETTINGS=
 KEEP_ORIGINAL=
 VERBOSE=
 OVERWITE_ARCHIVES=
-while getopts keOvohV OPT
+EXTREME_THRESHOLD=500000
+while getopts keE:2vohV OPT
 do
 	case $OPT in
 		o) OVERWITE_ARCHIVES=Y;;
 		k) KEEP_ORIGINAL=Y;;
 		e) TRY_EXTREME_SETTINGS=Y;;
-		O) INCLUDE_OUTDATED_PACKERS=Y;;
+		E) run test $OPTARG -ge 0; EXTREME_THRESHOLD=$OPTARG;;
+		2) INCLUDE_2ND_CHOICE_PACKERS=Y;;
 		v) VERBOSE=Y;;
 		h) show_help; exit;;
 		V) show_version; exit;;
