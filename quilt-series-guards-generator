@@ -1,0 +1,249 @@
+#! /bin/sh
+show_version() {
+	wr <<- .
+	$APP version 10.206
+
+	(c) 2010 by Guenther Brunthaler.\n
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+
+
+show_help() {
+	wr <<- .
+	$APP - display a configuration file for "guards"
+	
+	Usage: $APP [ options ] <series_1> <series_2> ...
+	
+	$APPS compares a set of "quilt"-style "series" files and displays a
+	configuration file for "guards" which can reconstruct each of the
+	"series" files.
+	
+	The "series" files are just normal text files. Each line normally
+	contains the name of a patch file, and the order of the lines
+	specifies the order in which the patches shall be applied.
+	
+	However, $APP does not care about the meaning of the lines in the
+	series files, it works for any text file.
+	
+	$APP assumes that identical lines in different series files will refer
+	to the same contents; it is *your* responsibility to diff the actual
+	contents of the patch directories before running $APP in order to
+	verify this assumption.
+	
+	The generated configuration uses symbolic tags in order to selectively
+	enable lines depending on the originating series file.
+	
+	$APP will generate those tag symbols for each series file in an
+	interactive process as follows.
+	
+	Initially, the series file arguments as specified on the command line
+	are used as symbol origin. This may include absolute and/or relative
+	directory paths.
+	
+	In each iteration step, the base names of the current symbol origin
+	(if interpreted as path names) are extracted as raw symbols.
+	
+	If the raw symbols for each series file are all different, the
+	iteration stops.
+	
+	Otherwise, the base names are stripped from the current symbol origin,
+	i. e. the path name component will be cut off. Then the iteration
+	continues until all raw symbols are different of no more iterations
+	are possible. It the latter case an error is reported.
+	
+	If a set of unique raw symbols has been found, a "sed" script is
+	applied to the raw symbols in order to transform them into the actual
+	symbol names to be used. This script is '$XFORM' by default, but this
+	can be changed with the -x option.
+	
+	The generated configuration will have one or more tags but only a
+	single patch per line.
+	
+	Options:
+
+	-x: "sed"-script to transform the raw symbols into actual symbol tags.
+	    Defaults to '$XFORM'. The script must not create whitespace in the
+	    output. Before the script is applied, any whitespace in the input
+	    will already have been replaced by underscores.\n
+	-l: Use the current locale for sorting symbols. By default,
+	    LC_ALL=C is used to ensure identical results independent of the
+	    current locale setting.\n
+	-h: Show this help.\n
+	-V: Show only the version information.\n
+.
+	echo
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" || die "Could not execute >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+print() {
+	run printf '%s' "$*"
+}
+
+
+println() {
+	run printf '%s\n' "$*"
+}
+
+
+wr() {
+	local REPLY
+	while IFS= read -r
+	do
+		{
+			while test -n "$REPLY" || IFS= read -r
+			do
+				ORIG=$REPLY; REPLY=${REPLY%\\n}
+				println "$REPLY"
+				test x"$ORIG" != x"$REPLY"  && break
+				REPLY=
+			done
+		} | run fmt -w "$LINEWIDTH" || exit
+	done
+}
+
+
+ws2space() {
+	LC_ALL=C run tr '[:space:]' ' ' | run sed -e 's, *$,,'
+}
+
+
+cfilter() {
+	ws2space | run sed -e 's, ,_,g' || exit
+}
+
+
+flush() {
+	test -z "$TAGS" && return
+	print "$TAGS" | run sed -e 's, , +,g; s/^ //'
+	TAGS=
+	println " $LAST_FILE"
+}
+
+
+get_index() {
+	local TARGET
+	TARGET=$1; shift
+	REPLY=0
+	while test x"$1" != x"$TARGET"
+	do
+		system expr $REPLY + 1
+		shift
+		test $# != 0 || return
+	done
+	true
+}
+
+
+path2symbase() {
+	print "$1" | cfilter
+}
+
+
+# Returns inverted success code!
+get_symbol0() {
+	# Replace arguments by base names.
+	I=$#
+	while test $I != 0
+	do
+		system path2symbase "${1##*/}"
+		shift; set -- "$@" "$REPLY"
+		I=`expr $I - 1`
+	done
+	# Verify that no symbol has an identical symbol later in the list.
+	while test $# -gt 1
+	do
+		# Does first symbol occur later?
+		get_index "$@" && return
+		shift # First symbol unique; check next one.
+	done
+	false
+}
+
+
+get_symbol() {
+	local REPLY TARGET I
+	TARGET=$1; shift
+	get_index "$TARGET" "$@"; TARGET=$REPLY
+	I=$#
+	while test $I != 0
+	do
+		system path2symbase "$1"
+		shift; set -- "$@" "$REPLY"
+		I=`expr $I - 1`
+	done
+	while get_symbol0 "$@"
+	do
+		I=$#
+		while test $I != 0
+		do
+			REPLY=${1%/*}
+			test x"$REPLY" = x"$1" && die "Could not derive" \
+				"unique symbols names from specified" \
+				"input files!"
+			shift; set -- "$@" "$REPLY"
+			I=`expr $I - 1`
+		done
+	done
+	shift $TARGET
+	path2symbase "$1" | run sed -e "$XFORM" | cfilter || exit
+}
+
+
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+APP=${0##*/}
+XFORM='s/^patches-\|-patches$//'
+LOCALE_SORT=
+while getopts lhVx: OPT
+do
+	case $OPT in
+		l) LOCALE_SORT=Y;;
+		h) show_help; exit;;
+		V) show_version; exit;;
+		x) XFORM=$OPTARG;;
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1`
+test -z "$LOCALE_SORT" && { LC_ALL=C; export LC_ALL; }
+LAST_FILE=; TAGS=
+for SERIES
+do
+	system get_symbol "$SERIES" "$@"; TAG=$REPLY
+	L=1
+	run cat "$SERIES" \
+	| while IFS= read -r
+	do
+		println "$TAG/$L/$REPLY"
+		system expr $L + 1; L=$REPLY
+	done
+done \
+| run sort -t/ -k2,2n -k3,3 -k1,1 \
+| {
+	while IFS=/ read -r TAG REPLY FILE
+	do
+		test x"$FILE" != x"$LAST_FILE" && {
+			test -n "$LAST_FILE" && flush
+		}
+		TAGS="$TAGS $TAG"
+		LAST_FILE=$FILE
+	done
+	flush
+}
