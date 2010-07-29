@@ -1,16 +1,16 @@
 #! /bin/sh
 show_version() {
-	cat <<- .
-	$APP version 10.203
+	wr <<- .
+	$APP version 10.210
 
-	(c) 2010 by Guenther Brunthaler.
+	(c) 2010 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
 
 
 show_help() {
-	cat <<- .
+	wr <<- .
 	$APP - determine the best packer for each file argument and pack it
 	
 	Usage: $APP [ options ] file1 ...
@@ -21,20 +21,34 @@ show_help() {
 	
 	Options:
 
-	-o: Overwrite archives. Normally, no files will ever be overwritten.
-	-k: Keep the original. Normally it is replaced by the winner.
-	-e: Always use extreme packing settings.
-	    Warning: This can take REALLY REALLY long for large archives!
+	-O: (like "Oscar" - not the digit zero) Overwrite archives.\n
+	    By default, no files will ever be overwritten.\n
+	-k: Keep the original.\n
+	    Normally it is replaced by the winner. (Unless the original *is*
+	    the winner.)\n
+	-e: Always include "extreme" packing settings within the list of
+	    comparison test candidates.\n
+	    Warning: This can take REALLY REALLY long for large archives!\n
 	-E <bytes>: Set threshold for automatically using -e for short files.
 	    For all files shorter than this size, -e will enabled
 	    automatically. The default is -E $EXTREME_THRESHOLD.
-	    Use -E 0 to disable automatic selection of -e entirely.
-	-2: Includes second choice packers like LZMA in the tests.
-	-v: Be verbose. Shows more details of the tests.
-	-h: Show this help.
-	-V: Show only the version information.
-
+	    Use -E 0 to disable automatic selection of -e entirely.\n
+	-2: Includes second choice packers like "lzma" in the tests.\n
+	    "lzma" is nearly identical to "xz" but does not add any checksum
+	    to the packed file. Which means there is no reliable way to verify
+	    the consistency of a packed file. Damaged packed files might
+	    therefore decompress to rubbish without any errors. (The same is
+	    actually also true for "gzip", but in that case there are no
+	    better alternatives.)\n
+	    Use this option only if squeezing out every single byte is
+	    important! It is also only of interest for rather short files,
+	    because in large files the space savings for the checksums becomes
+	    completely insignificant in comparison to the overall file size.\n
+	-v: Be verbose. Shows more details of the tests.\n
+	-h: Show this help.\n
+	-V: Show only the version information.\n
 .
+	println
 	show_version
 }
 
@@ -52,6 +66,28 @@ run() {
 
 system() {
 	REPLY=`run "$@"` || exit
+}
+
+
+println() {
+	run printf '%s\n' "$*"
+}
+
+
+wr() {
+	local REPLY
+	while IFS= read -r
+	do
+		{
+			while test -n "$REPLY" || IFS= read -r
+			do
+				ORIG=$REPLY; REPLY=${REPLY%\\n}
+				println "$REPLY"
+				test x"$ORIG" != x"$REPLY"  && break
+				REPLY=
+			done
+		} | run fmt -w "$LINEWIDTH" || exit
+	done
 }
 
 
@@ -142,6 +178,7 @@ pack() {
 }
 
 
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
 APP=${0##*/}
 INCLUDE_2ND_CHOICE_PACKERS=
 TRY_EXTREME_SETTINGS=
@@ -149,10 +186,10 @@ KEEP_ORIGINAL=
 VERBOSE=
 OVERWITE_ARCHIVES=
 EXTREME_THRESHOLD=500000
-while getopts keE:2vohV OPT
+while getopts keE:2vOhV OPT
 do
 	case $OPT in
-		o) OVERWITE_ARCHIVES=Y;;
+		O) OVERWITE_ARCHIVES=Y;;
 		k) KEEP_ORIGINAL=Y;;
 		e) TRY_EXTREME_SETTINGS=Y;;
 		E) run test $OPTARG -ge 0; EXTREME_THRESHOLD=$OPTARG;;
