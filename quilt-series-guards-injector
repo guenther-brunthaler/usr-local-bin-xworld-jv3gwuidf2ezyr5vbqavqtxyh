@@ -1,0 +1,578 @@
+#! /bin/sh
+show_version() {
+	wr <<- .
+	$APP version 10.207
+
+	(c) 2010 by Guenther Brunthaler.\n
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+
+show_help() {
+	wr <<- .
+	$APP - inject related lines from a configuration file for "guards"
+	into the affected patch files
+	
+	Usage: $APP [ options ] [ <guards_config_file> ]
+	
+	$APP examines a configuration file for the "guards" utility which is
+	shipped as part of the "quilt" patch management suite.
+	
+	If no file is specified, standard input is examined instead.
+	
+	It extracts the conditions specified within that file and writes them
+	to the header of app patches which are affected by those conditions.
+	
+	This is done in a way which allows the configuration file to be
+	re-constructed later from the information in the patch headers.
+	
+	In order to illustrate what $APP does, consider the following
+	configuration file for "guards":
+	
+	automake.patch\n
+	+unix +linux posix_only.patch\n
+	+win32 +win64 windows_only.patch\n
+	bugfix.patch
+	
+	This specifies two patches "automake.patch" and "bugfix.patch" which
+	are to be applied unconditionally. The remaining patches will only be
+	applied when the symbols "unix", "linux", "win32" or "win64" are
+	defined on the command line when the "guards" utility is invoked to
+	process the configuration file.
+	
+	This allows a single configuration file and associated set of patch
+	files to be used for different situations where some patches of the
+	series are are appropriate but others are not.
+	
+	However, patches are normally not distributed by supplying such a
+	configuration file, but rather as a bunch of patch files where the
+	order of the patches results from the lexicographical ordering of the
+	file names (which typically contain numeric prefixes for that
+	purpose).
+	
+	In order to still have a chance to provide a guards configuration
+	file, $APP can be used to inject the information from the
+	configuration file into the patch files themselves.
+	
+	For the above example, $APP will add the following lines to the
+	headers of the related patch files:
+
+	This is file posix_only.patch\n
+	Guards-Tag: Line = 2, Condition = +unix\n
+	Guards-Tag: Line = 2, Condition = +linux\n
+	Index: ...\n
+	===================================================================\n
+	--- ...\n
+	+++ ...\n
+	@@ ...\n
+	...
+
+	This is file windows_only.patch\n
+	Guards-Tag: Line = 3, Condition = +win32\n
+	Guards-Tag: Line = 3, Condition = +win64\n
+	Index: ...\n
+	===================================================================\n
+	--- ...\n
+	+++ ...\n
+	@@ ....\n
+	...
+	
+	Each Tag-Line contains exactly one condition plus a "Line"-value which
+	specifies the line number in the original configuration file where
+	that condition has originated from.
+	
+	This is necessary to reconstruct the case where the same patch file is
+	mentioned in multiple different lines of the same patch series.
+	
+	If there have been multiple conditions within the same line, the order
+	of the "Guards-Tag"-lines is the same as the order within the line
+	from the originating configuration file.
+
+	Consider the following nasty configuration file:
+
+	+a one.patch two.patch\n
+	+b three.patch four.patch\n
+	+c one.patch\n
+	+d two.patch
+	
+	This will then be result in the following lines being injected:
+
+	into file "one.patch":\n
+	Guards-Tag: Line = 1, Condition = +a\n
+	Guards-Tag: Line = 3, Condition = +c
+
+	into file "two.patch":\n
+	Guards-Tag: Line = 2, Condition = +b\n
+	Guards-Tag: Line = 4, Condition = +c
+
+	into file "three.patch":\n
+	Guards-Tag: Line = 2, Condition = +b
+
+	into file "four.patch":\n
+	Guards-Tag: Line = 2, Condition = +b
+	
+	In order to reconstruct the original guards file, obviously more
+	information is required than present in the injected files alone. This
+	additional information is a "quilt"-style "series" file, which would
+	need to have the following contents in this case:
+	
+	one.patch\n
+	two.patch\n
+	three.patch\n
+	four.patch\n
+	one.patch\n
+	two.patch
+
+	That is, the same contents as the guard configuration file, but
+	without the conditions and only one entry per line.
+	
+	Such a file is only necessary if the same patch occurs multiple times
+	in the same series at different places, which is not very common.
+	Normally, the "series"-file can just be reconstructed by
+	lexicographically sorting the list of patch files and then stripping
+	numerical prefixes.
+	
+	For instance, instead of supplying a "series" file with the above
+	contents, the patches could also have been renamed as follows:
+	
+	01_one.patch\n
+	02_two.patch\n
+	03_three.patch\n
+	04_four.patch\n
+	05_one.patch\n
+	06_two.patch
+	
+	05_one.patch and 06_two.patch could be either symlinks to or just
+	copies of 01_one.patch and 02_two.patch, respectively.
+	
+
+	Options:
+	
+	-p <patches_dir>: Specify the base directory where the patch files
+	reside which are mentioned in the "guards" configuration file. If not
+	specified, the contents of the environment variable \$QUILT_PATCHES is
+	used if such a variable is defined. Otherwise, if there is a directory
+	"patches" in the current directory, it is assumed to contain the patch
+	files. Finally, if this directory also does not exist, it is assumed
+	the patches reside in the current directory. Note that $APP supports
+	subdirectories in <patches_dir> and therefore also relative path names
+	for the patches specified in the "guards" configuration file.
+	
+	-N: Normally, the original patch files will be replaced by the updated
+	patch files. If this option is used, new patch files are written
+	instead. Those files have the same name as the original patch files,
+	except that ".new" will be appended to the original name. The original
+	files will not be modified.
+
+	-K: Before writing out the updated patch files, the original files are
+	renamed into backup files by adding the suffix ".orig" to the original
+	names. Normally those backups will be removed after successfully
+	updating each patch file. This option suppresses the removal of the
+	backup files, keeping them. This option has no effect if the -N option
+	is also active, because then there will be no backup files to be
+	removed anyway.
+	
+	-O: Allow overwriting of output files which already exist. As
+	explained for the -N and -K options, files with the same basic name as
+	a patch file but with the additional suffix ".new" or ".orig" might
+	need to be created. Normally, already existing files with those names
+	will never be overwritten by $APP, resulting in an error if such files
+	already exist. With -O, any such files will be overwritten silently
+	instead.
+
+	-v: Be verbose. Displays the names of the modified patch file as they
+	are written.
+
+	-h: Show this help.
+
+	-V: Show only the version information.
+.
+	echo
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" || die "Could not execute >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+print() {
+	run printf '%s' "$*"
+}
+
+
+println() {
+	run printf '%s\n' "$*"
+}
+
+
+wr() {
+	local REPLY
+	while IFS= read -r
+	do
+		{
+			while test -n "$REPLY" || IFS= read -r
+			do
+				ORIG=$REPLY; REPLY=${REPLY%\\n}
+				println "$REPLY"
+				test x"$ORIG" != x"$REPLY"  && break
+				REPLY=
+			done
+		} | run fmt -w "$LINEWIDTH" || exit
+	done
+}
+# Determine up line width to use for output.
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
+
+# Set $REPLY to a quoted representation of all the arguments
+# ready for 'eval set -- $REPLY' to reconstruct the arguments.
+qin() {
+	local REST S Q R
+	REPLY=
+	for S
+	do
+		Q=; R=
+		while test -n "$S"
+		do
+			REST=${S#?}; S=${S%"$REST"}
+			case $S in
+				\$ | \` | \" | \\) S=\\$S;;
+				" " | "$NL" | "$TAB") Q=Y;;
+			esac
+			R=$R$S; S=$REST
+		done
+		test -n "$Q" && R=\"$R\"
+		REPLY=$REPLY${REPLY:+ }$R
+	done
+}
+# Construct required constants $TAB and $NL.
+NL=`printf '\t\n:'`; TAB=${NL%??}; NL=${NL%?}; NL=${NL#?}
+
+
+# Make sure the directory components before the basename exist.
+mkbasedirs() {
+	local PARENT
+	PARENT=${1%/*}
+	test x"$PARENT" = x"$1" && return
+	test -d "$PARENT" && return
+	mkbasedirs "$PARENT"
+	run mkdir -- "$PARENT"
+}
+
+
+close6() {
+	exec 6<& -
+	IN6=
+}
+
+
+close7() {
+	exec 7>& -
+	OUT7=
+}
+
+
+cleanup() {
+	test -n "$IN6" && close6
+	test -n "$OUT7" && close7
+	test -z "$DEBUG" && rm -r "$TD"
+}
+
+
+sed1() {
+	local S A OIFS
+	S=$1; shift
+	OIFS=$IFS; IFS=; A=$*; IFS=$OIFS
+	println "$S" | run sed -e "$A"
+}
+
+
+# Check whether $LINE is a line which is OK to *follow* the tags to be
+# inserted. This is the case for empty/whitespace only lines or for lines
+# starting with a keyword followed by ":". If not so, redirect output to "4"
+# and set $SWITCHED to non-empty.
+check_header_line() {
+	test -n "$SWITCHED" && return
+	local REPLY
+	system sed1 "$LINE" 's/' \
+		'^[[:space:]]*' \
+		'\(' \
+			'[-_[:alnum:]]\+' \
+			'[[:space:]]*' \
+			':' \
+			'\([[:space:]].*\)\?' \
+			'[[:space:]]*' \
+		'\)\?$' \
+		'/k:v/'
+	test x"$REPLY" = x"k:v" && return
+	exec > "$TD"/4
+	SWITCHED=Y
+}
+
+
+inject() {
+	local PATCH LINE_NUMBER COND
+	local REPLY HEAD
+	PATCH=$1; LINE_NUMBER=$2; eval set -- $3
+	if test -z "$TD"
+	then
+		# Create temporary working directories.
+		while :
+		do
+			if test -n "$DEBUG"
+			then
+				TD=`pwd`/wd
+				test -d "$TD" && rm -r --one-file-system "$TD"
+			else
+				system tempfile; TD=$REPLY
+				run rm "$REPLY"
+			fi
+			mkdir -m700 "$TD" && break
+		done
+		trap cleanup 0
+		run mkdir "$TD"/h
+		run mkdir "$TD"/t
+	fi
+	HEAD=$TD/h/$PATCH
+	if test ! -f "$HEAD"
+	then
+		# Split original patch into head and tail parts.
+		mkbasedirs "$HEAD"
+		local TAIL LINE SEARCH
+		TAIL=$TD/t/$PATCH
+		mkbasedirs "$TAIL"
+		PATCH=$PATCHES_DIR/$PATCH
+		test -f "$PATCH" || die "Missing patch file \"$PATCH\"!"
+		# Lines up to "+++" go to "1", "@@" and rest go to "2".
+		exec 6< "$PATCH"; IN6=Y
+		exec 7> "$TD"/1; OUT7=Y
+		: > "$TD"/2
+		SEARCH=---
+		while IFS= read -r LINE <& 6
+		do
+			case $LINE in
+				"--- "*) test x$SEARCH = x--- && SEARCH=+++;;
+				"+++ "*) test x$SEARCH = x+++ && SEARCH="@@";;
+				"@@ "*)
+					if test x$SEARCH = x"@@"
+					then
+						close7
+						SEARCH=successful
+						exec 7> "$TD"/2; OUT7=Y
+					fi
+					;;
+				*) test x$SEARCH = x"successful" || SEARCH=---;;
+			esac
+			println "$LINE" >& 7
+		done
+		close7; close6
+		# Read the lines from "1" ("+++"-line will be last) backwards.
+		# Write those belonging the the actual diff header to "3".
+		# The rest goes to "4".
+		# Already existing "Guards-Tag:"-lines are discarded.
+		run tac "$TD"/1 | {
+			if test x"$SEARCH" = x"successful"
+			then
+				# Copy "---" and "+++" lines unconditionally.
+				COPY=2
+			else
+				# Empty patch; no "+++" or "---" lines around.
+				COPY=0
+			fi
+			exec > "$TD"/3
+			: > "$TD"/4
+			SWITCHED=
+			while IFS= read -r LINE
+			do
+				if test $COPY != 0
+				then
+					COPY=`expr $COPY - 1`
+				else
+					case $LINE in
+						#===* | Index:*) ;;
+						===*) ;;
+						"Guards-Tag: Line = "[1-9]*)
+							continue;;
+						*) check_header_line;;
+					esac
+				fi
+				println "$LINE"
+			done
+			true
+		} || exit
+		# What has just been written to "4", tac'ed, is the $HEAD.
+		exec 7> "$HEAD"; OUT7=Y
+		run tac "$TD"/4 >& 7
+		# Leading empty lines of "3", tac'ed, also belong to $HEAD.
+		# The rest of "3" is the start of "$TAIL.
+		: > "$TAIL"
+		run tac "$TD"/3 | {
+			while IFS= read -r LINE
+			do
+				set -- $LINE
+				if test $# != 0
+				then
+					{
+						println "$LINE"
+						run cat
+					} > "$TAIL"
+					break
+				fi
+				println "$LINE"
+			done
+			true
+		} >& 7 || exit
+		close7
+		# Finally, the contents of "2" represent the rest of $TAIL.
+		run cat "$TD"/2 >> "$TAIL"
+	fi
+	# Emit the tags.
+	for COND
+	do
+		run echo "Guards-Tag: Line = $LINE_NUMBER, Condition = $COND"
+		ITAGS=`expr $ITAGS + 1`
+	done >> "$HEAD"
+}
+
+
+enum_modified() {
+	(run cd "$TD"/h; run find -type f | run sed -e 's,^\./,,') || exit
+}
+
+
+derive_names() {
+	ORIG=$PATCHES_DIR/$PATCH
+	if test -n "$WRITE_NEW_PATCHES"
+	then
+		TARGET=$ORIG.new
+	else
+		TARGET=$ORIG.orig
+	fi
+}
+
+
+DEBUG=
+PATCHES_DIR=
+OVERWRITE_OLD_BACKUPS=
+WRITE_NEW_PATCHES=
+KEEP_BACKUPS=
+VERBOSE=
+while getopts p:vNOKhV OPT
+do
+	case $OPT in
+		p) PATCHES_DIR=$OPTARG;;
+		O) OVERWRITE_OLD_BACKUPS=Y;;
+		K) KEEP_BACKUPS=Y;;
+		N) WRITE_NEW_PATCHES=Y;;
+		v) VERBOSE=Y;;
+		h) show_help; exit;;
+		V) show_version; exit;;
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1`
+if test -n "$PATCHES_DIR"
+then
+	:
+elif test -n "$QUILT_PATCHES"
+then
+	PATCHES_DIR=${QUILT_PATCHES%%/}
+	run test -n "$PATCHES_DIR" # "/" not supported as patches directory.
+elif test -d patches
+then
+	PATCHES_DIR=patches
+else
+	PATCHES_DIR=.
+fi
+if test $# = 1
+then
+	test -f "$1" || die "'guards' configuration file '$1' does not exist!"
+	exec < "$1"
+	shift
+fi
+test $# = 0 || die "Unexpected arguments: $*!"
+TD=
+IN6=
+OUT7=
+LINE_NUMBER=1
+ITAGS=0; IFILES=0
+while IFS= read
+do
+	L=$LINE_NUMBER; LINE_NUMBER=`expr $L + 1`
+	case $REPLY in
+		"#"*) continue;; # Skip comments.
+	esac
+	set -- $REPLY
+	CONDS=; PATCHES=
+	for ARG
+	do
+		qin "$ARG"
+		case $ARG in
+			-?* | +?*) CONDS=$CONDS${CONDS:+ }$REPLY;;
+			*) PATCHES="$PATCHES $REPLY";;
+		esac
+	done
+	# Are there any conditions at all in this line?
+	test -z "$CONDS" && continue
+	# Inject lines for all conditions into all files mentioned within that
+	# line.
+	eval set -- $PATCHES
+	for PATCH
+	do
+		inject "$PATCH" "$L" "$CONDS"
+	done
+done
+enum_modified | {
+	while IFS= read -r PATCH
+	do
+		derive_names
+		run test -f "$ORIG"
+		if test -e "$TARGET"
+		then
+			test -z "$OVERWRITE_OLD_BACKUPS" && {
+				die "Output file \"$TARGET\" already exists" \
+					"- use -O to enable" \
+					"overwriting of files!"
+			}
+			run rm -- "$TARGET"
+		fi
+	done
+	true
+} || exit
+enum_modified | {
+	while IFS= read -r PATCH
+	do
+		derive_names
+		if test -z "$WRITE_NEW_PATCHES"
+		then
+			run mv -- "$ORIG" "$TARGET"
+			OUT=$ORIG
+		else
+			OUT=$TARGET
+		fi
+		test -n "$VERBOSE" && echo "Writing new \"$OUT\"."
+		run cat -- "$TD"/h/"$PATCH" "$TD"/t/"$PATCH" > "$OUT"
+		if test -z "$KEEP_BACKUPS" && test -z "$WRITE_NEW_PATCHES"
+		then
+			run rm "$TARGET"
+		fi
+		IFILES=`expr $IFILES + 1`
+	done
+	println "Injected $ITAGS 'Guards-Tag:'-lines" \
+		"into $IFILES patch file headers."
+}
