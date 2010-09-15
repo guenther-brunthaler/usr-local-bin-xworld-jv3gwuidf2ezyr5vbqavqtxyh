@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /bin/sh
 #
 # $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
 # $Author: root $
@@ -26,9 +26,10 @@ trim() {
 	echo "$NEW"
 }
 
+
 BACK="$(grep '^\s*-backpath /.*' ~/.joerc | head -n1)"
-BACK="${BACK#*backpath}"
-BACK="$(trim "$BACK")"
+BACK=${BACK#*backpath}
+BACK=$(trim "$BACK")
 if [ -z "$BACK" ]; then
 	echo "ERROR: No backup path has been set up yet"
 	exit 1
@@ -38,7 +39,9 @@ if [ ! -d "$BACK" ]; then
 	exit 1
 fi
 FTYPERC="$HOME/.joe"
-sed -e 's!^\s*-backpath /.*!-backpath '$BACK'!;s!^:include\s\s*ftyperc\s*$!:include '$FTYPERC'!' /usr/local/etc/skel/.joerc > ~/.joerc
-if [ -f /etc/joe/ftyperc ]; then
-	test -e ~/.joe || cp /usr/local/etc/skel/.joe ~/.joe
-fi
+sed \
+	-e 's!^\s*-backpath /.*!-backpath '$BACK'!' \
+	-e 's!^:include\s\s*ftyperc\s*$!:include '$FTYPERC'!' \
+	/usr/local/etc/skel/.joerc \
+	> ~/.joerc
+cp /usr/local/etc/skel/.joe ~/.joe
