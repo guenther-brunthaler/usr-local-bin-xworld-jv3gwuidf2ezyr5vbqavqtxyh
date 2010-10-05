@@ -1,0 +1,109 @@
+#! /usr/bin/env lua
+local deflen= 3
+local s= arg[1] or (function ()
+   local llen= 75
+   local msg= [[
+      $APP - Generate all possible file extensions derived from a name
+      
+      Usage: $APP <name> [ <max_extension_length> ]
+      
+      $APP outputs a sorted list of possible file extensions with length 1 to
+      <extension_length> characters.
+      
+      If <extension_length> has not been specified, it defaults to $DEFLEN.
+      
+      Those file extensions represent all possible abbreviations of <name>
+      with that maximum length.
+      
+      $APP will typically be used for determining the prettiest file extension
+      for documents created by an application, or for source files to be used
+      by a programming language.
+      
+      $APP version 10.278\n
+      (c) 2010 by Guenther Brunthaler.
+
+      This script is free software.\n
+      Distribution is permitted under the terms of the GPLv3.\n
+   ]]
+   for _, xf in ipairs{
+         {"$([A-Z]+)", {APP= string.gsub(arg[0], ".*/", ""), DEFLEN= deflen}}
+      ,  {"\n%s*\n", "\\n\\n"}, {"\n", " "}, {"%s+", " "}
+      ,  {"\\n ", "\\n"}, {" \\n ", "\\n"}, {"^ ", ""}
+   } do
+      msg= string.gsub(msg, xf[1], xf[2])
+   end
+   local out= {}
+   local left, wl
+   for paragraph in string.gmatch(msg, "(.-)\\n") do
+      left= llen
+      for word in string.gmatch(paragraph .. " ", "(%S-) ") do
+         wl= #word
+         if wl > left then table.insert(out, "\n"); left= llen; end
+         if left < llen then table.insert(out, " "); left= left - 1; end
+         table.insert(out, word); left= left - wl
+      end
+      table.insert(out, "\n")
+   end
+   io.write(table.concat(out))
+   os.exit(1)
+end)()
+do
+   -- Convert s into an array of characters.
+   local s2= {}
+   for c in string.gmatch(s, ".") do
+      table.insert(s2, c)
+   end
+   s= s2
+end
+local t= {} -- Hash with all character permutations as keys.
+local p= {} -- The indexes of the current permutation.
+local sb= {} -- String builder array.
+local mn= tonumber(arg[2] or deflen)
+if mn > #s then mn= #s; end
+local sn, k, done
+for n= 1, mn do
+   -- Create initial permutation.
+   for i= 1, n do
+      p[i]= i
+   end
+   -- Process all permutations.
+   sn= #s - n
+   repeat
+      -- Evaluate permutation.
+      for i= 1, n do
+         -- Create sb[] from p[].
+         sb[i]= s[p[i]]
+      end
+      t[table.concat(sb)]= true -- Enter into hash.
+      -- Try to create the next permutation.
+      done= true
+      for i= n, 1, -1 do
+         k= p[i] + 1
+         if k <= i + sn then
+            repeat
+               p[i]= k
+               i, k= i + 1, k + 1
+            until i > n
+            done= false
+            break
+         end
+      end
+   until done
+end
+-- Convert hash into list of keys.
+do
+   local t2= {}
+   for k in pairs(t) do
+      table.insert(t2, k)
+   end
+   t= t2
+end
+-- Display sorted key list.
+table.sort(t, function (s1, s2)
+   if #s1 < #s2 then return true; end
+   if #s1 > #s2 then return false; end
+   return s1 < s2
+end)
+for _, str in ipairs(t) do
+   print(str)
+end
