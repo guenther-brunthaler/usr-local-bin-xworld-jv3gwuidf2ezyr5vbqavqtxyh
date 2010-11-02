@@ -1,0 +1,32 @@
+#! /bin/sh
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>$*<<< failed with return code ${?}!"
+}
+
+
+DRY_RUN=
+while getopts n OPT
+do
+	case $OPT in
+		n) DRY_RUN=Y;;
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1`
+PICTURES=$1; shift
+test -n "$PICTURES" && test -d "$PICTURES" && test $# = 0 \
+	|| die "Usage: ${0##*/} <image_directory>"
+run cd "$PICTURES"
+set -- run xv
+test -z "$DRY_RUN" && set -- "$@" -rmode 5
+set -- "$@" -random -maxpect -viewonly -wloop -wait 10 -flist /dev/stdin
+run find -iname '*.jpg' -o -iname '*.png' | "$@"
