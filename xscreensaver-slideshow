@@ -50,23 +50,35 @@ CONF=${XDG_CONFIG_HOME:-$HOME/.config}
 test -d "$CONF" || run mkdir -p "$CONF"
 CONF=$CONF/${0##*/}_6n2rztqe2sywyhxii4ltrmggt.conf
 ROOTWINDOW=
-test x"$0" = x-root && {
-	ROOTWINDOW=Y
+DELAY=
+while :
+do
+	case $1 in
+		-root) ROOTWINDOW=Y;;
+		-delay) DELAY=$2; shift;;
+		*) break;;
+	esac
 	shift
-}
+done
 PICTURES=$1; shift
 DIRTY=Y
-test -z "$PICTURES" && test -f "$CONF" && {
-	IFS= read -r PICTURES < "$CONF"
-	DIRTY=
+{ test -z "$PICTURES" || test -z "$DELAY"; } && test -f "$CONF" && {
+	IFS= read -r < "$CONF"
+	DELAY2=${REPLY%% *}
+	PICTURES2=${REPLY#* }
+	test -z "$PICTURES" && PICTURES=$PICTURES2
+	test -z "$DELAY" && DELAY=${DELAY2:-10}
+	test x"$PICTURES" = x"$PICTURES2" && test x"$DELAY" = x"$DELAY2" \
+		&& DIRTY=
 }
 test -n "$PICTURES" && test -d "$PICTURES" && test $# = 0 \
-	|| die "Usage: ${0##*/} [ -root ] <image_directory>"
-test -n "$DIRTY" && run printf '%s\n' "$PICTURES" > "$CONF"
+	|| die "Usage: ${0##*/} [ -root ] [ -delay N ] <image_directory>"
+test -n "$DIRTY" && run printf '%u %s\n' "$DELAY" "$PICTURES" > "$CONF"
 run cd "$PICTURES"
 set -- xv
 test -n "$ROOTWINDOW" && set -- "$@" -rmode 5
-set -- "$@" -random -maxpect -viewonly -wloop -wait 10 -flist /dev/stdin
-run find -iname '*.jpg' -o -iname '*.png' | "$@"& WORKER=$!
+set -- "$@" -random -maxpect -viewonly -wloop
+set -- "$@" -wait "$DELAY" -flist /dev/stdin
+run find -iname '*.jpg' -o -iname '*.png' | "$@" & WORKER=$!
 test -n "$TERMREQ" && kill $$
 wait
