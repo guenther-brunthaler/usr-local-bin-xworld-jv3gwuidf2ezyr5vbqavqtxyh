@@ -1,5 +1,25 @@
 #! /bin/sh
-
+# Display a nice slideshow using the "xv" tool; can be used either alone
+# or as an "xscreensaver"-plugin.
+#
+# In order to install this as a plugin for xscreensaver, edit your
+# $HOME/.xscreensaver file, locate the "programs:" entry, and add a
+# line like the following there:
+# default-n: "Simple Slideshow" xscreensaver-slideshow -root \n\
+# (but without the comment-character "#", of course!)
+#
+# Before this, however, run this script directly and specify the
+# base directory where your images can be found as the only argument.
+# The script will then remember this directory, and you won't have
+# to specify it for later invocations.
+#
+# Then select the "Simple Slideshow" screensaver module through
+# the xscreensaver-demo GUI.
+#
+# (c) 2010 by Guenther Brunthaler.
+# This script file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+                 
 
 die() {
 	echo "ERROR: $*" >& 2
@@ -13,20 +33,40 @@ run() {
 }
 
 
-DRY_RUN=
-while getopts n OPT
-do
-	case $OPT in
-		n) DRY_RUN=Y;;
-		*) false; exit;;
-	esac
-done
-shift `expr $OPTIND - 1`
+termhandler() {
+	test -n "$WORKER" && {
+		kill $WORKER
+		wait
+		exit
+	}
+	TERMREQ=Y
+}
+
+
+TERMREQ=
+WORKER=
+trap termhandler SIGTERM SIGINT
+CONF=${XDG_CONFIG_HOME:-$HOME/.config}
+test -d "$CONF" || run mkdir -p "$CONF"
+CONF=$CONF/${0##*/}_6n2rztqe2sywyhxii4ltrmggt.conf
+ROOTWINDOW=
+test x"$0" = x-root && {
+	ROOTWINDOW=Y
+	shift
+}
 PICTURES=$1; shift
+DIRTY=Y
+test -z "$PICTURES" && test -f "$CONF" && {
+	IFS= read -r PICTURES < "$CONF"
+	DIRTY=
+}
 test -n "$PICTURES" && test -d "$PICTURES" && test $# = 0 \
-	|| die "Usage: ${0##*/} <image_directory>"
+	|| die "Usage: ${0##*/} [ -root ] <image_directory>"
+test -n "$DIRTY" && run printf '%s\n' "$PICTURES" > "$CONF"
 run cd "$PICTURES"
-set -- run xv
-test -z "$DRY_RUN" && set -- "$@" -rmode 5
+set -- xv
+test -n "$ROOTWINDOW" && set -- "$@" -rmode 5
 set -- "$@" -random -maxpect -viewonly -wloop -wait 10 -flist /dev/stdin
-run find -iname '*.jpg' -o -iname '*.png' | "$@"
+run find -iname '*.jpg' -o -iname '*.png' | "$@"& WORKER=$!
+test -n "$TERMREQ" && kill $$
+wait
