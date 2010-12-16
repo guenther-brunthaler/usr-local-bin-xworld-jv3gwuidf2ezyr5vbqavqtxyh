@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 10.210
+	$APP version 10.350
 
 	(c) 2010 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -91,6 +91,11 @@ wr() {
 }
 
 
+have() {
+	which "$1" > /dev/null 2>& 1
+}
+
+
 size() {
 	system stat -c %s -- "$1"
 }
@@ -163,11 +168,12 @@ pack() {
 	test -z "$VERBOSE" && {
 		run printf 'Testing "%s" (%s bytes)...\n' "$IN" "$SHORTEST"
 	}
-	try_better gz gzip -9
-	try_better bz2 bzip2 -9
-	try_better -e -e xz xz -9
+	test -n "$HAVE_LZO" && try_better lzo lzop -9
+	test -n "$HAVE_GZ" && try_better gz gzip -9
+	test -n "$HAVE_BZ2" && try_better bz2 bzip2 -9
+	test -n "$HAVE_XZ" && try_better -e -e xz xz -9
 	test -n "$INCLUDE_2ND_CHOICE_PACKERS" && {
-		try_better -e -e lzma lzma -9
+		test -n "$HAVE_LZMA" && try_better -e -e lzma lzma -9
 	}
 	if test -n "$BEST"; then
 		test -n "$KEEP_ORIGINAL" || rm "$IN"
@@ -186,6 +192,11 @@ KEEP_ORIGINAL=
 VERBOSE=
 OVERWITE_ARCHIVES=
 EXTREME_THRESHOLD=500000
+HAVE_LZO=
+HAVE_GZ=
+HAVE_BZ2=
+HAVE_LZMA=
+HAVE_XZ=
 while getopts keE:2vOhV OPT
 do
 	case $OPT in
@@ -201,6 +212,11 @@ do
 	esac
 done
 shift `expr $OPTIND - 1`
+have lzop && HAVE_LZO=Y
+have gzip && HAVE_GZ=Y
+have bzip2 && HAVE_BZ2=Y
+have lzma && HAVE_LZMA=Y
+have xz && HAVE_XZ=Y
 for FILE
 do
 	pack "$FILE"
