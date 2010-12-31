@@ -1,0 +1,168 @@
+#! /bin/sh
+show_version() {
+	wr <<- .
+	$APP version 10.365
+
+	(c) 2010 by Guenther Brunthaler.\n
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+
+show_help() {
+	wr <<- .
+	$APP - launch a new shell in the directory where some filesystem
+	object is located
+	
+	Usage: $APP [ options ] <filesystem_object>
+	
+	$APP changes the current directory to the directory where the
+	specified filesystem is located and starts a new command shell there.
+	Exit from this shell in order to return to the old current directory.
+
+	The object can be a file, a directory, a special file, or a symlink to
+	such objects.
+
+	If the object is a directory, $APP does mostly the same as the native
+	"chdir" command - it changes the current directory to the specified
+	directory.
+
+	If the object is a normal or special file, $APP changes the current
+	directory to the parent directory which contains that object.
+
+	If the object is a symlink, it operates on the symlink target as
+	described above.
+	
+	One notable difference between $APP and "cd" is the fact that $APP
+	cannot change the current directory of the shell from which $APP was
+	run - it is generally not possible for a child process to change the
+	current directory of its parent process. Therefore, instead of doing
+	this, $APP starts a nested new shell in the destination directory.
+	This means it is necessary to exit from this shell in order to go back
+	to the original shell from where $APP was launched.
+
+
+	Options:
+
+	-s: The shell to start in the destination directory. Without this
+	    option, the user's default shell will be used.
+	-l: Resolve the file system object to an absolute path containing no
+	    more symlinks before doing anything else. This allows to change to
+	    directory which actually contains the object, even if a symlink to
+	    it has been specified which is located within a completely
+	    different directory.
+	-P: Do a "cd -P" rather than a normal "cd" when changing the
+	    directory. This will try to fully resolve all symlinks which are
+	    part of the target path, and convert them into an absolute path.
+	    Without this switch, symlinks will be resolved only as little as
+	    necessary in order to actually reach the destination directory.\n
+	-v: Be verbose. Shows more details of the tests.\n
+	-h: Show this help.\n
+	-V: Show only the version information.\n
+.
+	println
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" || die "Could not execute >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+println() {
+	run printf '%s\n' "$*"
+}
+
+
+wr() {
+	local REPLY
+	while IFS= read -r
+	do
+		{
+			while test -n "$REPLY" || IFS= read -r
+			do
+				ORIG=$REPLY; REPLY=${REPLY%\\n}
+				println "$REPLY"
+				test x"$ORIG" != x"$REPLY"  && break
+				REPLY=
+			done
+		} | run fmt -w "$LINEWIDTH" || exit
+	done
+}
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
+
+default_shell() {
+	run cat /etc/passwd | \
+		LC_ALL=C awk -F: '
+			BEGIN { sh= "/bin/false"; }
+			$1 == "'$1'" { sh= $7; exit; }
+			END {
+				if (sh == "/bin/false") {exit 1}
+				else {print sh}
+			}
+		' || die "Could not determine default shell for a user '$1'!"
+}
+
+
+USR=
+USR_SHELL=
+WS_CD_OPTS=
+RESOLVE=
+while getopts Ps:u:l OPT
+do
+	case $OPT in
+		l) RESOLVE=Y;;
+		u) USR=$OPTARG;;
+		s) USR_SHELL=$OPTARG;;
+		P) WS_CD_OPTS=" -P";;
+		h) show_help; exit;;
+		V) show_version; exit;;
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1`
+test -z "$USR" && { system whoami; USR=$REPLY; }
+test -z "$USR_SHELL" && { system default_shell "$USR"; USR_SHELL=$REPLY; }
+test -f "$USR_SHELL" && test -x "$USR_SHELL" \
+	|| die "Invalid command shell '$USR_SHELL'!"
+test $# != 0 || die "Required argument: The filesystem object to locate!"
+FSO=$1; shift
+test $# = 0 || die "Unrecognized excess arguments: >>>$*<<<!"
+test -e "$FSO" || die "A filesystem object '$FSO' does not exist!"
+test -n "$RESOLVE" && {	system readlink -f "$FSO"; FSO=$REPLY; }
+if test ! -d "$FSO"
+then
+	system dirname "$FSO"
+	test -d "$REPLY" \
+		|| die "Could not determine parent directory of '$FSO'!"
+	FSO=$REPLY
+fi
+system pwd; OLD=$REPLY
+cd$WS_CD_OPTS -- "$FSO" \
+		|| die "Could not change the current directory to '$FSO'!"
+system pwd
+wr <<- EOF
+	Starting a new instance of command shell '$USR_SHELL' in directory
+	'$REPLY'.\n
+	Exit from that shell in order to return to directory '$OLD' from which
+	'$APP' was run.
+EOF
+"$USR_SHELL"
+wr <<- EOF
+	Execution of '$APP' is complete. Returning to previous command shell
+	in directory '$OLD'.
+EOF
