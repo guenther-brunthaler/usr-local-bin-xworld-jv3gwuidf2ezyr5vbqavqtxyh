@@ -1,0 +1,57 @@
+#! /bin/sh
+PERSONAL_MENU_FILE=$HOME/.config/openbox/menu.xml
+SYSTEM_MENU_FILE=/etc/xdg/openbox/menu.xml
+
+
+die() {
+	printf "ERROR: %s\n" "$*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<< return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+if
+	test $# = 1
+then
+	# When run with the name of a menu file, update it.
+	MENU_FILE=$1
+	run test -f "$MENU_FILE"
+	run test -w "$MENU_FILE"
+elif
+	run test $# = 0
+	system id -u
+	test x"$REPLY" = x"0"
+then
+	# Otherwise, if no arguments and run as superuser, create
+	# or update the system wide menu file, then optionally
+	# update the superuser's personal menu file.
+	test -f "$SYSTEM_MENU_FILE" || {
+		run test ! -e "$SYSTEM_MENU_FILE"
+		run touch "$SYSTEM_MENU_FILE"
+		run chmod 644 "$SYSTEM_MENU_FILE"
+	}
+	"$0" "$SYSTEM_MENU_FILE"
+	test ! -e "$PERSONAL_MENU_FILE" && exit
+	exec "$0" "$PERSONAL_MENU_FILE"
+else
+	# Finally, when run by a normal user without arguments,
+	# update the user's personal menu file only.
+	exec "$0" "$PERSONAL_MENU_FILE"
+fi
+system dirname "$MENU_FILE"
+run test -d "$REPLY"
+run test -w "$REPLY"
+run mmaker -c OpenBox3 \
+	| run sed -e 's,\([^A-Za-z]\)xterm\([^<]\),\1roxterm\2,g' \
+	> "$MENU_FILE"
+echo "Success! Menu file has been written to '$MENU_FILE'!"
