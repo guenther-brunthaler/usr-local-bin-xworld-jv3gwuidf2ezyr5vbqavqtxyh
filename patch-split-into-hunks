@@ -1,4 +1,51 @@
 #! /bin/sh
+show_version() {
+	wr <<- .
+	$APP version 11.26.1
+
+	(c) 2010 - 2011 by Guenther Brunthaler.\n
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+
+show_help() {
+	wr <<- .
+	$APP - split a patch into multiple incremental patches, one hunk per
+	patch
+	
+	Usage: $APP [ options ] <patch>
+	
+	$APP determines the number of hunks present in <patch>, and then
+	creates a numbered set of patch files as output where each patch file
+	contains a single hunk from <patch>.
+	
+	When those generated patch files are then applied later in
+	lexicographical order, they will have the same effect as applying
+	<patch>.
+	
+	The names of the output files are based on <patch> and a numeric
+	index; $APP will display the names as it creates the files.
+	
+	$APP will never overwrite any files - it will abort with an error
+	message if an output file already exists.
+
+
+	Options:
+
+	-R: Assume the patch will be applied reverted, i. e. with the -R or
+	    --reverse option to 'patch'.\n
+	    In this case, $APP will enumerate the output files in the reverse
+	    order, i. e. the patch with the last hunk will get a name so it
+	    will be applied first when using shell wildcard expansion for
+	    specifying the patch files later.
+	-h: Show this help.\n
+	-V: Show only the version information.\n
+.
+	println
+	show_version
+}
 
 
 die() {
@@ -24,7 +71,25 @@ println() {
 
 
 wr() {
-	run printf '%s' "$*" | run fmt -w "$LINEWIDTH" || exit
+	if
+		test $# != 0
+	then
+		run printf '%s\n' "$*" | wr
+		return
+	fi
+	local REPLY
+	while IFS= read -r
+	do
+		{
+			while test -n "$REPLY" || IFS= read -r
+			do
+				ORIG=$REPLY; REPLY=${REPLY%\\n}
+				println "$REPLY"
+				test x"$ORIG" != x"$REPLY"  && break
+				REPLY=
+			done
+		} | run fmt -w "$LINEWIDTH" || exit
+	done
 }
 LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
 
@@ -39,6 +104,17 @@ getchunk() {
 }
 
 
+REVERSED=
+while getopts RhV OPT
+do
+	case $OPT in
+		R) REVERSED=Y;;
+		h) show_help; exit;;
+		V) show_version; exit;;
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1`
 LC_ALL=C
 TZ=UTC0
 export LC_ALL TZ
@@ -69,10 +145,23 @@ I=1
 while :
 do
 	system printf "$FORMAT" "$PREFIX" $I; NAME=$REPLY
-	wr "Extracting hunk # $I into '$NAME'."
+	if
+		test -n "$REVERSED"
+	then
+		X=`expr $HUNK_COUNT + 1 - $I`
+	else
+		X=$I
+	fi
+	wr "Extracting hunk # $X into the following file:" >& 2
+	println "$NAME"
 	test -e "$NAME" && die "Output file already exists - delete it first!"
-	getchunk $I "$NAME"
+	getchunk $X "$NAME"
 	test $I = $HUNK_COUNT && break
 	I=`expr $I + 1`
 done
-wr "Successfully split patch '$PATCH' into $HUNK_COUNT smaller patches."
+REVERSED=${REVERSED:+ reverted (i. e. with -R or --reverse)}
+wr <<- EOF >& 2
+	Successfully split patch '$PATCH' into $HUNK_COUNT smaller patches
+	which are to be applied$REVERSED in lexicographical order of the
+	filenames.
+EOF
