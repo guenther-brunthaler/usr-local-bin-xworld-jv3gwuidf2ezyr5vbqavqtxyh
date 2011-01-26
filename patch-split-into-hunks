@@ -1,0 +1,78 @@
+#! /bin/sh
+
+
+die() {
+	printf "ERROR: %s\n" "$*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<< return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+println() {
+	run printf '%s\n' "$*"
+}
+
+
+wr() {
+	run printf '%s' "$*" | run fmt -w "$LINEWIDTH" || exit
+}
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
+
+cleanup() {
+	rm "$T"
+}
+
+
+getchunk() {
+	run cat "$PATCH" | run filterdiff "-#$1" | run cat > "$2"
+}
+
+
+LC_ALL=C
+TZ=UTC0
+export LC_ALL TZ
+PATCH=${1?Argument required: The patch to be split into chunks!}
+run test -f "$PATCH"
+system tempfile; T=$REPLY
+trap cleanup 0
+HUNK_COUNT=0
+while :
+do
+	I=`expr $HUNK_COUNT + 1`
+	getchunk $I "$T"
+	test -s "$T" || break
+	HUNK_COUNT=$I
+done
+if
+	test $HUNK_COUNT = 0
+then
+	die "There is only a single hunk; use the patch as it is!"
+fi
+FORMAT='%s-part_%0'${#HUNK_COUNT}'u.patch'
+case $PATCH in
+	*[-._]patch) PREFIX=${PATCH%?patch};;
+	*[-._]diff) PREFIX=${PATCH%?diff};;
+	*) PREFIX=$PATCH
+esac
+I=1
+while :
+do
+	system printf "$FORMAT" "$PREFIX" $I; NAME=$REPLY
+	wr "Extracting hunk # $I into '$NAME'."
+	test -e "$NAME" && die "Output file already exists - delete it first!"
+	getchunk $I "$NAME"
+	test $I = $HUNK_COUNT && break
+	I=`expr $I + 1`
+done
+wr "Successfully split patch '$PATCH' into $HUNK_COUNT smaller patches."
