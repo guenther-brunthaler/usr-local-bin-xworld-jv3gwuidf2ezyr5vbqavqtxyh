@@ -42,6 +42,7 @@ run test -d "${FS=${1:?$USAGE}}"
 snapshot "$FS"
 I_TIME=$C_TIME
 INITIAL=Y
+FMT='+%5u secs; minimum(avail) so far: %12u bytes, %7u inodes\n'
 while :
 do
 	snapshot "$FS"
@@ -53,8 +54,7 @@ do
 		calc $C_TIME - $I_TIME; R_TIME=$REPLY
 		MIN_AVAIL_BYTES=$C_AVAIL_BYTES
 		MIN_AVAIL_INODES=$C_AVAIL_INODES
-		run printf '+%5u secs: %12u bytes avail, %7u inodes avail\n' \
-			$R_TIME $MIN_AVAIL_BYTES $MIN_AVAIL_INODES
+		run printf "$FMT" $R_TIME $MIN_AVAIL_BYTES $MIN_AVAIL_INODES
 	fi
 	sleep "$PROBING_INTERVAL_SECS"
 done
