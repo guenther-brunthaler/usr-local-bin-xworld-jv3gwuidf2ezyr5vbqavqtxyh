@@ -1,0 +1,60 @@
+#! /bin/sh
+# Arguments: <filesystem-mountpoint> [ <probing-interval-seconds> ]
+
+
+PROBING_INTERVAL_SECS=${2:-30}
+
+
+die() {
+	printf "ERROR: %s\n" "$*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<< return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+calc() {
+	REPLY=`expr "$@"`
+	test -n "$REPLY" || die "Could not calculate expression >>>$*<<<!"
+}
+
+
+snapshot() {
+	system date +%s; C_TIME=$REPLY
+	system stat -fc '%a %d %S' "$1"
+	set -- $REPLY
+	calc "$1" "*" "$3"; C_AVAIL_BYTES=$REPLY
+	C_AVAIL_INODES=$2
+}
+
+
+USAGE="Usage: ${0##*/} <mount-point> [ <probing-interval-seconds> ]"
+run test -d "${FS=${1:?$USAGE}}"
+snapshot "$FS"
+I_TIME=$C_TIME
+INITIAL=Y
+while :
+do
+	snapshot "$FS"
+	if
+			test -n "$INITIAL" && INITIAL="" \
+		||	test $C_AVAIL_BYTES -lt $MIN_AVAIL_BYTES \
+		||	test $C_AVAIL_INODES -lt $MIN_AVAIL_INODES
+	then
+		calc $C_TIME - $I_TIME; R_TIME=$REPLY
+		MIN_AVAIL_BYTES=$C_AVAIL_BYTES
+		MIN_AVAIL_INODES=$C_AVAIL_INODES
+		run printf '+%5u secs: %12u bytes avail, %7u inodes avail\n' \
+			$R_TIME $MIN_AVAIL_BYTES $MIN_AVAIL_INODES
+	fi
+	sleep "$PROBING_INTERVAL_SECS"
+done
