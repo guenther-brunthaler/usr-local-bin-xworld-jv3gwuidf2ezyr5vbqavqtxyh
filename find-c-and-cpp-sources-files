@@ -1,0 +1,22 @@
+#! /bin/sh
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<<: return code ${?}!"
+}
+
+
+test $# = 0 && set -- .
+for D
+do
+	run test -d "$D"
+done
+run find "$@" -iregex '.*\.\([lyC]\|[ch]\(\([xp+]\)\3\)?\|inl\)$' \
+	-type f
