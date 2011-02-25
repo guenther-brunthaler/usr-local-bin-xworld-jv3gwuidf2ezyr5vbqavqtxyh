@@ -1,19 +1,19 @@
 #! /bin/sh
 # Finds all symbols in all source files containing
-# symbol prefix "${1}_" in either letter case.
+# symbol suffix "_${1}" in either letter case.
 # This will also match if the symbol is only part
 # of a larger symbol (concatenated with the underscore).
-SYM=${1?specify a symbol prefix!}
+SYM=${1?specify a symbol suffix!}
 find-c-and-cpp-sources-files -0 \
 	| xargs -0 -- perl -ne '
 		$sym= quotemeta '"'$SYM'"';
 		while(
 			/
-				(?: ^ | (?<! [:alnum:] ) )
 				(
+					[_\w]+ _
 					(?i: $sym )
-					_ [_\w]+
 				)
+				(?! (?: [:alnum:] ) | $ )
 			/gx
 		){ print "$1\n" }
 	' -- | LC_ALL=C sort -u
