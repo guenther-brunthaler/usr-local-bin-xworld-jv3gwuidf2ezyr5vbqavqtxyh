@@ -13,10 +13,20 @@ run() {
 }
 
 
+NTS=
+while getopts 0 OPT
+do
+	case $OPT in
+		0) NTS=Y;;
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1`
 test $# = 0 && set -- .
 for D
 do
 	run test -d "$D"
 done
-run find "$@" -iregex '.*\.\([lyC]\|[ch]\(\([xp+]\)\3\)?\|inl\)$' \
-	-type f
+set -- "$@" -iregex '.*\.\([lyC]\|[ch]\(\([xp+]\)\3\)?\|inl\)$'	-type f
+test -n "$NTS" && set -- "$@" -print0
+run find "$@"
