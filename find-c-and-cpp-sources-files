@@ -27,6 +27,13 @@ for D
 do
 	run test -d "$D"
 done
-set -- "$@" -iregex '.*\.\([lyC]\|[ch]\(\([xp+]\)\3\)?\|inl\)$'	-type f
-test -n "$NTS" && set -- "$@" -print0
+set -- "$@" '(' -regex '.*/\.[^.]+$' -o -name 'CMakeFiles' ')'
+set -- "$@" -type d -prune -o
+set -- "$@" -iregex '.+\.\([lyC]\|[ch]\(\([xp+]\)\3\)?\|inl\)$' -type f
+if test -n "$NTS"
+then
+	set -- "$@" -print0
+else
+	set -- "$@" -print
+fi
 run find "$@"
