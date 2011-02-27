@@ -1,6 +1,6 @@
 #! /bin/sh
 # Launch TightVNC viewer through a locally-forwarded TCP tunnel.
-VERSION=9.104
+VERSION=11.58
 
 
 usage() {
@@ -21,6 +21,9 @@ usage() {
 	  Set JPEG quality. Defaults to $QUALITY.
 	--compression <strength>, -c <strength>:
 	  Set compression strength. Defaults to $COMPRESSION.
+	--compatibility-mode, --compatibility, --compat, -C:
+	  Assume the server does not understand the TightVNC protocol
+	  and use maximum zlib compression as a fallback instead.
 	--port <port>, -p <port>:
 	  Set local port to connect to. Defaults to $PORT.
 	--password-file <name>, -P <name>:
@@ -35,7 +38,7 @@ usage() {
 	  do anything.
 
 	Version $VERSION
-	(c) 2009 Guenther Brunthaler.
+	(c) 2009 - 2011 Guenther Brunthaler.
 	This source file is free software.
 	Distribution is permitted under the terms of the GPLv3.
 .
@@ -58,16 +61,19 @@ inform() {
 
 
 run() {
-	local TRY RC
+	local TRY RC ALWAYS
 	while true; do
 		case "$1" in
 			--) shift; break;;
 			-try) TRY=1;;
+			-always) ALWAYS=1;;
 			*) break;;
 		esac
 		shift
 	done
-	if [ -n "$DRY" ]; then
+	if
+		test -n "$DRY" && test -z "$ALWAYS"
+	then
 		echo "SIMULATION: $*"
 	else
 		"$@" && return
@@ -81,6 +87,7 @@ run() {
 # Start of command line processing.
 # Define presets.
 VERBOSE=
+COMPAT=
 DRY=
 QUALITY=4
 COMPRESSION=9
@@ -108,6 +115,8 @@ while true; do
 		--compression | -c) COMPRESSION="$1"; shift;;
 		--port | -p) PORT="$1"; shift;;
 		--password-file | -P) PWDFILE="$1"; shift;;
+		--compatibility-mode | --compatibility | --compat | -C)
+			COMPAT=Y;;
                 --help | -h) usage; exit;;
 		--version)
 			echo "Version $VERSION"
@@ -118,15 +127,49 @@ while true; do
 	esac
 done
 # Shift off ordinal arguments.
-test $# -ge 1 && { CHECK_INTERVAL="$1"; shift; }
 #test $# -ge 1 || die "Missing argument - limit for accumulated sum!"
 #LIMIT="$1"; shift
 # Check for excess arguments.
 test $# = 0 || die "Unexpected excess arguments: $*"
 # End of command line processing.
-inform "Assumption: Local port 5900 has been forwarded (i. e. via SSH)"
+inform "Assumption: Local port $PORT has been forwarded (i. e. via SSH)"
 inform "to remote TightVNC server."
-run exec /usr/bin/vncviewer \
-	${PWDFILE:+-passwd "$PWDFILE"} \
-	-compresslevel "$COMPRESSION" -quality "$QUALITY" \
-	-encodings "copyrect tight hextile" localhost::$PORT
+VNCVIEWER=`which vncviewer 2> /dev/null`
+if
+	test -z "$VNCVIEWER" || test ! -f "$VNCVIEWER" \
+	|| test ! -x "$VNCVIEWER"
+then
+	VNCVIEWER=/usr/bin/vncviewer
+fi
+run -always test -f "$VNCVIEWER"; run -always test -x "$VNCVIEWER"
+run -always test "$PORT" -ge 5900
+VNCDISPLAY=`expr $PORT - 5900`
+run -always test "$VNCDISPLAY" -ge 0
+set -- "$VNCVIEWER"
+if
+	"$VNCVIEWER" --help 2>& 1 | grep -qi TigerVNC
+then
+	# TigerVNC.
+	test -n "$PWDFILE" && set -- "$@" --PasswordFile="$PWDFILE"
+	if
+		test -n "$COMPAT"
+	then
+		set -- "$@" --ZlibLevel=9
+	else
+		set -- "$@" --CompressLevel="$COMPRESSION" \
+			--QualityLevel="$QUALITY"
+	fi
+	set -- "$@" --Shared=1 --AutoSelect=0 localhost:"$VNCDISPLAY"
+elif
+	"$VNCVIEWER" --help 2>& 1 | grep -qi TightVNC
+then
+	# TightVNC.
+	test -n "$PWDFILE" && set -- "$@" --passwd "$PWDFILE"
+	set -- "$@" -compresslevel "$COMPRESSION" -quality "$QUALITY" \
+		-encodings "copyrect tight hextile" localhost::$PORT
+else
+	# Default: Plain VNC.
+	test -n "$PWDFILE" && set -- "$@" --passwd "$PWDFILE"
+	set -- "$@" -encodings "copyrect hextile" localhost::$PORT
+fi
+run exec "$@"
