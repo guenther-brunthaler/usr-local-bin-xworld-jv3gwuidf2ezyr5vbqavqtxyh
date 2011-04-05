@@ -17,20 +17,26 @@ sub d2x {
 my($offset, $size, $img, $cmd, $begin, $end, $pt, $fs, @pi, %h, $loop);
 $ENV{LC_ALL}= "C";
 $img= shift;
-unless ($loop= shift) {
-   $cmd= qq'losetup -a';
-   open PT, "$cmd |" or die "Failed: '$cmd' - $!";
-   while (<PT>) {
-      next unless ($loop)= m'^/dev/loop/(\d+)';
-      $h{$loop}= 1;
+{
+   my $slash= '';
+   unless ($loop= shift) {
+      $cmd= qq'losetup -a';
+      open PT, "$cmd |" or die "Failed: '$cmd' - $!";
+      while (<PT>) {
+         next unless ($slash, $loop)= m'^/dev/loop(/?)(\d+)';
+         $h{$loop}= 1;
+      }
+      close PT or die;
+      for ($loop= 0; $h{$loop}; ++$loop) { }
    }
-   close PT or die;
-   for ($loop= 0; $h{$loop}; ++$loop) { }
+   unless ($img && (-f $img || -b _) && -r _ && $loop =~ /^\d+$/ && !@ARGV) {
+      die "Usage: $0 <hd-image-file> [ <loop-no> ]";
+   }
+   $loop= "/dev/loop$slash$loop";
+   die unless -b "$loop";
 }
-unless ($img && (-f $img || -b _) && -r _ && $loop =~ /^\d+$/ && !@ARGV) {
-   die "Usage: $0 <hd-image-file> [ <loop-no> ]";
-}
-$cmd= qq'fdisk -S 63 -H 255 -C 16383 -ul "$img"';
+# 20110405: fdisk suddenly no longer understands "-ul", need to use "-u -l".
+$cmd= qq'fdisk -S 63 -H 255 -C 16383 -u -l "$img"';
 open PT, "$cmd |" or die "Failed: '$cmd' - $!";
 while (<PT>) {
    next unless ($begin, $end, $pt, $fs)= /
@@ -51,13 +57,13 @@ while (<PT>) {
    push @pi, "losetup -o 0x" . d2x($offset) . " -s 0x" . d2x $size;
    print "$pt '$fs' $offset ($size): $pi[-1]\n";
 }
-close PT or die;
+close PT or die "Broken pipe from command '$cmd': $!";
 foreach (@pi) {
-   print qq'$_ /dev/loop/$loop "$img"\n';
+   print qq'$_ $loop "$img"\n';
 }
 print
-     "mount /dev/loop/$loop -t ntfs -o ro,noatime,nls=utf8,umask=027,uid=operator,gid=plugdev /mnt\n"
-   , "mount /dev/loop/$loop -t vfat -o ro,noatime,utf8=true,umask=117,dmask=007,uid=operator,gid=plugdev /mnt\n"
+     "mount $loop -t ntfs -o ro,noatime,nls=utf8,umask=027,uid=operator,gid=plugdev /mnt\n"
+   , "mount $loop -t vfat -o ro,noatime,utf8=true,umask=117,dmask=007,uid=operator,gid=plugdev /mnt\n"
    , "umount /mnt\n"
-   , "losetup -d /dev/loop/$loop\n"
+   , "losetup -d $loop\n"
 ;
