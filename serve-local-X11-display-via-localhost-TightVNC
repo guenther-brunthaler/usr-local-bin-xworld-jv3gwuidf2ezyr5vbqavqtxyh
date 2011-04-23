@@ -1,2 +1,2 @@
 #! /bin/sh
-exec x11vnc -listen localhost -permitfiletransfer -forever
+exec x11vnc -listen localhost -forever
