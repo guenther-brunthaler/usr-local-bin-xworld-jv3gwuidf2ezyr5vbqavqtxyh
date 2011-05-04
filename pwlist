@@ -8,7 +8,7 @@
 
 PWLIST="$HOME/.pwlist"
 if [ -e "$PWLIST" ]; then
-	less -S "$PWLIST"
+	less -L -S "$PWLIST"
 	clear
 else
 	cat <<- EOF | fmt -w `tput cols`
