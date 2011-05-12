@@ -1,14 +1,10 @@
 #!/bin/bash
 # If you don't want color, just redirect STDIN to /dev/null for this script!
-#
-# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
-# $Author: root $
-# $Date: 2006-08-27T09:44:37.131062Z $
-# $Revision: 289 $
 
 
 # Common functions
-[[ ${RC_GOT_FUNCTIONS} != "yes" ]] && source /sbin/functions.sh
+test -z "$RC_GOT_FUNCTIONS" \
+	&& . /usr/local/libexec/xworld/sh/gentoo-functions.sh
 
 OPT_SUPPRESS=
 while getopts s OPT; do
