@@ -18,22 +18,37 @@ my($offset, $size, $img, $cmd, $begin, $end, $pt, $fs, @pi, %h, $loop);
 $ENV{LC_ALL}= "C";
 $img= shift;
 {
-   my $slash= '';
+   my($slash, $sl);
    unless ($loop= shift) {
       $cmd= qq'losetup -a';
       open PT, "$cmd |" or die "Failed: '$cmd' - $!";
       while (<PT>) {
-         next unless ($slash, $loop)= m'^/dev/loop(/?)(\d+)';
+         next unless ($sl, $loop)= m'^/dev/loop(/?)(\d+)';
+         $slash= $sl;
          $h{$loop}= 1;
       }
       close PT or die;
-      for ($loop= 0; $h{$loop}; ++$loop) { }
+      undef $loop;
+      if (defined($slash)) {
+         for ($loop= 0; $h{$loop}; ++$loop) { }
+      } else {
+         $cmd= qq'losetup -f';
+         open PT, "$cmd |" or die "Failed: '$cmd' - $!";
+         while (<PT>) {
+            chomp;
+            die "What is '$_'!?" unless ($sl, $loop)= m'^/dev/loop(/?)(\d+)';
+            $slash= $sl;
+         }
+         close PT or die;
+         die unless defined($slash);
+      }
    }
    unless ($img && (-f $img || -b _) && -r _ && $loop =~ /^\d+$/ && !@ARGV) {
       die "Usage: $0 <hd-image-file> [ <loop-no> ]";
    }
    $loop= "/dev/loop$slash$loop";
    die unless -b "$loop";
+   print "$loop ist the next free loop device.\n\n";
 }
 # 20110405: fdisk suddenly no longer understands "-ul", need to use "-u -l".
 $cmd= qq'fdisk -S 63 -H 255 -C 16383 -u -l "$img"';
@@ -54,16 +69,19 @@ while (<PT>) {
    next if $pt eq '5';
    $offset= $begin * 512;
    $size= ($end - $begin + 1) * 512;
-   push @pi, "losetup -o 0x" . d2x($offset) . " -s 0x" . d2x $size;
+   push @pi, "losetup -o 0x" . d2x($offset) . " --sizelimit 0x" . d2x $size;
    print "$pt '$fs' $offset ($size): $pi[-1]\n";
 }
 close PT or die "Broken pipe from command '$cmd': $!";
+print "\n";
 foreach (@pi) {
    print qq'$_ $loop "$img"\n';
 }
 print
-     "mount $loop -t ntfs -o ro,noatime,nls=utf8,umask=027,uid=operator,gid=plugdev /mnt\n"
-   , "mount $loop -t vfat -o ro,noatime,utf8=true,umask=117,dmask=007,uid=operator,gid=plugdev /mnt\n"
-   , "umount /mnt\n"
-   , "losetup -d $loop\n"
+     "\nSome random examples what to do with $loop:\n"
+   , "mount $loop -t ntfs -o ro,noatime,nls=utf8,umask=027,uid=operator,gid=plugdev /mnt\n"
+   , "mount $loop -t vfat -o ro,noatime,utf8=true,umask=117,dmask=007,uid=operator,gid=plugdev /mnt\n\n"
+   , "umount /mnt; losetup -d $loop\n"
+   , "OR\n"
+   , "umount -d /mnt\n"
 ;
