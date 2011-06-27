@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$SCRIPT version 10.124
+	$SCRIPT version 11.178
 
-	(c) 2008 - 2010 by Guenther Brunthaler.
+	(c) 2008 - 2011 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -61,13 +61,18 @@ show_help() {
 
 die() {
 	printf "ERROR: %s\n" "$*" >& 2
-	exit 1
+	false; exit
 }
 
 
 run() {
 	"$@" && return
 	die "Command >>>$*<<< failed return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
 }
 
 
@@ -91,6 +96,29 @@ wrL() {
 require_arg() {
 	local ARGC; ARGC=$1; shift
 	test $ARGC -eq 0 && die "Missing argument: $*!"
+}
+
+
+have() {
+	which "$1" > /dev/null 2>& 1
+}
+
+
+get_fs() {
+	if have blkid; then
+		run blkid -s TYPE -o value "$DEV"
+	else
+		vol_id --type "$DEV" 2> /dev/null
+	fi
+}
+
+
+gen_show_label() {
+	if have blkid; then
+		run blkid -s LABEL -o value "$DEV"
+	else
+		run vol_id --label "$DEV"
+	fi
 }
 
 
@@ -122,11 +150,18 @@ require_arg $# "Path to the device node"; DEV=$1; shift
 NEW_LABEL=$1; shift
 test $# -eq 0 || die "Too many arguments!"
 test -b "$DEV" || die "'$DEV' is not a block device!"
-case `vol_id --type "$DEV" 2> /dev/null` in
-	vfat)	if test -n "$NEW_LABEL"; then
-			run mlabel -i "$DEV" ::"$NEW_LABEL"
+system get_fs "$DEV"; FS=$REPLY
+case $FS in
+	fat | vfat)
+		if test -n "$NEW_LABEL"; then
+			if have dosfslabel; then
+				run dosfslabel "$DEV" "$NEW_LABEL"
+				run dosfslabel "$DEV"
+			else
+				run mlabel -i "$DEV" ::"$NEW_LABEL"
+				run mlabel -i "$DEV" -s ::
+			fi
 		fi
-		run mlabel -i "$DEV" -s ::
 		;;
 	ntfs)	if test -n "$NEW_LABEL"; then
 			run ntfslabel "$DEV" "$NEW_LABEL"
@@ -153,7 +188,7 @@ case `vol_id --type "$DEV" 2> /dev/null` in
 		if test -n "$NEW_LABEL"; then
 			run reiserfstune -l "$DEV" "$NEW_LABEL"
 		fi
-		run vol_id --label "$DEV"
+		gen_show_label "$DEV"
 		;;
 	"")
 		die "'$DEV' does not contain any" \
@@ -161,7 +196,7 @@ case `vol_id --type "$DEV" 2> /dev/null` in
 		;;
 	*)
 		if test -z "$NEW_LABEL"; then
-			vol_id --label "$DEV"
+			gen_show_label "$DEV"
 		else
 			die "'$DEV' does not contain any" \
 				"of the supported file systems!"
