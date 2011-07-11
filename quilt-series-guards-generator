@@ -105,10 +105,10 @@ println() {
 
 wr() {
 	local REPLY
-	while IFS= read -r
+	while IFS= read -r REPLY
 	do
 		{
-			while test -n "$REPLY" || IFS= read -r
+			while test -n "$REPLY" || IFS= read -r REPLY
 			do
 				ORIG=$REPLY; REPLY=${REPLY%\\n}
 				println "$REPLY"
@@ -229,7 +229,7 @@ do
 	system get_symbol "$SERIES" "$@"; TAG=$REPLY
 	L=1
 	run cat "$SERIES" \
-	| while IFS= read -r
+	| while IFS= read -r REPLY
 	do
 		println "$TAG/$L/$REPLY"
 		system expr $L + 1; L=$REPLY

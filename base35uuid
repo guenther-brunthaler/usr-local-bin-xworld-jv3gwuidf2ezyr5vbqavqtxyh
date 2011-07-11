@@ -251,7 +251,7 @@ uuid2upperhex() {
 
 hex2base35_helper() {
 	system uuid2upperhex "$1"
-	echo "obase= 35; ibase= 16; $REPLY" | run bc | while IFS= read -r
+	echo "obase= 35; ibase= 16; $REPLY" | run bc | while IFS= read -r REPLY
 	do
 		run printf '%s' "$REPLY"
 	done | run tr -d '\\ ' | LC_ALL=C run awk '{

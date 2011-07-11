@@ -63,7 +63,7 @@ done
 PICTURES=$1; shift
 DIRTY=Y
 { test -z "$PICTURES" || test -z "$DELAY"; } && test -f "$CONF" && {
-	IFS= read -r < "$CONF"
+	IFS= read -r REPLY < "$CONF"
 	DELAY2=${REPLY%% *}
 	PICTURES2=${REPLY#* }
 	test -z "$PICTURES" && PICTURES=$PICTURES2

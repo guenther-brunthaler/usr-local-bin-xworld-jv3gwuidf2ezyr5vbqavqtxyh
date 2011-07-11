@@ -78,10 +78,10 @@ wr() {
 		return
 	fi
 	local REPLY
-	while IFS= read -r
+	while IFS= read -r REPLY
 	do
 		{
-			while test -n "$REPLY" || IFS= read -r
+			while test -n "$REPLY" || IFS= read -r REPLY
 			do
 				ORIG=$REPLY; REPLY=${REPLY%\\n}
 				println "$REPLY"

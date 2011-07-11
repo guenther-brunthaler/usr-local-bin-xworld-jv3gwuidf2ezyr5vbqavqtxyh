@@ -222,10 +222,10 @@ println() {
 
 wr() {
 	local REPLY
-	while IFS= read -r
+	while IFS= read -r REPLY
 	do
 		{
-			while test -n "$REPLY" || IFS= read -r
+			while test -n "$REPLY" || IFS= read -r REPLY
 			do
 				ORIG=$REPLY; REPLY=${REPLY%\\n}
 				println "$REPLY"
@@ -511,7 +511,7 @@ IN6=
 OUT7=
 LINE_NUMBER=1
 ITAGS=0; IFILES=0
-while IFS= read
+while IFS= read REPLY
 do
 	L=$LINE_NUMBER; LINE_NUMBER=`expr $L + 1`
 	case $REPLY in
