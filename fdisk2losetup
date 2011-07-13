@@ -14,7 +14,10 @@ sub d2x {
 }
 
 
-my($offset, $size, $img, $cmd, $begin, $end, $pt, $fs, @pi, %h, $loop);
+my(
+      $offset, $size, $img, $cmd, $begin, $end, $pt, $fs, @pi, %h, $loop
+   ,  $sizelimit
+);
 $ENV{LC_ALL}= "C";
 $img= shift;
 {
@@ -50,6 +53,12 @@ $img= shift;
    die unless -b "$loop";
    print "$loop ist the next free loop device.\n\n";
 }
+# 20110713: some versions of losetup only support -s, others only --sizelimit.
+if (system(q"sh -c 'losetup 2>& 1 | grep -q -- --sizelimit'") == 0) {
+   $sizelimit= "--sizelimit";
+} else {
+   $sizelimit= "-s";
+}
 # 20110405: fdisk suddenly no longer understands "-ul", need to use "-u -l".
 $cmd= qq'fdisk -S 63 -H 255 -C 16383 -u -l "$img"';
 open PT, "$cmd |" or die "Failed: '$cmd' - $!";
@@ -69,7 +78,7 @@ while (<PT>) {
    next if $pt eq '5';
    $offset= $begin * 512;
    $size= ($end - $begin + 1) * 512;
-   push @pi, "losetup -o 0x" . d2x($offset) . " --sizelimit 0x" . d2x $size;
+   push @pi, "losetup -o 0x" . d2x($offset) . " $sizelimit 0x" . d2x $size;
    print "$pt '$fs' $offset ($size): $pi[-1]\n";
 }
 close PT or die "Broken pipe from command '$cmd': $!";
