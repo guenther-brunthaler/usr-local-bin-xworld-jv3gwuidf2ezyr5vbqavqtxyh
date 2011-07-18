@@ -1,2 +1,5 @@
 #! /bin/sh
-exec x11vnc -listen localhost -forever
+: ${DISPLAY:?'Please set $DISPLAY!'}
+D=${DISPLAY##*:}
+PORT=`expr 5900 + "$D"`
+exec x11vnc -listen localhost -forever -autoport "$PORT" "$@"
