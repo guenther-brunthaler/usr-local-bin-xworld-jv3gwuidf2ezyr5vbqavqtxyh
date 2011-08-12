@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 11.224
+	$APP version 11.224.1
 
 	(c) 2011 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -70,6 +70,63 @@ show_help() {
 	this file (or its name with the file extension stripped), it *will* be
 	deleted without further ado. You have been warned!
 	
+	Optional recursive operation:
+	
+	Normally, the modes of operation explained in the previous section
+	will only process arguments which have been directly specified on the
+	command line. If directories are passed as arguments, a single
+	checksum file will be created for all the contents within that
+	directory.
+	
+	However, sometimes it is better to create separate checksum files for
+	all the files encountered within a directory and its subdirectories.
+	$APP can optionally enable this behavior by enabling the "recursive"
+	sub-mode by specifying the -r option.
+	
+	With recursive sub-mode active, all modes of operation will be
+	modified to transcend into directories which have been specified as
+	command line arguments and to recursively transcend into any
+	subdirectories found there as well. However, symlinks will not be
+	followed.
+	
+	Within each transcended directory, all normal files will be processed
+	as if they had been specified on the command line when running $APP
+	from within the directory.
+	
+	It is possible to restrict which files will be selected during
+	recursive subdirectory processing, by specifying one or more -R
+	options. Each -R option specifies a regular expression which will be
+	matched against the path of the file. The path will be based on the
+	command line argument which turned out to be a directory. For
+	instance, if you ran $APP like this
+	
+	\$ $APP -r ../../bananadir
+	
+	then the patch to be matched against the regular expression might be
+	something like "../../bananadir/subdir/deepersubdir/file.txt".
+	
+	If -R is not used, every file in the directory is matched. The regular
+	expression will never be matched against directories, as those are
+	always processed in recursive mode.
+	
+	-R implies -r, and "-r" is actually short for "-R '.*'", i. e. it
+	matches everything.
+	
+	For cases where the full power of regular expressions is not needed,
+	$APP also supports the -W option for pattern matching which uses a
+	simplified syntax: Instead of a regular expression, the argument is a
+	pattern which contains literal text and may contain the
+	wildcard-characters "?" and "*".
+	
+	"?" matches any single character except for "/", and "*" matches any
+	number (including 0) of characters except for "/". The pattern may
+	include "/"-characters and will be matched against full path
+	compoments at the end of the path. Examples of patterns: "*", "*.c",
+	"include/*.h".
+	
+	The -R and -W options can be intermixed freely in the same $APP
+	invocation, and may be specified multiple times.
+	
 	Output:
 	
 	$APP will write all sorts of diagnostic output to the standard error
@@ -106,6 +163,15 @@ show_help() {
 	-u: Update mode.\n
 	-C: Combined mode. This is the default mode.\n
 	-d: Deletion mode.\n
+	-r: Modify modes to operate in recursive sub-mode. In every
+	subdirectory encountered, all normal files will be processed.\n
+	-R <regex>: Like -r, but allows to specify a regular expression for
+	selecting files in subdirectories during recursive processing. Any
+	number of regular expressions can be specified by specifying multiple
+	-R options. The syntax for regular expression is the same as for the
+	"sed" utility.\n
+	-W: This works like -R, but supports a simplified syntax like "*",
+	"*.c" or "include/*.h".\n
 	-h: Show this help.\n
 	-V: Show only the version information.\n
 .
@@ -290,6 +356,22 @@ delete() {
 }
 
 
+feed() {
+	local T
+	T=$1; shift
+	println "$T" | "$@"
+}
+
+
+matches() {
+	test x"$RECURSIVE" = x".*" && return
+	local P REPLY
+	P=$RELPATH${RELPATH:+/}$1
+	system feed "$P" sed -e 's/'"$RECURSIVE"'//'
+	test x"$REPLY" != x"$P"
+}
+
+
 process() {
 	local REPLY
 	local SN CN IC # subject name, checksum name, is checksum name
@@ -303,6 +385,66 @@ process() {
 		CN=$1; SN=${CN%.*}
 	else
 		SN=$1; CN=$SN.md5
+	fi
+	if
+		test -n "$RECURSIVE" && test -d "$SN" && test ! -L "$SN" && {
+			# We are in recursive mode and could descend.
+			# But we won't if this is a direct command line
+			# argument, refers to a checksum file and it exists.
+			test -n "$RELPATH" || test -z "$IC" || test ! -e "$CN"
+		}
+	then
+		(
+			if test x"${SN#/}" != x"$SN"
+			then
+				SN=${SN%%/}
+				RELPATH=/
+				cd "$RELPATH" || {
+					failed COULD_NOT_CHDIR_FSROOT "$SN"
+					exit
+				}
+				echo "CHDIR /" >& 2
+			fi
+			OSN=$SN
+			while :
+			do
+				case $SN in
+					*"/") SN=${SN%%/};;
+					*"/.") SN=${SN%/.};;
+					*"/..")	SN=${SN%/..}
+						if test x"${SN%/*}" != x"$SN"
+						then
+							SN=${SN%/*}
+						else
+							SN=.
+						fi
+						;;
+					*) break
+				esac
+			done
+			RELPATH=$RELPATH${RELPATH:+/}$SN
+			cd "$SN" || {
+				failed COULD_NOT_ENTER "$RELPATH"
+				warn "subdirectory '$OSN' had been" \
+					"cleaned up as '$SN'"
+				exit
+			}
+			echo "CHDIR $RELPATH" >& 2
+			run find -mindepth 1 -maxdepth 1 \
+			| sed -e 's,^\./,,' \
+			| LC_ALL=C sort \
+			| while IFS= read -r FSO
+			do
+				get_type "$FSO";
+				case $REPLY in
+					d) process "$FSO";;
+					f) matches "$FSO" && process "$FSO"
+				esac
+				
+			done
+		)
+		echo "CHDIR_BACK_TO ${RELPATH:-`pwd`}" >& 2
+		return
 	fi
 	case $MODE in
 		create) create;;
@@ -344,9 +486,35 @@ process() {
 }
 
 
+quote_slashes() {
+	println "$1" | run sed -e 's,/,\\/,g' || exit
+}
+
+
+addregex() {
+	test x"$RECURSIVE" = x'.*' && RECURSIVE=
+	RECURSIVE="$RECURSIVE${RECURSIVE:+"\\|"}$1"
+	test x"$1" = x'.*' && RECURSIVE=$1
+}
+
+
+addwcard() {
+	local REPLY
+	system feed "$1" sed -e '
+		s/\([^-_ 0-9(*?)|/A-Za-z]\)/\\\1/g
+		s,\*,[^/]*,g
+		s,\?,[^/],g
+		s,^,\\(^\\|/\\),
+		s/$/$/;
+	'
+	addregex "$REPLY"
+}
+
+
 MODE=combine
+RECURSIVE=
 MUTEX=
-while getopts bcuCdhV OPT
+while getopts bcuCdrRW:hV OPT
 do
 	case $OPT in
 		b) MODE=create; MUTEX=x$MUTEX;;
@@ -354,6 +522,9 @@ do
 		u) MODE=update; MUTEX=x$MUTEX;;
 		C) MODE=combine; MUTEX=x$MUTEX;;
 		d) MODE=delete; MUTEX=x$MUTEX;;
+		r) test -z "$RECURSIVE" && RECURSIVE='.*';;
+		R) addregex "${OPTARG:?'-R needs regex!'}";;
+		W) addwcard "${OPTARG:?'-W needs wildcard!'}";;
 		h) show_help; exit;;
 		V) show_version; exit;;
 		*) false; exit;;
@@ -363,6 +534,7 @@ shift `expr $OPTIND - 1`
 test -n "$MUTEX" && test $MUTEX != x && {
 	die "More than a single operation mode has been specified!"
 }
+system quote_slashes "$RECURSIVE"; RECURSIVE=$REPLY
 while :
 do
 	system tempfile; TDIR=$REPLY
@@ -415,6 +587,7 @@ VERIFIED=0
 ASSUMED=0
 FAILED=0
 SUMMED=0
+RELPATH=
 while IFS=: read -r ARG
 do
 	process "$ARG"
