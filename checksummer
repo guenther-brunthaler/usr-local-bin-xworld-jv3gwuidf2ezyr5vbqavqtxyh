@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 11.224.1
+	$APP version 11.225
 
 	(c) 2011 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -33,6 +33,55 @@ show_help() {
 	created for all the files in that directory (including files in nested
 	subdirectories). This single checksum file will have the same basename
 	as the directory augmented with with an additional extension.
+	
+	Some typical examples for using $APP:
+	
+	\$ $APP *
+	
+	This runs $APP in its default mode, "combined". It examines all files
+	and directories which are not hidden. If checksum files exist for the
+	encountered files or directories, they are verified. Otherwise, new
+	checksum files will be created for every file and top-level
+	subdirectory of the current directory. In the latter case, the
+	subdirectories are scanned recursively, and all files found will be
+	added to the single checksum file for that subdirectory tree.
+	
+	Note that the wildcard * will match the checksum files as well as the
+	files the checksums refer to.
+	
+	$APP is clever enough to deal with this: If both a file and its
+	checksum file are specified in the command line, $APP will realize
+	this and process the file just once.
+	
+	$APP also detects if the same file has been specified literally
+	multiple times; in that case the duplicate arguments will silently be
+	ignored.
+	
+	\$ $APP -r *
+	
+	This works identically as the example before, except for top-level
+	subdirectories. Instead of creating a single checksum file containing
+	all the directories' contents, $APP processes the directories
+	recursively and creates separate checksum files for each normal file
+	found within the subdirectory tree.
+	
+	\$ $APP *.iso
+	
+	This processes all files with extension ".iso" in the current
+	directory. (Assuming there are no subdirectories which have names that
+	also end with ".iso").
+	
+	\$ $APP -W '*.iso' *
+	
+	This is similar, but will also search for .iso files in any
+	subdirectories. The "*" just selects the files and directories in the
+	current directory where to start looking for .iso files.
+	
+	\$ $APP -W '*.mkv' -W '*.avi' *
+	
+	This demonstates how to search for more than one pattern. If any of
+	the pattern is matched, the file will be selected for processing.
+	
 	
 	Modes of operation:
 	
@@ -590,7 +639,16 @@ SUMMED=0
 RELPATH=
 while IFS=: read -r ARG
 do
-	process "$ARG"
+	if test -n "$RECURSIVE"
+	then
+		get_type "$ARG"
+		case $REPLY in
+			d) process "$ARG";;
+			f) matches "$ARG" && process "$ARG"
+		esac
+		else
+		process "$ARG"
+	fi
 done < "$AF"
 {
 	echo "==========================================================="
