@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 11.223
+	$APP version 11.224
 
 	(c) 2011 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -46,8 +46,8 @@ show_help() {
 	files must exist and will be verified.
 	
 	Update mode - Like creation mode, but pre-existing checksum files will
-	assumed to be valid and up-to-date if their modification time is
-	younger than any of the files listed in the checksum file. If files
+	assumed to be valid and up-to-date if their modification time is not
+	older than any of the files listed in the checksum file. If files
 	which actually exist and should be checksummed are missing from the
 	checksum files, or if the checksum file lists files which no longer
 	exist, the checksum file will be considered outdated and will be
