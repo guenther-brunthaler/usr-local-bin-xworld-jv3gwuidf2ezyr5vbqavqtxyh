@@ -1,0 +1,457 @@
+#! /bin/sh
+show_version() {
+	wr <<- .
+	$APP version 11.223
+
+	(c) 2011 by Guenther Brunthaler.\n
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+
+show_help() {
+	local COMPAT
+	COMPAT="This switch has been named to match the corresponding switch"
+	COMPAT="$COMPAT of the md5sum utility."
+	wr <<- .
+	$APP - create, update or verify checksum files for files or
+	directories.
+	
+	Usage: $APP [ options ] [ <1st_file_or_dir> ... ]
+	
+	$APP processes all of its arguments in the specified order. The
+	arguments can either be files or directories.
+	
+	What $APP does for each argument depends on the mode $APP is run in:
+	Checksum files might be created, verified or both.
+	
+	If an argument is a file, a single checksum file is created for it,
+	sharing the same basename but an additional filename extension.
+	
+	If the argument is a directory, only a single checksum file will be
+	created for all the files in that directory (including files in nested
+	subdirectories). This single checksum file will have the same basename
+	as the directory augmented with with an additional extension.
+	
+	Modes of operation:
+	
+	Creation mode - Create all checksum files unconditionally.
+	Pre-existing checksum files will be overwritten without any warning.
+	
+	Verification mode - A checksum file for each argument is required and
+	its contents will be verified. Missing checksum files will be
+	displayed as errors. It is also possible to pass checksum files as
+	arguments; in those cases all the files listed within the checksum
+	files must exist and will be verified.
+	
+	Update mode - Like creation mode, but pre-existing checksum files will
+	assumed to be valid and up-to-date if their modification time is
+	younger than any of the files listed in the checksum file. If files
+	which actually exist and should be checksummed are missing from the
+	checksum files, or if the checksum file lists files which no longer
+	exist, the checksum file will be considered outdated and will be
+	regenerated.
+	
+	Combined mode - Like verification mode for arguments for which
+	checksum files already exist; like creation mode otherwise. This is
+	the default mode. Arguments which are passed as the names of checksum
+	files will never be created, however - for such arguments verification
+	mode is enforced.
+	
+	Deletion mode - all selected checksum files are removed. The command
+	line arguments can specify the checksum files to be removed directly.
+	or they can specify the files/directories for which any existing
+	checksum files will be removed. In no case this mode will delete
+	normal files that are not checksum files. However, the decision what a
+	checksum file is and what not is solely based on the file extension.
+	So, if you should be foolish enough to create a normal file which has
+	the same file extension as checksum files, and you specify the name of
+	this file (or its name with the file extension stripped), it *will* be
+	deleted without further ado. You have been warned!
+	
+	Output:
+	
+	$APP will write all sorts of diagnostic output to the standard error
+	stream. If any failures should be encountered during processing, $APP
+	will write a list of those to the standard output stream. This means
+	one can easily redirect standard error to /dev/null and still see the
+	list of failures (if any).
+	
+	Return value:
+	
+	The return value of $APP indicates success if no failures have been
+	dectected. Otherwise, the return value of $APP will indicate failure
+	and a non-empty list of failures will be written to the standard
+	output stream.
+	
+	Checksum algorithms:
+	
+	Right now, $APP only supports MD5 checksums and will use the 'md5sum'
+	tool to do the actual work of creating or verifying checksum files.
+	Checksum files have the same base name as the file or directory which
+	has been checksummed, augmented by the additional file extension
+	'.md5'.
+	
+	Note that the MD5 algorithm is no longer supposed to be secure for
+	cryptographic applications. The focus of $APP lies in media corruption
+	detection, however, and not in detection of malicious modifications.
+	
+	For the former purpose, MD5 is still appropriate.
+
+	Options:
+
+	-b: Creation mode ("build", "create [B]inary checksums"). $COMPAT\n
+	-c: Verification mode ("check"). $COMPAT\n
+	-u: Update mode.\n
+	-C: Combined mode. This is the default mode.\n
+	-d: Deletion mode.\n
+	-h: Show this help.\n
+	-V: Show only the version information.\n
+.
+	echo
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" || die "Could not execute >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+print() {
+	run printf '%s' "$*"
+}
+
+
+println() {
+	run printf '%s\n' "$*"
+}
+
+
+wr() {
+	local REPLY
+	while IFS= read -r REPLY
+	do
+		{
+			while test -n "$REPLY" || IFS= read -r REPLY
+			do
+				ORIG=$REPLY; REPLY=${REPLY%\\n}
+				println "$REPLY"
+				test x"$ORIG" != x"$REPLY"  && break
+				REPLY=
+			done
+		} | run fmt -w "$LINEWIDTH" || exit
+	done
+}
+# Determine up line width to use for output.
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
+
+warn() {
+	echo "WARNING: $*" >& 2
+}
+
+
+get_type() {
+	REPLY=ignore
+	if test ! -e "$1"
+	then
+		warn "Ignoring non-existing file/directory '$1'!"
+	elif test -d "$1"
+	then
+		REPLY=d
+	elif test -L "$1"
+	then
+		warn "Ignoring symlink '$1'!"
+	elif test -f "$1"
+	then
+		REPLY=f
+	else
+		warn "Ignoring special file '$1'!"
+	fi
+}
+
+
+sum_file() {
+	run md5sum -b -- "$1" >> "$T"
+	SUMMED=`expr $SUMMED + 1`
+}
+
+
+sum_dir() {
+	run find "$1" -type f -exec md5sum -b -- "{}" \; >> "$T"
+	SUMMED=`expr $SUMMED + \`wc -l < "$T"\``
+}
+
+
+output() {
+	# Use binary collation, so locale won't effect the sorting order.
+	LC_ALL=C run sort -k2 -- "$T" > "$1"
+	: > "$T"
+	echo "CREATED $1" >& 2
+	CREATED=`expr $CREATED + 1`
+}
+
+
+failed() {
+	echo "$*" >& 2
+	println "$*" >> "$FAILURES"
+	FAILED=`expr $FAILED + 1`
+}
+
+
+verify_sum() {
+	SUMMED=`expr $SUMMED + 1`
+	if md5sum -w -c -- "$1" >& 2
+	then
+		echo "VERIFIED_OK $1" >& 2
+		VERIFIED=`expr $VERIFIED + 1`
+	else
+		failed CHECKSUM_ERRORS "$1"
+	fi
+}
+
+
+# Requires $SN and $CN.
+create() {
+	get_type "$SN";
+	case $REPLY in
+		f) sum_file "$SN"; output "$CN";;
+		d) sum_dir "$SN"; output "$CN"
+	esac
+}
+
+
+# Requires $SN and $CN.
+verify() {
+	if test -e "$CN"
+	then
+		if test -L "$CN" || test ! -f "$CN"
+		then
+			failed INAPPROPRIATE "$CN"
+		else
+			verify_sum "$CN"
+		fi
+	else
+		if test -e "$SN"
+		then
+			get_type "$SN";
+		else
+			REPLY=n
+		fi
+		case $REPLY in
+			f | d | n) failed MISSING "$CN"
+		esac
+	fi
+}
+
+
+dolm() {
+	system stat -c '%Y' -- "$1"
+}
+
+
+# Verify all files in MD5 output on stdin exist and are not younger than
+# age $1. Also ensure that there are any files to be checked at all.
+up_to_date() {
+	local FILE ONCE REPLY
+	while IFS= read -r FILE
+	do
+		ONCE=Y
+		test -f "$FILE" || return
+		dolm "$FILE"
+		test $REPLY -le $1 || return
+	done
+	test -n "$ONCE"
+}
+
+
+# Requires $SN and $CN.
+delete() {
+	if rm -- "$CN"
+	then
+		echo "DELETING $CN" >& 2
+		DELETED=`expr $DELETED + 1`
+	else
+		failed COULD_NOT_DELETE "$CN"
+	fi
+}
+
+
+process() {
+	local REPLY
+	local SN CN IC # subject name, checksum name, is checksum name
+	IC=Y
+	case $1 in
+		*.md5) ;;
+		*) IC=
+	esac
+	if test -n "$IC"
+	then
+		CN=$1; SN=${CN%.*}
+	else
+		SN=$1; CN=$SN.md5
+	fi
+	case $MODE in
+		create) create;;
+		verify) verify;;
+		combine)
+			if test -n "$IC" || test -e "$CN"
+			then
+				verify
+			else
+				create
+			fi
+			;;
+		update)
+			if
+				test -f "$CN" && test -e "$SN" && {
+					dolm "$CN"
+					run sed -e 's/^[^ ]* .//;' "$CN" \
+					| up_to_date "$REPLY"
+				}
+			then
+				ASSUMED=`expr $ASSUMED + 1`
+				echo "ASSUMING_OK $CN" >& 2
+			else
+				create
+			fi
+			;;
+		delete)
+			if test -n "$IC" || test -e "$CN"
+			then
+				get_type "$CN";
+				case $REPLY in
+					d) warn "Ignoring directory '$CN'!";;
+					f) delete
+				esac
+			fi
+			;;
+		*) die NYI
+	esac
+}
+
+
+MODE=combine
+MUTEX=
+while getopts bcuCdhV OPT
+do
+	case $OPT in
+		b) MODE=create; MUTEX=x$MUTEX;;
+		c) MODE=verify; MUTEX=x$MUTEX;;
+		u) MODE=update; MUTEX=x$MUTEX;;
+		C) MODE=combine; MUTEX=x$MUTEX;;
+		d) MODE=delete; MUTEX=x$MUTEX;;
+		h) show_help; exit;;
+		V) show_version; exit;;
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1`
+test -n "$MUTEX" && test $MUTEX != x && {
+	die "More than a single operation mode has been specified!"
+}
+while :
+do
+	system tempfile; TDIR=$REPLY
+	rm -- "$TDIR"
+	mkdir -m 700 -- "$TDIR" && break
+done
+trap "rm -r '$TDIR'" 0
+T=$TDIR/checksums.tmp
+AF=$TDIR/args.tmp
+FAILURES=$TDIR/failures.tmp
+# Eliminate duplicates.
+# If "file" and "file.md5" are both specified, use only "file.md5".
+N=0
+LA=
+HC=
+HS=
+for ARG
+do
+	test -z "$ARG" && continue
+	N=`expr $N + 1`
+	case $ARG in
+		*.md5) echo "$N 1c ${ARG%.*}";;
+		*) echo "$N 2s $ARG"
+	esac
+done \
+| LC_ALL=C sort -k3 -k2,2 \
+| while read -r L M ARG
+do
+	if test x"$ARG" = x"$LA"
+	then
+		test -n "$HC" && continue
+		test -n "$HS" && continue
+	else
+		LA=$ARG
+		HC=
+		HS=
+	fi
+	test -z "$HC" && test $M = 1c && HC=Y
+	test -z "$HS" && test $M = 2s && HS=Y
+	case $M in
+		1c) echo "$L $ARG.md5";;
+		2s) echo "$L $ARG"
+	esac
+done \
+| LC_ALL=C sort -n -k1,1 \
+| cut -d" " -f2- > "$AF"
+CREATED=0
+DELETED=0
+VERIFIED=0
+ASSUMED=0
+FAILED=0
+SUMMED=0
+while IFS=: read -r ARG
+do
+	process "$ARG"
+done < "$AF"
+{
+	echo "==========================================================="
+	FHB="file(s) have been"
+	while IFS=: read M S
+	do
+		case $MODE in
+			create) R=b;;
+			verify) R=c;;
+			update) R=u;;
+			combine) R=C;;
+			delete) R=d;;
+			*) die NYI
+		esac
+		case $M in
+			*"$R"*) println "$S"
+		esac
+	done <<- .
+		bCu:$SUMMED $FHB checksummed.
+		bCu:$CREATED checksum $FHB created.
+		d:$DELETED checksum $FHB deleted.
+		u:$ASSUMED checksum $FHB assumed to be OK.
+		cCu:$VERIFIED checksum $FHB successfully verified.
+		d:$FAILED checksum file(s) could not be deleted.
+		cC:$FAILED checksum file(s) failed verification.
+.
+} >& 2
+if test -f "$FAILURES"
+then
+	{
+		echo
+		echo "List of failures:"
+	} >& 2
+	cat "$FAILURES"
+fi
+# Return status.
+test $FAILED = 0
