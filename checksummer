@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 11.225.1
+	$APP version 11.225.2
 
 	(c) 2011 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -737,9 +737,10 @@ main() {
 
 
 handle_niceties() {
-	if have nice
+	local RENICE_CMD IONICE_CMD
+	if have renice
 	then
-		NICE_CMD=$REPLY
+		RENICE_CMD=$REPLY
 	else
 		NICE=
 	fi
@@ -749,27 +750,21 @@ handle_niceties() {
 	else
 		IONICE=
 	fi
-	if test -n "$NICE$IONICE"
+	if test -n "$IONICE"
 	then
-		set -- "$0" -N "" -I "" "$@"
-		if test -n "$IONICE"
+		local N C
+		C=${IONICE%%:*}
+		if test x"$C" != x"$IONICE"
 		then
-			local N C
-			C=${IONICE%%:*}
-			if test x"$C" != x"$IONICE"
-			then
-				N=${IONICE##*:}
-				test x"$C:$N" = x"$IONICE"
-				set -- -n "$N" "$@"
-			fi
-			set -- "$IONICE_CMD" -c "$C" "$@"
+			N=${IONICE##*:}
+			test x"$C:$N" = x"$IONICE"
+			set -- -n "$N" "$@"
 		fi
-		if test -n "$NICE"
-		then
-			set -- "$NICE_CMD" -n "$NICE" "$@"
-		fi
-		exec "$@"
-		die "Could not fork command >>>$*<<<!"
+		run "$IONICE_CMD" -c "$C" "$@" -p "$$" > /dev/null
+	fi
+	if test -n "$NICE"
+	then
+		run "$RENICE_CMD" -n "$NICE" -p "$$"
 	fi
 }
 
@@ -810,7 +805,7 @@ do
 		*) false; exit;;
 	esac
 done
-handle_niceties "$@"
+handle_niceties
 shift `expr $OPTIND - 1`
 test -n "$MUTEX" && test $MUTEX != x && {
 	die "More than a single operation mode has been specified!"
