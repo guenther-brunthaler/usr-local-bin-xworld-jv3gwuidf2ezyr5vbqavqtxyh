@@ -769,24 +769,11 @@ handle_niceties() {
 }
 
 
-# Set var $1 to value $2, but only it $1 has not yet been set before.
-# A variable GOT_$1 determines whether $1 has already been set.
-setfirst() {
-	local V4_2CWZQ9THD2DMHKSXMJA9TBA4W
-	getvar V4_2CWZQ9THD2DMHKSXMJA9TBA4W GOT_$1
-	test -n "$V4_2CWZQ9THD2DMHKSXMJA9TBA4W" && return
-	setvar GOT_$1 Y
-	setvar $1 "$2"
-}
-
-
 MODE=combine
 RECURSIVE=
 MUTEX=
-GOT_NICE=
 NICE=15
-GOT_IONICE=
-IONICE=3
+IONICE=2:6
 while getopts bcuCdrRW:N:I:hV OPT
 do
 	case $OPT in
@@ -798,8 +785,8 @@ do
 		r) test -z "$RECURSIVE" && RECURSIVE='.*';;
 		R) addregex "${OPTARG:?'-R needs regex!'}";;
 		W) addwcard "${OPTARG:?'-W needs wildcard!'}";;
-		N) setfirst NICE "$OPTARG";;
-		I) setfirst IONICE "$OPTARG";;
+		N) NICE=$OPTARG;;
+		I) IONICE=$OPTARG;;
 		h) show_help; exit;;
 		V) show_version; exit;;
 		*) false; exit;;
