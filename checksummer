@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 11.225
+	$APP version 11.225.1
 
 	(c) 2011 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -221,6 +221,13 @@ show_help() {
 	"sed" utility.\n
 	-W: This works like -R, but supports a simplified syntax like "*",
 	"*.c" or "include/*.h".\n
+	-N <pri>: Set "niceness"-priority for $APP. Defaults to "$NICE". Has
+	no effect if the "nice" utility is not found. -N "" disables the
+	default and does not change the niceness priority.\n
+	-I "<class>", -I "<class>:<classdata>":	Set "I/O niceness" for $APP.
+	Defaults to "$IONICE". Has no effect if the "ionice" utility is not
+	found. -I "" disables the default and does not change the niceness
+	priority.\n
 	-h: Show this help.\n
 	-V: Show only the version information.\n
 .
@@ -662,10 +669,130 @@ addwcard() {
 }
 
 
+have() {
+	REPLY=`which "$1" 2> /dev/null` || return
+	system readlink -f "$REPLY"
+	test -x "$REPLY"
+}
+
+
+print_stats() {
+	local FHB M S R
+	echo "==========================================================="
+	FHB="file(s) have been"
+	while IFS=: read M S
+	do
+		case $MODE in
+			create) R=b;;
+			verify) R=c;;
+			update) R=u;;
+			combine) R=C;;
+			delete) R=d;;
+			*) die NYI
+		esac
+		case $M in
+			*"$R"*) println "$S"
+		esac
+	done <<- .
+		bCu:$SUMMED $FHB checksummed.
+		bCu:$CREATED checksum $FHB created.
+		d:$DELETED checksum $FHB deleted.
+		u:$ASSUMED checksum $FHB assumed to be OK.
+		cCu:$VERIFIED checksum $FHB successfully verified.
+		d:$FAILED checksum file(s) could not be deleted.
+		cC:$FAILED checksum file(s) failed verification.
+.
+}
+
+
+main() {
+	local RELPATH ARG
+	RELPATH=
+	while IFS=: read -r ARG
+	do
+		if test -n "$RECURSIVE"
+		then
+			get_type "$ARG"
+			case $REPLY in
+				d) process "$ARG";;
+				f) matches "$ARG" && process "$ARG"
+			esac
+			else
+			process "$ARG"
+		fi
+	done < "$AF"
+	merge_stats
+	print_stats >& 2
+	if test -f "$FAILURES"
+	then
+		{
+			echo
+			echo "List of failures:"
+		} >& 2
+		cat "$FAILURES"
+	fi
+	# Return status.
+	test $FAILED = 0
+}
+
+
+handle_niceties() {
+	if have nice
+	then
+		NICE_CMD=$REPLY
+	else
+		NICE=
+	fi
+	if have ionice
+	then
+		IONICE_CMD=$REPLY
+	else
+		IONICE=
+	fi
+	if test -n "$NICE$IONICE"
+	then
+		set -- "$0" -N "" -I "" "$@"
+		if test -n "$IONICE"
+		then
+			local N C
+			C=${IONICE%%:*}
+			if test x"$C" != x"$IONICE"
+			then
+				N=${IONICE##*:}
+				test x"$C:$N" = x"$IONICE"
+				set -- -n "$N" "$@"
+			fi
+			set -- "$IONICE_CMD" -c "$C" "$@"
+		fi
+		if test -n "$NICE"
+		then
+			set -- "$NICE_CMD" -n "$NICE" "$@"
+		fi
+		exec "$@"
+		die "Could not fork command >>>$*<<<!"
+	fi
+}
+
+
+# Set var $1 to value $2, but only it $1 has not yet been set before.
+# A variable GOT_$1 determines whether $1 has already been set.
+setfirst() {
+	local V4_2CWZQ9THD2DMHKSXMJA9TBA4W
+	getvar V4_2CWZQ9THD2DMHKSXMJA9TBA4W GOT_$1
+	test -n "$V4_2CWZQ9THD2DMHKSXMJA9TBA4W" && return
+	setvar GOT_$1 Y
+	setvar $1 "$2"
+}
+
+
 MODE=combine
 RECURSIVE=
 MUTEX=
-while getopts bcuCdrRW:hV OPT
+GOT_NICE=
+NICE=15
+GOT_IONICE=
+IONICE=3
+while getopts bcuCdrRW:N:I:hV OPT
 do
 	case $OPT in
 		b) MODE=create; MUTEX=x$MUTEX;;
@@ -676,11 +803,14 @@ do
 		r) test -z "$RECURSIVE" && RECURSIVE='.*';;
 		R) addregex "${OPTARG:?'-R needs regex!'}";;
 		W) addwcard "${OPTARG:?'-W needs wildcard!'}";;
+		N) setfirst NICE "$OPTARG";;
+		I) setfirst IONICE "$OPTARG";;
 		h) show_help; exit;;
 		V) show_version; exit;;
 		*) false; exit;;
 	esac
 done
+handle_niceties "$@"
 shift `expr $OPTIND - 1`
 test -n "$MUTEX" && test $MUTEX != x && {
 	die "More than a single operation mode has been specified!"
@@ -706,54 +836,4 @@ done \
 | eliminate_duplicates > "$AF"
 define_stats CREATED DELETED VERIFIED ASSUMED FAILED SUMMED
 clear_stats > "$STATS"
-RELPATH=
-while IFS=: read -r ARG
-do
-	if test -n "$RECURSIVE"
-	then
-		get_type "$ARG"
-		case $REPLY in
-			d) process "$ARG";;
-			f) matches "$ARG" && process "$ARG"
-		esac
-		else
-		process "$ARG"
-	fi
-done < "$AF"
-merge_stats
-{
-	echo "==========================================================="
-	FHB="file(s) have been"
-	while IFS=: read M S
-	do
-		case $MODE in
-			create) R=b;;
-			verify) R=c;;
-			update) R=u;;
-			combine) R=C;;
-			delete) R=d;;
-			*) die NYI
-		esac
-		case $M in
-			*"$R"*) println "$S"
-		esac
-	done <<- .
-		bCu:$SUMMED $FHB checksummed.
-		bCu:$CREATED checksum $FHB created.
-		d:$DELETED checksum $FHB deleted.
-		u:$ASSUMED checksum $FHB assumed to be OK.
-		cCu:$VERIFIED checksum $FHB successfully verified.
-		d:$FAILED checksum file(s) could not be deleted.
-		cC:$FAILED checksum file(s) failed verification.
-.
-} >& 2
-if test -f "$FAILURES"
-then
-	{
-		echo
-		echo "List of failures:"
-	} >& 2
-	cat "$FAILURES"
-fi
-# Return status.
-test $FAILED = 0
+main
