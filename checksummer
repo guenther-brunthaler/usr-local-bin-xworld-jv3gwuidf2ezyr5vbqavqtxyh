@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 11.225.2
+	$APP version 11.225.3
 
 	(c) 2011 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -228,6 +228,10 @@ show_help() {
 	Defaults to "$IONICE". Has no effect if the "ionice" utility is not
 	found. -I "" disables the default and does not change the niceness
 	priority.\n
+	-i: "Idle time procesing". Uses preset values for the -N and -I
+	options in order to run $APP with the lowest possible priority,
+	I/O-wise and CPU-wise. Use this if the normal defaults keep the system
+	too busy and make it respond too slow.\n
 	-h: Show this help.\n
 	-V: Show only the version information.\n
 .
@@ -774,7 +778,7 @@ RECURSIVE=
 MUTEX=
 NICE=15
 IONICE=2:6
-while getopts bcuCdrRW:N:I:hV OPT
+while getopts bcuCdrRW:N:I:ihV OPT
 do
 	case $OPT in
 		b) MODE=create; MUTEX=x$MUTEX;;
@@ -787,6 +791,7 @@ do
 		W) addwcard "${OPTARG:?'-W needs wildcard!'}";;
 		N) NICE=$OPTARG;;
 		I) IONICE=$OPTARG;;
+		i) NICE=19; IONICE=3;;
 		h) show_help; exit;;
 		V) show_version; exit;;
 		*) false; exit;;
