@@ -397,7 +397,7 @@ up_to_date() {
 delete() {
 	if rm -- "$CN"
 	then
-		echo "DELETING $CN" >& 2
+		echo "DELETED $CN" >& 2
 		DELETED=`expr $DELETED + 1`
 	else
 		failed COULD_NOT_DELETE "$CN"
@@ -479,6 +479,43 @@ merge_stats() {
 }
 
 
+# If "file" and "file.md5" are both specified, use only "file.md5".
+eliminate_duplicates() {
+	local N LA HC HS ARG
+	N=0
+	while IFS= read -r ARG
+	do
+		test -z "$ARG" && continue
+		N=`expr $N + 1`
+		case $ARG in
+			*.md5) echo "$N 1c ${ARG%.*}";;
+			*) echo "$N 2s $ARG"
+		esac
+	done \
+	| LC_ALL=C sort -k3 -k2,2 \
+	| while read -r L M ARG
+	do
+		if test x"$ARG" = x"$LA"
+		then
+			test -n "$HC" && continue
+			test -n "$HS" && continue
+		else
+			LA=$ARG
+			HC=
+			HS=
+		fi
+		test -z "$HC" && test $M = 1c && HC=Y
+		test -z "$HS" && test $M = 2s && HS=Y
+		case $M in
+			1c) echo "$L $ARG.md5";;
+			2s) echo "$L $ARG"
+		esac
+	done \
+	| LC_ALL=C sort -n -k1,1 \
+	| cut -d" " -f2-
+}
+
+
 process() {
 	local REPLY
 	local SN CN IC # subject name, checksum name, is checksum name
@@ -540,6 +577,7 @@ process() {
 			echo "CHDIR $RELPATH" >& 2
 			run find -mindepth 1 -maxdepth 1 \
 			| sed -e 's,^\./,,' \
+			| eliminate_duplicates \
 			| LC_ALL=C sort \
 			| {
 				while IFS= read -r FSO
@@ -659,45 +697,14 @@ T=$TDIR/checksums.tmp
 AF=$TDIR/args.tmp
 FAILURES=$TDIR/failures.tmp
 STATS=$TDIR/accum_stats.tmp
-: > "$STATS"
-# Eliminate duplicates.
-# If "file" and "file.md5" are both specified, use only "file.md5".
-N=0
-LA=
-HC=
-HS=
 for ARG
 do
 	test -z "$ARG" && continue
-	N=`expr $N + 1`
-	case $ARG in
-		*.md5) echo "$N 1c ${ARG%.*}";;
-		*) echo "$N 2s $ARG"
-	esac
+	println "$ARG"
 done \
-| LC_ALL=C sort -k3 -k2,2 \
-| while read -r L M ARG
-do
-	if test x"$ARG" = x"$LA"
-	then
-		test -n "$HC" && continue
-		test -n "$HS" && continue
-	else
-		LA=$ARG
-		HC=
-		HS=
-	fi
-	test -z "$HC" && test $M = 1c && HC=Y
-	test -z "$HS" && test $M = 2s && HS=Y
-	case $M in
-		1c) echo "$L $ARG.md5";;
-		2s) echo "$L $ARG"
-	esac
-done \
-| LC_ALL=C sort -n -k1,1 \
-| cut -d" " -f2- > "$AF"
+| eliminate_duplicates > "$AF"
 define_stats CREATED DELETED VERIFIED ASSUMED FAILED SUMMED
-clear_stats
+clear_stats > "$STATS"
 RELPATH=
 while IFS=: read -r ARG
 do
