@@ -760,11 +760,11 @@ handle_niceties() {
 			test x"$C:$N" = x"$IONICE"
 			set -- -n "$N" "$@"
 		fi
-		run "$IONICE_CMD" -c "$C" "$@" -p "$$" > /dev/null
+		run "$IONICE_CMD" -c "$C" "$@" -p "$$"
 	fi
 	if test -n "$NICE"
 	then
-		run "$RENICE_CMD" -n "$NICE" -p "$$"
+		run "$RENICE_CMD" -n "$NICE" -p "$$" > /dev/null
 	fi
 }
 
