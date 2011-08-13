@@ -421,6 +421,64 @@ matches() {
 }
 
 
+define_stats() {
+	STAT_VARS="$*"
+}
+
+
+getvar() {
+	eval "$1=\$$2"
+}
+
+
+setvar() {
+	local V_2CWZQ9THD2DMHKSXMJA9TBA4W
+	V_2CWZQ9THD2DMHKSXMJA9TBA4W=$2
+	getvar $1 V_2CWZQ9THD2DMHKSXMJA9TBA4W
+}
+
+
+clear_stats() {
+	local V_2CWZQ9THD2DMHKSXMJA9TBA4W
+	for V_2CWZQ9THD2DMHKSXMJA9TBA4W in $STAT_VARS
+	do
+		setvar $V_2CWZQ9THD2DMHKSXMJA9TBA4W 0
+	done
+}
+
+
+flush_stats() {
+	local V_2CWZQ9THD2DMHKSXMJA9TBA4W
+	local V2_2CWZQ9THD2DMHKSXMJA9TBA4W
+	for V_2CWZQ9THD2DMHKSXMJA9TBA4W in $STAT_VARS
+	do
+		getvar V2_2CWZQ9THD2DMHKSXMJA9TBA4W \
+			$V_2CWZQ9THD2DMHKSXMJA9TBA4W
+		println "$V_2CWZQ9THD2DMHKSXMJA9TBA4W" \
+			"$V2_2CWZQ9THD2DMHKSXMJA9TBA4W"
+	done >> "$STATS"
+	clear_stats
+}
+
+
+merge_stats() {
+	local V_2CWZQ9THD2DMHKSXMJA9TBA4W
+	local V2_2CWZQ9THD2DMHKSXMJA9TBA4W
+	local V3_2CWZQ9THD2DMHKSXMJA9TBA4W
+	while
+		read V_2CWZQ9THD2DMHKSXMJA9TBA4W \
+			V2_2CWZQ9THD2DMHKSXMJA9TBA4W
+	do
+		getvar V3_2CWZQ9THD2DMHKSXMJA9TBA4W \
+			$V_2CWZQ9THD2DMHKSXMJA9TBA4W
+		setvar $V_2CWZQ9THD2DMHKSXMJA9TBA4W `
+			expr $V3_2CWZQ9THD2DMHKSXMJA9TBA4W \
+				+ $V2_2CWZQ9THD2DMHKSXMJA9TBA4W
+		`
+	done < "$STATS"
+}
+
+
 process() {
 	local REPLY
 	local SN CN IC # subject name, checksum name, is checksum name
@@ -444,13 +502,14 @@ process() {
 		}
 	then
 		(
+			clear_stats
 			if test x"${SN#/}" != x"$SN"
 			then
 				SN=${SN%%/}
 				RELPATH=/
 				cd "$RELPATH" || {
 					failed COULD_NOT_CHDIR_FSROOT "$SN"
-					exit
+					flush_stats; exit
 				}
 				echo "CHDIR /" >& 2
 			fi
@@ -476,21 +535,25 @@ process() {
 				failed COULD_NOT_ENTER "$RELPATH"
 				warn "subdirectory '$OSN' had been" \
 					"cleaned up as '$SN'"
-				exit
+				flush_stats; exit
 			}
 			echo "CHDIR $RELPATH" >& 2
 			run find -mindepth 1 -maxdepth 1 \
 			| sed -e 's,^\./,,' \
 			| LC_ALL=C sort \
-			| while IFS= read -r FSO
-			do
-				get_type "$FSO";
-				case $REPLY in
-					d) process "$FSO";;
-					f) matches "$FSO" && process "$FSO"
-				esac
-				
-			done
+			| {
+				while IFS= read -r FSO
+				do
+					get_type "$FSO";
+					case $REPLY in
+						d) process "$FSO";;
+						f) matches "$FSO" \
+							&& process "$FSO"
+					esac
+					
+				done
+				flush_stats
+			}
 		)
 		echo "CHDIR_BACK_TO ${RELPATH:-`pwd`}" >& 2
 		return
@@ -591,9 +654,12 @@ do
 	mkdir -m 700 -- "$TDIR" && break
 done
 trap "rm -r '$TDIR'" 0
+system readlink -f "$TDIR"; TDIR=$REPLY
 T=$TDIR/checksums.tmp
 AF=$TDIR/args.tmp
 FAILURES=$TDIR/failures.tmp
+STATS=$TDIR/accum_stats.tmp
+: > "$STATS"
 # Eliminate duplicates.
 # If "file" and "file.md5" are both specified, use only "file.md5".
 N=0
@@ -630,12 +696,8 @@ do
 done \
 | LC_ALL=C sort -n -k1,1 \
 | cut -d" " -f2- > "$AF"
-CREATED=0
-DELETED=0
-VERIFIED=0
-ASSUMED=0
-FAILED=0
-SUMMED=0
+define_stats CREATED DELETED VERIFIED ASSUMED FAILED SUMMED
+clear_stats
 RELPATH=
 while IFS=: read -r ARG
 do
@@ -650,6 +712,7 @@ do
 		process "$ARG"
 	fi
 done < "$AF"
+merge_stats
 {
 	echo "==========================================================="
 	FHB="file(s) have been"
