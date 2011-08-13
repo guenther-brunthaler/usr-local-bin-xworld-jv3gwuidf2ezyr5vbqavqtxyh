@@ -415,7 +415,7 @@ feed() {
 matches() {
 	test x"$RECURSIVE" = x".*" && return
 	local P REPLY
-	P=$RELPATH${RELPATH:+/}$1
+	P=$RELPATH${RELPATH:+/}${1%.md5}
 	system feed "$P" sed -e 's/'"$RECURSIVE"'//'
 	test x"$REPLY" != x"$P"
 }
@@ -479,7 +479,8 @@ merge_stats() {
 }
 
 
-# If "file" and "file.md5" are both specified, use only "file.md5".
+# If "file" and "file.md5" are both specified, leave only "file.md5".
+# Literal dupicates are also removed.
 eliminate_duplicates() {
 	local N LA HC HS ARG
 	N=0
