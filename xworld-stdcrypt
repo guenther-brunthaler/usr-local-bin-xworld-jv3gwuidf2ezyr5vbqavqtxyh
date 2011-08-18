@@ -8,16 +8,35 @@
 
 
 die() {
-	echo "ERROR: $*" >& 2
-	echo "Usage: $0 [ -e | -f ] <passfile>" >& 2
-	exit 1
+	{
+		echo "ERROR: $*" >& 2
+		echo "Usage: $0 ( -e | -d )" "( <passfile> |" \
+			"5< /path/to/passfile" \
+			"6< /path/to/passfile" \
+			"7< /path/to/passfile" \
+			"8< /path/to/passfile)"
+	} >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>$*<<< failed with return code ${?}!"
 }
 
 
 crypt() {
-	openssl $2 -salt -bufsize 10000000 -pass file:$PASSFILE -$1 || {
-		die "Could not -$1 algo $2: $!!"
-	}
+	local FD MODE ALGO
+	FD=$1 MODE=-$2; ALGO=$3
+	set -- openssl "$ALGO" -salt -bufsize 10000000 -pass
+	if test -n "$PASSFILE"
+	then
+		set -- "$@" file:"$PASSFILE"
+	else
+		set -- "$@" fd:$FD
+	fi
+	run "$@" "$MODE"
 }
 
 
@@ -34,11 +53,13 @@ while true; do
 done
 PASSFILE="$1"; shift
 test $# = 0 || die "Excess arguments: '$*'"
-test -n "$PASSFILE" || die "Missing passfile argument!"
-test -f "$PASSFILE" || die "Password file '$PASSFILE' does not exist!"
+if test -n "$PASSFILE"
+then
+	test -f "$PASSFILE" || die "Password file '$PASSFILE' does not exist!"
+fi
 test -n "$ENCRYPT" || die "Unspecified operation mode!"
 if [ $ENCRYPT = 1 ]; then
-	crypt e aes-256-cbc | crypt e idea-cbc | crypt e rc4 | crypt e bf-cbc
+	crypt 5 e aes-256-cbc | crypt 6 e idea-cbc | crypt 7 e rc4 | crypt 8 e bf-cbc
 else
-	crypt d bf-cbc | crypt d rc4 | crypt d idea-cbc | crypt d aes-256-cbc
+	crypt 8 d bf-cbc | crypt 7 d rc4 | crypt 6 d idea-cbc | crypt 5 d aes-256-cbc
 fi
