@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 9.293
-	(c) 2008 by Guenther Brunthaler.
+	$APP Version 11.267
+	(c) 2008 - 2011 by Guenther Brunthaler.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -90,7 +90,8 @@ wr() {
 
 
 getres() {
-	run xrandr | run grep '[0-9]\* ' | LC_ALL=C run awk '{print $1}'
+	LC_ALL=C run xrandr \
+		| run grep '[0-9]\*[+ ]' | LC_ALL=C run awk '{print $1}'
 }
 
 
