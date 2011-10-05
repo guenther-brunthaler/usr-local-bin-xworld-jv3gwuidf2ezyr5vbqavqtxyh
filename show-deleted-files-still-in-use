@@ -1,3 +1,5 @@
 #! /bin/sh
 # Show all files or just the specified directories.
-lsof -n "$@" | grep -P '\bDEL\b|\(deleted\)' | grep -v ' /SYSV\| /tmp/\| /var/'
+P=
+test x`id -u` = x0 && P='\| /home/'
+lsof -n "$@" | grep -P '\bDEL\b|\(deleted\)' | grep -v ' /SYSV\| /tmp/\| /var/'"$P"
