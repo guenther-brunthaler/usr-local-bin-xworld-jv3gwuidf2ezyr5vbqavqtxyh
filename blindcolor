@@ -1,0 +1,16 @@
+#! /bin/sh
+
+case $1 in
+	--black) C=0;;
+	--red) C=1;;
+	--green) C=2;;
+	--yellow) C=3;;
+	--blue) C=4;;
+	--magenta | -- | "") C=5;;
+	--cyan) C=6;;
+	--white) C=7;;
+	*) echo "Bad arguments '$*'!" >& 2; false; exit;;
+esac
+printf '\e[3'$C';4'$C'm'
+cat
+printf '\e[0m'
