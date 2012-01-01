@@ -16,10 +16,11 @@ my $export_dir= 'Mail/Local Folders/Sent.sbd';
 my $export_folder_pattern= 'exportieren';
 
 
-my($server, $dst, $in, $out);
+my($server, $dst, $dport, $in, $out);
 Getopt::Long::Configure("bundling");
 GetOptions('server_huhaq53quh5mmz3wztg8z8p8y=s' => \$server);
 $dst= shift;
+$dport= @ARGV ? shift : 22;
 die "Too many arguments" if @ARGV;
 unless ($server) {
    die 'Missing destination [user@]host specification' unless $dst;
@@ -102,7 +103,7 @@ if ($server) {
    }
    $in= $fh->open(-filename => $base);
    print "Transferring folder contents to $dst...\n";
-   $out= qq<ssh -o Compression=yes "$dst" "$0">
+   $out= qq<ssh -p "$dport" -o Compression=yes "$dst" "$0">
       . ' --server_huhaq53quh5mmz3wztg8z8p8y '
       . [getpwuid ${<}]->[0] . '@' . hostname
    ;
