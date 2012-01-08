@@ -1,0 +1,48 @@
+#! /bin/sh
+# Don't forget to write remote directories in additional quotes
+# if they contain spaces, such as
+# user@host:'/path/with spaces/in/it'.
+
+DRY_RUN=
+SIMULATE=
+while getopts Sn OPT
+do
+	case $OPT in
+		S | C) SIMULATE=Y;;
+		n) DRY_RUN=Y;;
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1`
+APP=${0##*/}
+if test x"${APP%-to-*}" != x"$APP"
+then
+	SRC=${1:?Usage $APP <rmtdir> | ( <localdir> <rmtdir> )}
+	if test $# -gt 1
+	then
+		DST=${2:-.}
+	else
+		DST=$SRC
+		SRC=.
+	fi
+else
+	SRC=${1:?Usage $APP <rmtdir> [ <localdir> ]}
+	DST=${2:-.}
+fi
+{
+	echo "Rsync Source: '$SRC'"
+	echo "Rsync Destination: '$DST'"
+} >& 2
+set -- rsync -avv --rsh='ssh -o Compression=no'
+test -n "$DRY_RUN" && set -- "$@" -n
+set -- "$@" --stats --human-readable --human-readable --safe-links \
+	"${SRC%%/}/" "${DST%%/}"/
+if test -n "$SIMULATE"
+then
+	echo "SIMULATION - WOULD RUN: $*"
+else
+	"$@" || {
+		echo "ERROR: Return code $? from commmand >>>$*<<<" >& 2
+		false; exit
+	}
+fi
