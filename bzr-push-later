@@ -1,0 +1,116 @@
+#! /bin/sh
+show_version() {
+	cat <<- .
+	$APP version 12.21
+
+	(c) 2012 by Guenther Brunthaler.
+	This source file is free software.
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+UUID=9cj0nmaqdp916fzys1qjdvvyn
+
+
+APP=${0##*/}
+trap 'echo "Failed!" >& 2' 0
+set -e
+
+show_help() {
+	cat <<- '.'
+	Usage: $APP [ options ] [ -- ] [ <push-URL> ... ]
+	
+	Options:
+	--clear, -c: set/initialize current push list to empty.
+	--help, -h: Display this help.
+	--version, -V: Show version information.
+	--list, -l: print current push list
+	--execute, -x: ask for permission then execute current push list
+	--edit, -e: launch $EDITOR or $VISUAL to edit push list
+
+.
+	show_version
+}
+
+pushit() {
+	local URL
+	{
+		echo "cd '`pwd`'"
+		if test $# = 0
+		then
+			echo bzr push
+		else
+			for URL
+			do
+				echo "bzr push '$URL'"
+			done
+		fi
+		echo
+	} >> "$PUSHLIST"
+	echo "Entry added to push-list."
+}
+
+
+check_empty() {
+	if test -s "$PUSHLIST"
+	then
+		return `false; echo $?`
+	fi
+	echo "Push-list is empty." >& 2
+	return `true; echo $?`
+}
+
+test -n "$HOME" && test -d "$HOME"
+: ${XDG_DATA_HOME:=$HOME/.local/share}
+DIR=$XDG_DATA_HOME/${APP}_$UUID
+test -d "$DIR" || mkdir -m 700 -p "$DIR"
+PUSHLIST=$DIR/pushlist.sh
+case $1 in
+	--clear | -c)
+		true > "$PUSHLIST"
+		echo "Push-list cleared" >& 2
+		;;
+	--help | -h)
+		show_help
+		;;
+	--version | -V)
+		show_version
+		;;
+	--execute | -x)
+		check_empty && exit `true; echo $?`
+		exec 3>& 1 >& 2
+		echo "*** Commands to be executed:"
+		echo
+		cat "$PUSHLIST"
+		REPLY=
+		read -p "Start execution [Yn]? " REPLY
+		case $REPLY in
+			"" | [Yy]*) ;;
+			*) false;;
+		esac
+		echo
+		echo "*** Starting execution."
+		echo
+		(set -v; . "$PUSHLIST" >& 3)
+		echo "*** Successfully executed push list - clearing it."
+		true > "$PUSHLIST"
+		;;
+	--edit | -e)
+		: ${EDITOR:=$VISUAL}
+		: ${EDITOR:?'Please set $EDITOR!'}
+		test -f "$PUSHLIST" && "$EDITOR" "$PUSHLIST"
+		;;
+	--list | -l)
+		check_empty || cat "$PUSHLIST"
+		;;
+	--)
+		shift
+		pushit "$@"
+		;;
+	-*)
+		echo "Unknown option '$1'." >& 2
+		false # == exit 1
+		;;
+	*)
+		pushit "$@"
+esac
+trap - 0
