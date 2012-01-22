@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	cat <<- .
-	$APP version 12.21
+	$APP version 12.22
 
 	(c) 2012 by Guenther Brunthaler.
 	This source file is free software.
@@ -16,8 +16,29 @@ trap 'echo "Failed!" >& 2' 0
 set -e
 
 show_help() {
-	cat <<- '.'
+	cat <<- .
+	$APP - queue "bzr push" commands to be executed later
+	
 	Usage: $APP [ options ] [ -- ] [ <push-URL> ... ]
+	
+	Adds commands to "bzr push" the Bazaar branch associated with the
+	current working directory at a later time (when $APP is re-run with
+	the --execute option).
+	
+	If <push-URL>s are specified, a "bzr push" command is queued for each
+	branch URL. If no URLs are specified, the default push URL of the
+	branch is used.
+
+	The "push-list" maintained by $APP is a simple shell script,
+	consisting of "cd" and "bzr push" commands. It can be edited freely by
+	using the --edit option at any time, including the possibility to add
+	additional commands not related to Bazaar at all.
+	
+	The idea is to use $APP instead of "bzr push" when the push-URL cannot
+	currently be reached, such as during offline-operation.
+	
+	When online-connectivity is available again, "$APP -x" can be used to
+	execute the queued commands.
 	
 	Options:
 	--clear, -c: set/initialize current push list to empty.
@@ -25,7 +46,7 @@ show_help() {
 	--version, -V: Show version information.
 	--list, -l: print current push list
 	--execute, -x: ask for permission then execute current push list
-	--edit, -e: launch $EDITOR or $VISUAL to edit push list
+	--edit, -e: launch \$EDITOR or \$VISUAL to edit push list
 
 .
 	show_version
@@ -97,7 +118,8 @@ case $1 in
 	--edit | -e)
 		: ${EDITOR:=$VISUAL}
 		: ${EDITOR:?'Please set $EDITOR!'}
-		test -f "$PUSHLIST" && "$EDITOR" "$PUSHLIST"
+		test -f "$PUSHLIST" || true > "$PUSHLIST"
+		"$EDITOR" "$PUSHLIST"
 		;;
 	--list | -l)
 		check_empty || cat "$PUSHLIST"
