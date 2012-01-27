@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$APP version 10.124
+	$APP version 12.27
 
-	(c) 2008 - 2010 by Guenther Brunthaler.
+	(c) 2008 - 2012 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -169,7 +169,8 @@ show_help() {
 	those cases, any application still using the old library must be
 	restarted before the mountpoint can again be remounted as read-only.
 
-	--verbose, -v: Be more verbose.
+	--verbose, -v: Be more verbose. Currently this has no effect, but this
+	might change in later versions.
 	
 	"Switch clustering" for short-options (single-dash options) is
 	supported. For instance, when specifying two separate options "-v" and
@@ -213,7 +214,7 @@ TEMP_OVERCOMMIT_OVERRIDE=0
 
 die() {
 	printf "ERROR: %s\n" "$*" >& 2
-	exit 1
+	false; exit
 }
 
 
@@ -260,7 +261,7 @@ warn() {
 }
 
 
-VERBOSE=
+VERBOSE=Y
 QUIET=
 WANT=ro
 APP=${0##*/}
@@ -290,9 +291,9 @@ do
 		--) break;; # Must be first!
 		--help | -h | --usage) show_help; exit;;
 		--version | -V) show_version; exit;;
-		--verbose | -v) VERBOSE=1;;
+		--verbose | -v) ;;
 		--lock | -l) WANT=ro;;
-		--quiet | -q) QUIET=1;;
+		--quiet | -q) VERBOSE=; QUIET=1;;
 		--unlock | -u) WANT=rw;;
 		*) die "Unknown option '$COPT'!";; # Must be last!
 	esac
