@@ -1,0 +1,200 @@
+#! /bin/sh
+set -e
+VERSION=12.66
+LIC1="(c) 2012 by Guenther Brunthaler."
+LIC2="This script is free software."
+LIC3="Distribution is permitted under the terms of the GPLv3."
+
+
+blkout() {
+	sed -e 's,^-,,' | tac >& 7
+}
+
+
+cleanup() {
+	exec >& 2
+	test -n "$REDIR7" && exec 7>& -
+	test -n "$T" && rm "$T"
+	if test -n "$OK"
+	then
+		echo "Done!"
+	else
+		echo "Failed!"
+	fi
+}
+
+
+OK=
+T=
+REDIR7=
+trap cleanup 0
+
+APP=${0##*/}
+if test $# != 3
+then
+	cat <<- . >& 2
+	Usage: $APP <staging_tree> <dest_tree> <uninst_script>
+	
+	$APP installs the contents of directory tree
+	<staging_tree> to the destination directory tree <dest_tree>
+	and created a shell script <uninst_script> which can be called
+	later for uninstalling what has been installed into <dest_tree>.
+	
+	The script is smart enough to only remove files or symlinks that
+	have not been changed/modified since installation.
+	
+	The uninstallation script will also remove directories which
+	have become empty after uninstalling all files within them.
+	
+	If the script "pack-best" exists, it will be called with
+	option -O and <uninst_script> as arguments. (This should compress
+	<uninst_script> using the most effective compression algorithm
+	supported by the script.)
+	
+	$APP version $VERSION
+
+	$LIC1
+	$LIC2
+	$LIC3
+.
+	false
+fi
+STAGING_TREE=$1
+DEST_TREE=$2
+UNINSTALL_SCRIPT=$3
+# Make paths absolute.
+if test x"${STAGING_TREE#/}" = x"$STAGING_TREE"
+then
+	STAGING_TREE=`readlink -f "$STAGING_TREE"`
+fi
+if test x"${DEST_TREE#/}" = x"$DEST_TREE"
+then
+	DEST_TREE=`readlink -f "$DEST_TREE"`
+fi
+touch "$UNINSTALL_SCRIPT"
+if test x"${UNINSTALL_SCRIPT#/}" = x"$UNINSTALL_SCRIPT"
+then
+	UNINSTALL_SCRIPT=`readlink -f "$UNINSTALL_SCRIPT"`
+fi
+# Remove any trailing slashes.
+STAGING_TREE=${STAGING_TREE%%/}
+DEST_TREE=${DEST_TREE%%/}
+test -d "$STAGING_TREE"
+test -d "$DEST_TREE"
+test -f "$UNINSTALL_SCRIPT"
+export LC_ALL
+LC_ALL=C
+exec 7> "$UNINSTALL_SCRIPT"; REDIR7=y
+cd "$STAGING_TREE"
+find | sort | while IFS= read -r SRC
+do
+	test x"$SRC" = x. && continue
+	SRC=${SRC#./}
+	DST=$DEST_TREE/$SRC
+	case `stat -c %F "$SRC"` in
+		"regular file")
+			echo "Copying original to file \"$DST\"."
+			cp "$SRC" "$DST"
+			touch -m -r "$SRC" "$DST"
+			cat <<- . | blkout
+				-
+				-if test ! -e '$SRC'
+				-then
+				-	echo 'Not deleting file "$DST" because it does not exist!'
+				-elif test ! -f '$SRC' || test -L '$SRC'
+				-then
+				-	echo 'Not deleting file "$DST" because type has changed!'
+				-elif
+				-	test \`stat -c %s-%Y '$SRC'\` = `stat -c %s-%Y "$DST"` \\
+				-	&& md5sum -c --quiet << EOF
+				-`md5sum -b "$SRC"`
+				-EOF
+				-then
+				-	echo 'Deleting file "$DST".'
+				-	rm '$SRC'
+				-else
+				-	echo 'Not deleting modified/changed file "$DST"!'
+				-fi
+.
+			chmod `stat -c %a "$SRC"` "$DST"
+			;;
+		"directory")
+			cat <<- . | blkout
+				-
+				-if test ! -e '$SRC'
+				-then
+				-	echo 'Not deleting directory "$DST" because it does not exist!'
+				-elif test ! -d '$SRC'
+				-then
+				-	echo 'Not deleting directory "$DST" because type has changed!'
+				-elif rmdir '$SRC'
+				-then
+				-	echo 'Deleting directory "$DST".'
+				-else
+				-	echo 'Could not delete directory "$DST" (probably because not empty).'
+				-fi
+.
+			if test ! -d "$SRC"
+			then
+				echo "Creating directory \"$DST\"."
+				mkdir -m `stat -c %a "$SRC"` "$DST"
+			fi
+			;;
+		"symbolic link")
+			TARGET=`readlink "$SRC"`
+			cat <<- . | blkout
+				-
+				-if test ! -L '$SRC'
+				-then
+				-	if test -e "$SRC"
+				-	then
+				-		echo 'Not deleting symlink "$DST" because type has changed!'
+				-	else
+				-		echo 'Not deleting symlink "$DST" because it does not exist!'
+				-	fi
+				-elif test x"\`readlink '$SRC'\`" = x'$TARGET'
+				-then
+				-	echo 'Deleting symlink "$DST".'
+				-	rm '$SRC'
+				-else
+				-	echo 'Not deleting symlink "$DST" because target has changed!'
+				-fi
+.
+			echo "Creating symlink \"$DST\"."
+			ln -snf "$TARGET" "$DST"
+			;;
+		*) echo "Warning: ignoring unsupported filesystem object '$STAGING_TREE/$SRC'!" >& 2
+	esac
+done
+REDIR7=; exec 7>& -
+T=`tempfile`
+tac "$UNINSTALL_SCRIPT" > "$T"
+{
+	cat <<- .
+	#! /bin/sh
+	# Created on `date`
+	# by $APP version $VERSION.
+	#
+	# $LIC1
+	# $LIC2
+	# $LIC3
+
+	set -e
+	exec >& 2
+	trap 'echo "Failed!"' 0
+	cd '$DEST_TREE'
+.
+	cat "$T"
+	cat <<- .
+
+	echo "Successful!"
+	trap - 0
+.
+} > "$UNINSTALL_SCRIPT"
+if which pack-best > /dev/null 2>& 1
+then
+	echo
+	echo "Compressing script \"$UNINSTALL_SCRIPT\"."
+	pack-best -O "$UNINSTALL_SCRIPT"
+fi
+OK=y
