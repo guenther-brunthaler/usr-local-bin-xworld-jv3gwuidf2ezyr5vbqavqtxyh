@@ -1,0 +1,34 @@
+#! /bin/sh
+#
+# Print a list of .so files or executables which reference the
+# given SONAME (substring match).
+#
+# (c) 2012 by Guenther Brunthaler.
+# This script file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+: ${1:?"Usage: ${0##*/} <lib.so-file>"}
+find /usr /opt \
+	'!' -type f \
+	-o '(' \
+		'(' \
+			-iname "*.so*" \
+			-o -executable \
+		')' \
+		-print \
+	')' \
+| while IFS= read -r f
+do
+	if
+		test x"`
+			file \"$f\" \
+			| sed -e '
+				s/.*: ELF.*/Y/
+				t
+				s/.*/N/
+			'
+		`" = xY \
+		&& ldd "$f" 2> /dev/null | grep -Fq -- "$1"
+	then
+		printf "%s\n" "$f"
+	fi
+done
