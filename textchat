@@ -33,6 +33,13 @@ chat server's pty device path as the argument.
 
 -h: Display this help
 -V: Display version info
+
+IMPORTANT:
+
+This is *not* a secure chat. EVERYONE from the local machine can connect to a
+running chat server, impersonating the chat buddy who the chat originator is
+expecting to connect. Be aware of that risk! PGP signed text should be pasted
+into the chat console where authenticity of the sent information is important.
 EOF
 }
 
