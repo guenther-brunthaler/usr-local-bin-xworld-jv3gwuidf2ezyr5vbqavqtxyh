@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	cat <<- .
-	$APP version 12.108
+	$APP version 12.108.2
 
 	(c) 2012 by Guenther Brunthaler.
 	This source file is free software.
@@ -12,9 +12,17 @@ show_version() {
 
 show_help() {
 	cat << EOF
+$APP - replacement for "write" as local text-chat with readline support
+
 Usage:
 	$APP -s [ <client2inform> ]
 	$APP -c <server2contact>
+
+$APP is an alternative to using "write" for chatting with another user
+(or with oneself in a different terminal) on the same machine.
+
+The advantage over "write" is that $APP provided readline editing support,
+including an editing history during the chat.
 
 Options:
 
@@ -34,12 +42,18 @@ chat server's pty device path as the argument.
 -h: Display this help
 -V: Display version info
 
-IMPORTANT:
+SECURITY CAVEAT:
 
 This is *not* a secure chat. EVERYONE from the local machine can connect to a
-running chat server, impersonating the chat buddy who the chat originator is
-expecting to connect. Be aware of that risk! PGP signed text should be pasted
-into the chat console where authenticity of the sent information is important.
+running chat server, pretending to be the chat buddy who the chat originator
+is expecting to connect. Be aware of that risk!
+
+PGP signed text should be pasted into the chat console where authenticity of
+the sent information is important.
+
+Also note that "write" has exactly the same security limitations; everyone can
+write a message to the victim's tty pretenting to be created by "write" on
+behalf of a different user.
 EOF
 }
 
