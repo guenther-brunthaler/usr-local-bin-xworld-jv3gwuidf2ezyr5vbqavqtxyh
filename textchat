@@ -1,0 +1,174 @@
+#! /bin/sh
+show_version() {
+	cat <<- .
+	$APP version 12.108
+
+	(c) 2012 by Guenther Brunthaler.
+	This source file is free software.
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+
+
+show_help() {
+	cat << EOF
+Usage:
+	$APP -s [ <client2inform> ]
+	$APP -c <server2contact>
+
+Options:
+
+-s [ <client2inform> ]: Initiate a chat, creating a pty. The client needs the
+know the pty device in order to connect to the chat server. If <client2inform>
+is missing, the pty is just printed to stdout and the initiator has to relay
+this information somehow to the client (e. g. by mail). If <client2inform> is
+present and contains a "/", it is assumed to be a path to the client's tty. In
+this case, a message will be written to that tty, informing the client how to
+connect to the chat. Otherwise, <client2inform> is assumed to be the client's
+user name on the local machine, and "write" will be used to inform the client
+how to connect to the chat.
+
+-c <server2contact>: Connect to an existing chat as a client, specifying the
+chat server's pty device path as the argument.
+
+-h: Display this help
+-V: Display version info
+EOF
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" || die "Could not execute >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+coremsg2client() {
+	cat << EOF
+Please execute the command
+
+\$ $APP -c $SERVER
+
+in order to start a chat with user $ORIGINATOR!
+
+If the "$APP" script is not installed, the following command
+can be used as an alternative to achieve the same effect:
+
+\$ socat OPEN:$SERVER,echo=0 READLINE,prompt='self> '
+
+In either case, you can cancel the chat at any time by pressing ctrl-c.
+EOF
+}
+
+
+msg2server() {
+	echo
+	echo "Please relay the following message to the client:"
+	echo
+	echo "---BEGIN MESSAGE---"
+	coremsg2client
+	echo "---END MESSAGE---"
+}
+
+
+msg2client() {
+	echo
+	echo
+	echo "*************"
+	echo "MESSAGE FROM USER $ORIGINATOR:"
+	echo
+	echo "---BEGIN MESSAGE---"
+	coremsg2client
+	echo "---END MESSAGE---"
+	echo
+	echo "(Press Enter to get a prompt again.)"
+	echo "*************"
+}
+
+
+APP=${0##*/}
+MODE=
+while getopts cshV OPT
+do
+	case $OPT in
+		c) MODE=client;;
+		s) MODE=server;;
+		h) MODE=help;;
+		V) MODE=version;;
+		*) false; exit
+	esac
+done
+shift `expr $OPTIND - 1`
+PEER=$1; shift
+if
+	test x$MODE = x"help" || test $# != 0 || {
+		test -z "$PEER" && test x$MODE != x"server"
+	}
+then
+	show_help
+	echo
+	show_version
+	test x$MODE = x"help"; exit
+elif test x$MODE = x"version"
+then
+	show_version
+	exit
+fi
+system which socat; SOCAT=$REPLY
+if test x$MODE = x"client"
+then
+	echo
+	echo "Connecting to the chat server on PTY \"$PEER\"..."
+	echo
+	echo "(Start typing your message. You can cancel the chat at any time"
+	echo "by pressing ctrl-c.)"
+	echo
+	run test -c "$PEER"
+	exec "$SOCAT" OPEN:$PEER,echo=0 READLINE,prompt='self> '
+	die "Could not exec $SOCAT to act as a chat client!"
+fi
+run test x$MODE = x"server"
+system tempfile; T=$REPLY
+trap 'false; exit' USR1
+PARENT=$$
+{
+	while :
+	do
+		test -e "$T" || exit
+		test -L "$T" && break
+		sleep 1
+	done
+	trap "kill -USR1 $PARENT" 0
+	system readlink "$T"; SERVER=$REPLY
+	run test -c "$SERVER"
+	system whoami; ORIGINATOR=$REPLY
+	case $PEER in
+		*/*)
+			run test -c "$PEER"
+			msg2client > "$PEER" || exit
+			echo "The client has been informed."
+			;;
+		"")
+			msg2server || exit
+			;;
+		*)
+			msg2client | write "$PEER" || exit
+			echo "The client has been informed."
+	esac
+	echo
+	echo "Now wait until the client connects to this chat!"
+	echo "(You can cancel the chat at any time by pressing ctrl-c.)"
+	echo
+	trap - 0
+} &
+exec "$SOCAT" READLINE,prompt='self> ' PTY,link=$T
