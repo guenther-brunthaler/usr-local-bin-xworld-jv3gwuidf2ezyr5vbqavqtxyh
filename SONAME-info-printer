@@ -1,0 +1,5 @@
+#! /bin/sh
+for exe
+do
+	objdump -p -- "$exe"
+done | sed -e '/^ *\(NEEDED\|R\(UN\)\?PATH\) /b;d' | sort -u
