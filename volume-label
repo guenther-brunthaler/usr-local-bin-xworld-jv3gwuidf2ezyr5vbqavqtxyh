@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$SCRIPT version 11.178
+	$SCRIPT version 12.124
 
-	(c) 2008 - 2011 by Guenther Brunthaler.
+	(c) 2008 - 2012 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -153,12 +153,16 @@ test -b "$DEV" || die "'$DEV' is not a block device!"
 system get_fs "$DEV"; FS=$REPLY
 case $FS in
 	fat | vfat)
-		if test -n "$NEW_LABEL"; then
-			if have dosfslabel; then
+		if have dosfslabel; then
+			if test -n "$NEW_LABEL"; then
 				run dosfslabel "$DEV" "$NEW_LABEL"
-				run dosfslabel "$DEV"
 			else
+				run dosfslabel "$DEV"
+			fi
+		else
+			if test -n "$NEW_LABEL"; then
 				run mlabel -i "$DEV" ::"$NEW_LABEL"
+			else
 				run mlabel -i "$DEV" -s ::
 			fi
 		fi
