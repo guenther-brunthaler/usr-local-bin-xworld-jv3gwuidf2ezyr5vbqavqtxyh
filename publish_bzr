@@ -57,6 +57,19 @@ show_usage() {
 	a user account name followed by "@". It may also be followed by ":"
 	and a port number. If user or port is not specified, the normal ssh
 	defaults for the host are used.
+	
+	--uuid <b35uuid>, -u <b35uuid>: Do not create a random UUID but use
+	the provided UUID instead. The UUID must be specified in base-35
+	encoding and will be used to name the branch created on the server.
+	
+	--time-based, --time, -t: Create a time-based rather than a
+	random-based UUID on the server when creating the branch name. The
+	default is to use a random-based UUID. In either case, the UUID will
+	be encoded in base-35.
+	
+	--random-based, --random, -r: Create a random-based rather than a
+	time-based UUID on the server when creating the branch name. This is
+	also the default. In either case, the UUID will be encoded in base-35.
 
 	--help, -h: Show this usage help.
 	
@@ -89,7 +102,9 @@ show_usage() {
 	directory on the server after it has been moved or renamed, because
 	the UUID-part of the name will never change.
 	
-	$APP (c) 2008 by Guenther Brunthaler
+	$APP version 12.127
+
+	(c) 2008 - 2012 by Guenther Brunthaler
 EOT
 	exit
 }
@@ -98,13 +113,18 @@ EOT
 MODE=normal
 SAVE=
 VERBOSE=
+UUIDGEN_ARGS=-r
+PRESET_UUID=
 while true; do
 	case "$1" in
 		--help | -h) show_usage;;
 		--server) MODE=server;;
-		--) shift; break;;
 		--remember) SAVE=Y;;
+		--uuid | -u) shift; PRESET_UUID=$1;; 
+		--time-based | --time | -t) UUIDGEN_ARGS=-t;; 
+		--random-based | --random | -r) UUIDGEN_ARGS=-r;; 
 		--verbose | -v) VERBOSE=Y;;
+		--) shift; break;;
 		-*) die "Unsupported option '$1'!";;
 		*) break;;
 	esac
@@ -122,7 +142,13 @@ if test $MODE = server; then
 	which base35uuid > /dev/null 2>& 1 || {
 		test -f /etc/profile && . /etc/profile
 	}
-	MASTER=${SUBDIR##*/}_`base35uuid`
+	if test -n "$PRESET_UUID"
+	then
+		uuid=$PRESET_UUID
+	else
+		uuid=`base35uuid $UUIDGEN_ARGS`
+	fi
+	MASTER=${SUBDIR##*/}_$uuid
 	test $? = 0 || die "Could not generate master directory name!"
 	run bzr init --quiet "$MASTER"
 	MASTER=$SUBDIR/$MASTER
@@ -158,7 +184,9 @@ else
 		set -- "$@" -p "$PORT"
 		SERVER=${SERVER%:$PORT}
 	fi
-	set -- ssh "$@" "$SERVER" "$0" --server "$PWD"
+	set -- ssh "$@" "$SERVER" "$0" --server $UUIDGEN_ARGS
+	test -n "$PRESET_UUID" && set -- "$@" -u "$PRESET_UUID"
+	set -- "$@" "$PWD"
 	inform `printf "executing >>>$*<<<\n" "$*"`
 	MASTER=`"$@"`
 	test $? = 0 || die "Remote could not generate master directory name!"
