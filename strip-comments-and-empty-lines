@@ -1,0 +1,3 @@
+#! /bin/sh
+ws=`printf '[\t ]'`
+exec grep -v -- "^$ws*\(#\|$\)" "$@"
