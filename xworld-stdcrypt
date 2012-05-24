@@ -1,16 +1,17 @@
 #! /bin/sh
 # Filter for safely encoding / decoding a binary stream.
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/xworld-stdcrypt $
-# $Author: root(xtreme) $
-# $Date: 2006-09-26T04:16:23.581202Z $
-# $Revision: 306 $
+# Version 12.145
+#
+# (c) 2012 by Superuser.
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
 
 die() {
 	{
 		echo "ERROR: $*" >& 2
-		echo "Usage: $0 ( -e | -d )" "( <passfile> |" \
+		echo "Usage: ${0##*/} ( -e | -d )" "( <passfile> |" \
 			"5< /path/to/passfile" \
 			"6< /path/to/passfile" \
 			"7< /path/to/passfile" \
@@ -41,8 +42,9 @@ crypt() {
 
 
 ENCRYPT=
-while true; do
-	case "$1" in
+while :
+do
+	case $1 in
 		-e | --encrypt) ENCRYPT=1;;
 		-d | --decrypt) ENCRYPT=0;;
 		--) shift; break;;
@@ -58,8 +60,9 @@ then
 	test -f "$PASSFILE" || die "Password file '$PASSFILE' does not exist!"
 fi
 test -n "$ENCRYPT" || die "Unspecified operation mode!"
-if [ $ENCRYPT = 1 ]; then
-	crypt 5 e aes-256-cbc | crypt 6 e idea-cbc | crypt 7 e rc4 | crypt 8 e bf-cbc
+if test $ENCRYPT = 1
+then
+	crypt 5 e aes-256-cbc | crypt 6 e des-ede3-cbc | crypt 7 e rc4 | crypt 8 e bf-cbc
 else
-	crypt 8 d bf-cbc | crypt 7 d rc4 | crypt 6 d idea-cbc | crypt 5 d aes-256-cbc
+	crypt 8 d bf-cbc | crypt 7 d rc4 | crypt 6 d des-ede3-cbc | crypt 5 d aes-256-cbc
 fi
