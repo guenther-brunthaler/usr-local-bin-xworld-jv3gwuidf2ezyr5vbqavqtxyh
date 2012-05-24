@@ -1,9 +1,9 @@
 #! /bin/sh
 # Filter for safely encoding / decoding a binary stream.
 #
-# Version 12.145
+# Version 12.145.1
 #
-# (c) 2012 by Superuser.
+# (c) 2012 by Guenther Brunthaler.
 # This source file is free software.
 # Distribution is permitted under the terms of the GPLv3.
 

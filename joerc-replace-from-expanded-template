@@ -1,47 +1,64 @@
 #! /bin/sh
+# One needs to define a "-backpath", but it does not need
+# to actually exist in the filesystem.
 #
-# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
-# $Author: root $
-# $Date: 2006-08-27T09:44:37.131062Z $
-# $Revision: 289 $
+# Version 12.145
+# (c) 2012 by Guenther Brunthaler.
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
 
 # Removes trailing and leading tabs and spaces.
 trim() {
 	local OLD NEW TAB
-	OLD="$1"
-	TAB=$'\t'
-	while true; do
+	OLD=$1
+	TAB=`printf '\t'`
+	while :
+	do
 		NEW="${OLD# }"
-		NEW="${NEW#$TAB}"
-		test "$NEW" = "$OLD" && break
-		OLD="$NEW"
+		NEW=${NEW#$TAB}
+		test x"$NEW" = x"$OLD" && break
+		OLD=$NEW
 	done
-	while true; do
+	while :
+	do
 		NEW="${OLD% }"
-		NEW="${NEW%$TAB}"
-		test "$NEW" = "$OLD" && break
+		NEW=${NEW%$TAB}
+		test x"$NEW" = x"$OLD" && break
 		OLD="$NEW"
 	done
-	echo "$NEW"
+	printf '%s\n' "$NEW"
 }
 
 
-BACK="$(grep '^\s*-backpath /.*' ~/.joerc | head -n1)"
+BACK=`grep '^\s*-backpath /.*' ~/.joerc | head -n1`
 BACK=${BACK#*backpath}
-BACK=$(trim "$BACK")
-if [ -z "$BACK" ]; then
+BACK=`trim "$BACK"`
+if test -z "$BACK"
+then
 	echo "ERROR: No backup path has been set up yet"
-	exit 1
+	false; exit
 fi
-if [ ! -d "$BACK" ]; then
+if test ! -d "$BACK"
+then
 	echo "ERROR: Old backup path '$BACK' has does not yet exist!"
-	exit 1
+	false; exit
 fi
-FTYPERC="$HOME/.joe"
-sed \
-	-e 's!^\s*-backpath /.*!-backpath '$BACK'!' \
-	-e 's!^:include\s\s*ftyperc\s*$!:include '$FTYPERC'!' \
-	/usr/local/etc/skel/.joerc \
-	> ~/.joerc
+NOBACKS=`grep '^\s*-nobackups' ~/.joerc | head -n1`
+if test -n "$NOBACKS"
+then
+	NOBACKS=`
+		printf '%s\n' "$NOBACKS" \
+			| sed -e 's,^\(\s*\)-nobackups.*,\1,'
+	`
+else
+	# By default, disable "-nobackup" so backups will be made.
+	NOBACKS=" "
+fi
+FTYPERC=$HOME/.joe
+sed -e '
+	s!^\s*-backpath /.*!-backpath '$BACK'!
+	s!^\s*\(-nobackups.*\)!'"$NOBACKS"'\1!
+	s!^:include\s\s*ftyperc\s*$!:include '$FTYPERC'!
+' /usr/local/etc/skel/.joerc > ~/.joerc
 cp /usr/local/etc/skel/.joe ~/.joe
