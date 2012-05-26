@@ -1,0 +1,187 @@
+#! /bin/sh
+show_version() {
+	wr <<- .
+	$APP version 12.147
+
+	(c) 2012 by Guenther Brunthaler.\n
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+
+show_help() {
+	wr <<- .
+	$APP - show environment variables of a running process
+	
+	Usage:\n
+		$APP [ -u | -S ] <pid>\n
+		$APP -a <pid>\n
+		$APP [ -u | -s | -S ] -n <varname> <pid>\n
+		$APP [ -h | -V ]
+
+	$APP displays all of just a specfic environment variable from a
+	running process specified by process ID <pid>.
+
+	\$ $APP [ -u | -S ] <pid>
+	
+	displays just the contents of variable \$PATH, with the path entries
+	split into multiple lines.
+	
+	If -u is specifified, the path entries will by sorted and duplicates
+	will be removed. This will change the original order of entries,
+	though.
+	
+	The entry splitting can be avoided alltogether by providing the -S
+	option.
+
+	\$ $APP -a <pid>
+	
+	displays all environment variables of the process as key=value pairs,
+	sorted by key.
+
+	\$ $APP [ -u | -s | -S ] -n <varname> <pid>
+	
+	displays only the value of environment variable <varname>.
+	
+	Splitting of entries on ":"-characters will be automatically enabled
+	for some well-known variables like \$PATH or \$LANGUAGE.
+	
+	However, -s can be specified to enforce such splitting or -S can be
+	specified to forbid it.
+	
+	If -u is specified, -s is implied and the entries will be split,
+	sorted and duplicates will be removed.
+	
+	Options:
+
+	-u: Uniquify and sort entries. Implies -s.\n
+	-s: Split variable into entries separated by ':', but do not sort them
+	    or try to weed out duplicates.\n
+	-a: Show all environment variables instead of just \$PATH.\n
+	-S: Disallow splitting. This is implied with -a and is mutually
+	    -exclusive with -s and -u.\n
+	-n <name>: Display the contents of variable \$<name> rather than
+	           \$PATH. This is mutually exclusive with -a.\n
+	-d <delimiter>: Modifies operation for -u and -s modes by specifying a
+	                different character <delimiter> as a field splitting
+	                delimiter rather than using the default delimiter
+	                ':'.\n
+	-h: Show this help.\n
+	-V: Show only the version information.\n
+.
+	echo
+	show_version
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" || die "Could not execute >>>$*<<<: Return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+print() {
+	run printf '%s' "$*"
+}
+
+
+println() {
+	run printf '%s\n' "$*"
+}
+
+
+wr() {
+	local REPLY
+	while IFS= read -r REPLY
+	do
+		{
+			while test -n "$REPLY" || IFS= read -r REPLY
+			do
+				ORIG=$REPLY; REPLY=${REPLY%\\n}
+				println "$REPLY"
+				test x"$ORIG" != x"$REPLY"  && break
+				REPLY=
+			done
+		} | run fmt -w "$LINEWIDTH" || exit
+	done
+}
+# Determine up line width to use for output.
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
+
+NAME="PATH"
+UNIQUIFY=
+SPLIT=
+DELIMITER=:
+DONTSPLIT=
+while getopts aun:Ssd:hV OPT
+do
+	case $OPT in
+		a) NAME=;;
+		u) UNIQUIFY=Y; SPLIT=Y;;
+		n) NAME=$OPTARG;;
+		S) DONTSPLIT=Y;;
+		s) SPLIT=Y;;
+		d) DELIMITER=$OPTARG;;
+		h) show_help; exit;;
+		V) show_version; exit;;
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1`
+if test $# != 1 || test -z "$1"
+then
+	echo "Incorrect number of arguments!" >& 2
+	show_help
+	exit
+fi
+# Auto-enable splitting for a few well-known variables.
+case $NAME in
+	PATH | LANGUAGE | NLSPATH | LD_LIBRARY_PATH) SPLIT=Y
+esac
+test -n "$DONTSPLIT" &&	SPLIT=
+info=/proc/$1/environ
+test -f "$info" || die "Process PID $1 does not (any longer?) exist!"
+if test -n "$SPLIT"
+then
+	case $DELIMITER in
+		":") q=",";;
+		*) q=":"
+	esac
+	SPLIT="s$q$DELIMITER$q\n${q}g"
+fi
+xargs -0 -n1 < "$info" | LC_ALL=POSIX sort | {
+	if test -z "$NAME"
+	then
+		# All variables; no splitting.
+		cat
+	else
+		# The specified variable and perhaps splitting,
+		grep "^$NAME=" | cut -d= -f2- | {
+			if test -z "$SPLIT"
+			then
+				cat
+			else
+				sed -e "$SPLIT" | {
+					if test -z "$UNIQUIFY"
+					then
+						cat
+					else
+						LC_ALL=POSIX sort -u
+					fi
+				}
+			fi
+		}
+	fi
+}
