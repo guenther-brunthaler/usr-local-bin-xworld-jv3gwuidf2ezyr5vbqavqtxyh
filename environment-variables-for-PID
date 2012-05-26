@@ -15,15 +15,19 @@ show_help() {
 	$APP - show environment variables of a running process
 	
 	Usage:\n
-		$APP [ -u | -S ] <pid>\n
+		$APP [ -u | -S ] [ <pid> ]\n
 		$APP -a <pid>\n
-		$APP [ -u | -s | -S ] -n <varname> <pid>\n
+		$APP [ -u | -s | -S ] -n <varname> [ <pid> ]\n
 		$APP [ -h | -V ]
 
 	$APP displays all of just a specfic environment variable from a
 	running process specified by process ID <pid>.
+	
+	If <pid> is not specified, defaults to the PID of the process running
+	$APP itself. (This allows to examine the environment variables
+	exported from the current process.)
 
-	\$ $APP [ -u | -S ] <pid>
+	\$ $APP [ -u | -S ] [ <pid> ]
 	
 	displays just the contents of variable \$PATH, with the path entries
 	split into multiple lines.
@@ -35,12 +39,12 @@ show_help() {
 	The entry splitting can be avoided alltogether by providing the -S
 	option.
 
-	\$ $APP -a <pid>
+	\$ $APP -a [ <pid> ]
 	
 	displays all environment variables of the process as key=value pairs,
 	sorted by key.
 
-	\$ $APP [ -u | -s | -S ] -n <varname> <pid>
+	\$ $APP [ -u | -s | -S ] -n <varname> [ <pid> ]
 	
 	displays only the value of environment variable <varname>.
 	
@@ -76,18 +80,17 @@ show_help() {
 
 
 die() {
-	echo "ERROR: $*" >& 2
+	{
+		echo "ERROR: $*"
+		echo
+		echo "$APP --help will display help."
+	} >& 2
 	false; exit
 }
 
 
 run() {
 	"$@" || die "Could not execute >>>$*<<<: Return code ${?}!"
-}
-
-
-system() {
-	REPLY=`run "$@"` || exit
 }
 
 
@@ -140,19 +143,20 @@ do
 	esac
 done
 shift `expr $OPTIND - 1`
-if test $# != 1 || test -z "$1"
-then
-	echo "Incorrect number of arguments!" >& 2
-	show_help
-	exit
-fi
+pid=$1; shift
+test $# = 0 || die "Incorrect number of arguments!"
 # Auto-enable splitting for a few well-known variables.
 case $NAME in
 	PATH | LANGUAGE | NLSPATH | LD_LIBRARY_PATH) SPLIT=Y
 esac
 test -n "$DONTSPLIT" &&	SPLIT=
-info=/proc/$1/environ
-test -f "$info" || die "Process PID $1 does not (any longer?) exist!"
+if test -z "$pid"
+then
+	pid=${$##*/}
+	run test -n "$pid"
+fi
+info=/proc/$pid/environ
+test -f "$info" || die "Process PID $pid does not (any longer?) exist!"
 if test -n "$SPLIT"
 then
 	case $DELIMITER in
