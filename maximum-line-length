@@ -6,7 +6,61 @@
 # This source file is free software.
 # Distribution is permitted under the terms of the GPLv3.
 exec awk '
-	BEGIN {max= 0}
-	{n= length($0); if (n > max) max= n}
-	END {print max}
+	BEGIN {max= 0; llwe= 0; lfht= 0; tabs= 0; lf= ""}
+
+	function inform(msg) {
+		print msg > "/dev/stderr"
+	}
+	
+	function bfn(fn) {
+		return fn == "-" ? "(standard input)" : fn;
+	}
+	
+	function warn(problem) {
+		inform(bfn(FILENAME) ":" FNR ": Warning: " problem)
+	}
+
+	function warnf(problem) {
+		inform(bfn(lf) ": Warning: " problem)
+	}
+
+	function chkll() {
+		if (FILENAME == lf) return
+		if (llwe) {
+			warnf( \
+				"Contains empty (or " \
+				"whitespace-only) lines at EOF!" \
+			)
+		}
+		if (lfht) {
+			warnf("Contains \\t'"'"'s!")
+			tabs= 1; lfht= 0
+		}
+	}
+
+	{
+		chkll()
+		line= gensub("[ \t]$", "", "G")
+		if (line != $0) warn( \
+			"Trailing whitespace at EOL " \
+			"(ignored for determining width)!" \
+		)
+		if (index(line, "\t")) lfht= 1
+		n= length(line); if (n > max) max= n
+		llwe= line == ""; lf= FILENAME
+	}
+
+	END {
+		chkll()
+		if (tabs) {
+			inform( \
+				"Cannot determine maximum length, because " \
+				"some of the files contained \\t'"'"'s.\n" \
+				"Please filter input " \
+				"through '"'"'expand'"'"'!" \
+			)
+			exit 1
+		}
+		print max
+	}
 ' "$@"
