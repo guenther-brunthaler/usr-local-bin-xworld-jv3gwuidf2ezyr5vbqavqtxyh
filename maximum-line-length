@@ -1,0 +1,12 @@
+#! /bin/sh
+# Determine the maximum line length (in characters) for
+# stdin or all of files specified as arguments.
+#
+# (c) 2012 by Guenther Brunthaler.
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+exec awk '
+	BEGIN {max= 0}
+	{n= length($0); if (n > max) max= n}
+	END {print max}
+' "$@"
