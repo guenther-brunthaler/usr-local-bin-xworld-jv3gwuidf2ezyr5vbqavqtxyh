@@ -1,0 +1,106 @@
+#! /bin/sh
+# Determine the maximum line length (in characters) for
+# stdin or all of files specified as arguments.
+#
+# (c) 2012 by Guenther Brunthaler.
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+exec awk '
+	BEGIN {
+		tabwidth= 8
+		tabs= "\\t'"'"'s"
+		max= llwe= lfhgt= lfhbt= badtabs= goodtabs= 0
+		lfhna= nonasciis= 0
+		indent= lf= ""
+		for (i= 1; i <= tabwidth; ++i) indent= indent " "
+	}
+
+	function inform(msg) {
+		print msg > "/dev/stderr"
+	}
+
+	function bfn(fn) {
+		return fn == "-" ? "(standard input)" : fn;
+	}
+
+	function warn(problem) {
+		inform(bfn(FILENAME) ":" FNR ": Warning: " problem)
+	}
+
+	function warnf(problem) {
+		inform(bfn(lf) ": Warning: " problem)
+	}
+
+	function chkll(nfn) {
+		if (nfn == lf) return
+		if (llwe) {
+			warnf( \
+				"Contains empty (or " \
+				"whitespace-only) lines at EOF!" \
+			)
+		}
+		if (lfhbt) {
+			warnf("Contains embedded " tabs "!")
+			++badtabs; lfhbt= 0
+		}
+		if (lfhgt) {
+			++goodtabs; lfhgt= 0
+		}
+		if (lfhna) {
+			++nonasciis; lfhna= 0
+		}
+	}
+
+	{
+		chkll(FILENAME)
+		for (line= $0;; line= line0) {
+			line0= gensub("^( *)\t", "\\1" indent, "G", line)
+			if (line == line0) break
+		}
+		if (line0 != $0) lfhgt= 1;
+		line= gensub("[ \t]*$", "", "G", line0)
+		if (line != line0) warn( \
+			"Trailing whitespace at EOL " \
+			"(ignored for determining width)!" \
+		)
+		line0= gensub("[\000-\037\177-\377]*", "", "G", line)
+		if (line != line0) lfhna= 1
+		if (index(line, "\t")) lfhbt= 1
+		n= length(line); if (n > max) max= n
+		llwe= line == ""; lf= FILENAME
+	}
+
+	END {
+		chkll("")
+		if (badtabs) {
+			inform( \
+				"Cannot determine maximum length, because " \
+				"some of the files contained embedded " \
+				tabs ".\n" \
+				"Please filter input " \
+				"through '"'"'expand'"'"'!" \
+			)
+			exit 1
+		}
+		if (goodtabs) {
+			inform( \
+				goodtabs " of the input file(s) contained " \
+				"leading " tabs " for indentation.\n" \
+				"Those have been interpreted as 8 spaces.\n" \
+				"Please filter input files " \
+				"through '"'"'expand'"'"' if you\n" \
+				"prefer a different interpretation." \
+			)
+		}
+		if (nonasciis) {
+			inform( \
+				"Warning - result is inaccurate because " \
+				nonasciis " of the file(s)\n" \
+				"contained non-printable or " \
+				"non-ASCII characters\n" \
+				"which might have an unknown display width." \
+			)
+		}
+		print max
+	}
+' "$@"

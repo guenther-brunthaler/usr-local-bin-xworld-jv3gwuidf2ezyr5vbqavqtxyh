@@ -16,13 +16,13 @@ show_help() {
 
 	$APP takes a "series.guards" file and expands a "series" file from it
 	using the "guard" tool.
-	
+
 	Usage: $APP [ options ]
-	
+
 	options:
 
 	--help, -h: Display this help text.
-	
+
 	--host <fqdn>, --override-host <fqdn>, --machine <fqdn>, -m <fqdn>:
 	Override the fully qualified default domain name of the current host
 	machine, using the specified instead. Useful for testing expansion of
@@ -44,36 +44,36 @@ show_help() {
 	output of the expansion will be written to the 'series' file
 	("$SERIES" or whatever has been specified for the
 	'--series-file'-option).
-	
+
 	--version: Display version information.
 
 	The "guard" tool is part of the "quilt" patch queue manager
 	distribution and works like a simple macro preprocessor.
-	
+
 	In normal operation, $APP runs the "guard" tool, feeding it
 	"$SERIES_GUARDS" as input and letting it create "$SERIES" as its
 	output.
-	
+
 	The "$SERIES_GUARDS" consists of a list of patch files which might be
 	prefixed with conditions. Those conditions determine whether a patch
 	file is passed through to the "$SERIES" file or is discarded on
 	output.
-	
+
 	The conditions are of the form +symbol, -symbol etc. (see the "guards"
 	documentation for details) which pass through patch filenames
 	depending on whether or not a specific symbol is defined or not.
-	
+
 	$APP automatically defines a list of symbols to be checked against
 	based on the fully qualified (default) domain name of the host
 	machine.
-	
+
 	To be more specific, it generates the current host's fully qualified
 	(default) domain name as a symbol, as well as all of its superdomains.
-	
+
 	For instance, if the current machine has the FQDN
 	"gateway2.mars.hyperspace.example.com", then the following
 	symbols will be defined:
-	
+
 	EOF
 	wr . <<- EOF
 	* gateway2.mars.hyperspace.example.com
@@ -87,10 +87,10 @@ show_help() {
 	In addition to those symbols, a number of additional symbols will be
 	defined which represent other import aspects of the machine
 	configuration.
-	
+
 	In the case of the local machine, the following symbols are currently
 	defined:
-	
+
 	EOF
 	enum_tokens display_tokens
 	echo
@@ -205,10 +205,10 @@ while true; do
 	# Any arguments are at $1 and onwards; must be shifted off.
 	case "$COPT" in
 		--) break;; # Must be first!
-                --help | -h) show_help | less --quit-if-one-screen; exit;;
-                --host | --override-host | --machine | -m)
-                	FQDN="$1"; shift
-                	;;
+		--help | -h) show_help | less --quit-if-one-screen; exit;;
+		--host | --override-host | --machine | -m)
+			FQDN="$1"; shift
+			;;
 		--version) show_version; exit;;
 		--check | -c) CHECK=1;;
 		--series-file | -s) SERIES="$1"; shift;;
