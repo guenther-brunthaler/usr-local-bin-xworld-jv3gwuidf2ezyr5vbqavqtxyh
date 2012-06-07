@@ -40,7 +40,7 @@ cleanup() {
 # Replace all char $2 in string $1 by string $3.
 # $3 does not contain any $2. Place result in $REPLY.
 subst() {
-	local i, h, t
+	local i h t
 	i=$1
 	REPLY=
 	while test -n "$i"
