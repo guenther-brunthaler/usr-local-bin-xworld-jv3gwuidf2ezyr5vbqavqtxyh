@@ -28,12 +28,27 @@ system() {
 
 
 getid() {
-	run bzr nick | md5sum -b | cut -c-32
+	run printf '%s\n' "$1" | md5sum -b | cut -c-32
 }
 
 
 cleanup() {
 	rm -rf --one-file-system "$TDIR" 2> /dev/null
+}
+
+
+# Replace all char $2 in string $1 by string $3.
+# $3 does not contain any $2. Place result in $REPLY.
+subst() {
+	local i, h, t
+	i=$1
+	REPLY=
+	while test -n "$i"
+	do
+		t=${i#?}; h=${i%"$t"}
+		test x"$h" = x"$2" && h=$3
+		REPLY=$REPLY$h; i=$t
+	done	
 }
 
 
@@ -55,7 +70,8 @@ done
 shift `expr $OPTIND - 1`
 
 test -d .bzr || die "Run this from a bzr checkout/branch root dir!"
-system getid; repoid=$REPLY
+system bzr nick; BNAME=$REPLY
+system getid "$BNAME"; repoid=$REPLY
 
 run test -n "$HOME"
 run test -d "$HOME"
@@ -68,11 +84,15 @@ test -d "$LCD" || mkdir -m 700 -p "$LCD"
 lcf=$LCD/$repoid.txt
 if test -f "$lcf"
 then
-	system cat "$lcf"; lcid=$REPLY
+	system head -n1 "$lcf"; lcid=$REPLY
 else
 	lcid=
 fi
-test -n "$UPSTREAM_REV" && lcid=$UPSTREAM_REV
+if test -n "$UPSTREAM_REV"
+then
+	lcid=$UPSTREAM_REV
+	echo "Overriding last known upstream revno as $lcid."
+fi
 
 system hostname; hqual=${REPLY:+"-"}$REPLY
 arch=bzr$hqual.ar
@@ -82,6 +102,7 @@ then
 	arch=$DIR/$arch
 	test -f "$arch" || die "$arch does not exist yet!"
 	run test -d "$DESTDIR"
+	echo "Moving archive '$arch' to directory '$DESTDIR'."
 	run mv -i "$arch" "$DESTDIR"/
 	exit
 fi
@@ -111,18 +132,26 @@ else
 fi
 
 mdrc=$repoid${lc:+"-"}$lc.bzr
-run bzr send -o "$TDIR/$mdrc" --no-patch "$upstream"
+run bzr send -o "$TDIR/mdrc" --no-patch "$upstream"
 
 (
 	run cd "$TDIR"
-	if test -z "$TRUNCATE"
+	esc="<${UUID}_escape>"
+	subst "$BNAME" ',' "$esc"
+	run sed -e "
+		s,\(^ *# *target_branch: *\).*,\1$REPLY,
+		s/$esc/,/g
+	" mdrc > "$mdrc"
+	if test -n "$TRUNCATE"
 	then
+		echo "Truncating archive before adding commits."
+	else
 		test -f "$DIR/$arch" && run cp "$DIR/$arch" .
 	fi
 	run ar q "$arch" "$mdrc"
 	run mv "$arch" "$DIR"/
 ) || exit
-run printf '%s\n' "$lc" > "$lcf"
+run printf '%s\n%s\n' "$lc" "$BNAME" > "$lcf"
 vs=`expr $lc - ${lcid:-0}`
 echo "Successfully added $vs commits!"
 echo "Here are the last entries in the queue:"
