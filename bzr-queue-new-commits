@@ -43,7 +43,7 @@ APP=${0##*/}
 MODE=enqueue
 UPSTREAM_REV=
 TRUNCATE=
-while getopts m:TU OPT
+while getopts m:TU: OPT
 do
 	case $OPT in
 		m) MODE=move; DESTDIR=$OPTARG;;
