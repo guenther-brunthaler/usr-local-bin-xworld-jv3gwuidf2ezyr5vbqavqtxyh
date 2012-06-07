@@ -1,0 +1,101 @@
+#! /bin/sh
+#
+# Append the new commits as a merge directive to a
+# per-user archive of queued commits.
+#
+# The merge directive will be named like the branch nick.
+#
+# (c) 2012 by Günther Brunthaler.
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>$*<< failed, return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+getid() {
+	run bzr nick | md5sum -b | cut -c-32
+}
+
+
+cleanup() {
+	rm -rf --one-file-system "$TDIR" 2> /dev/null
+}
+
+
+UUID="ryflfezxve6lbrwblu1rhddbx"
+APP=${0##*/}
+
+test -d .bzr || die "Run this from a bzr checkout/branch root dir!"
+system getid; repoid=$REPLY
+
+run test -n "$HOME"
+run test -d "$HOME"
+: ${XDG_DATA_HOME:=$HOME/.local/share}
+DIR=$XDG_DATA_HOME/${APP}_$UUID
+test -d "$DIR" || mkdir -m 700 -p "$DIR"
+LCD=$DIR/lastcommits
+test -d "$LCD" || mkdir -m 700 -p "$LCD"
+
+lcf=$LCD/$repoid.txt
+if test -f "$lcf"
+then
+	system cat "$lcf"; lcid=$REPLY
+else
+	lcid=
+fi
+
+system bzr revno; lc=$REPLY
+if test $lc -le ${lcid:-0}
+then
+	echo "Already done; nothing to do."
+	exit
+fi
+
+while :
+do
+	system tempfile; TDIR=$REPLY
+	run rm "$TDIR"
+	mkdir -m 700 "$TDIR" && break
+done
+trap cleanup 0
+
+upstream=$TDIR/upstream
+if test -n "$lcid"
+then
+	run bzr branch -r$lcid --no-tree . "$upstream"
+else
+	run bzr init "$upstream"
+	run bzr remove-tree "$upstream"
+fi
+
+mdrc=$repoid${lc:+"-"}$lc.bzr
+run bzr send -o "$TDIR/$mdrc" --no-patch "$upstream"
+
+system hostname; hqual=${REPLY:+"-"}$REPLY
+arch=bzr$hqual.ar
+(
+	run cd "$TDIR"
+	test -f "$DIR/$arch" && run cp "$DIR/$arch" .
+	run ar q "$arch" "$mdrc"
+	run mv "$arch" "$DIR"/
+) || exit
+run printf '%s\n' "$lc" > "$lcf"
+vs=`expr $lc - ${lcid:-0}`
+echo "Successfully added $vs commits!"
+echo "Here are the last entries in the queue:"
+run ar t "$DIR/$arch" | tail
