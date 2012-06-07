@@ -40,6 +40,20 @@ cleanup() {
 UUID="ryflfezxve6lbrwblu1rhddbx"
 APP=${0##*/}
 
+MODE=enqueue
+UPSTREAM_REV=
+TRUNCATE=
+while getopts m:TU OPT
+do
+	case $OPT in
+		m) MODE=move; DESTDIR=$OPTARG;;
+		T) TRUNCATE=Y;;
+		U) UPSTREAM_REV=$OPTARG;;
+		*) exit;
+	esac
+done
+shift `expr $OPTIND - 1`
+
 test -d .bzr || die "Run this from a bzr checkout/branch root dir!"
 system getid; repoid=$REPLY
 
@@ -57,6 +71,19 @@ then
 	system cat "$lcf"; lcid=$REPLY
 else
 	lcid=
+fi
+test -n "$UPSTREAM_REV" && lcid=$UPSTREAM_REV
+
+system hostname; hqual=${REPLY:+"-"}$REPLY
+arch=bzr$hqual.ar
+
+if test x"$MODE" = x"move"
+then
+	arch=$DIR/$arch
+	test -f "$arch" || die "$arch does not exist yet!"
+	run test -d "$DESTDIR"
+	run mv -i "$arch" "$DESTDIR"/
+	exit
 fi
 
 system bzr revno; lc=$REPLY
@@ -86,11 +113,12 @@ fi
 mdrc=$repoid${lc:+"-"}$lc.bzr
 run bzr send -o "$TDIR/$mdrc" --no-patch "$upstream"
 
-system hostname; hqual=${REPLY:+"-"}$REPLY
-arch=bzr$hqual.ar
 (
 	run cd "$TDIR"
-	test -f "$DIR/$arch" && run cp "$DIR/$arch" .
+	if test -z "$TRUNCATE"
+	then
+		test -f "$DIR/$arch" && run cp "$DIR/$arch" .
+	fi
 	run ar q "$arch" "$mdrc"
 	run mv "$arch" "$DIR"/
 ) || exit
