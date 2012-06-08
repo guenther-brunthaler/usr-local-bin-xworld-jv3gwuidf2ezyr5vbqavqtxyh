@@ -1,0 +1,77 @@
+#! /bin/sh
+# Synthesizes local IPv4 addresses from FQDNs as used in xworld domain.
+#
+# Without any FQDNs as arguments, uses all FQDNs from /etc/hosts
+# that refer to IPv4 addresses in the range reserved for local nets as
+# well as all IP-addresses starting with "0.".
+#
+# (c) 2012 by Guenther Brunthaler.
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+
+s2md5uc() {
+	printf '%s' "$1" | md5sum -b | cut -c-32 | awk '{print toupper($0)}'
+}
+
+
+get_from_etc_hosts() {
+	sed -e "
+		s,`printf '[\t ]'`\+, ,g
+		s,^ *,,
+		s, *$,,
+	" < /etc/hosts \
+	| awk '
+		$1 ~ /^[0-9]/ && $2 != "" {
+			if ( \
+				split($1, ip, "[.]") == 4 && ( \
+					ip[1] == 10 \
+					|| ip[1] == 127 && ( \
+						ip[2] || ip[3] || ip[4] != 1 \
+					) \
+					|| ip[1] == 0 \
+					|| ip[1] == 192 && ip[2] == 168 \
+					|| ip[1] == 169 && ip[2] == 254 \
+					|| ip[1] == 172 && ( \
+						(ip[2] - ip[2] % 16) / 16 \
+						== 16 \
+					) \
+				) \
+			) { \
+				print $2
+			}
+		}
+	'
+}
+
+
+LC_ALL=C
+export LC_ALL
+test $# = 0 && set -- `get_from_etc_hosts`
+while :
+do
+	fqdn=${1:?Usage: ${0##*/} <fqdn> ...}
+	host_name=${fqdn%%.*}
+	if test x"$host_name" = x"$fqdn"
+	then
+		network_name=
+	else
+		network_name=${fqdn#*.}
+	fi
+	host_id=`s2md5uc "$host_name"`
+	network_id=`s2md5uc "$network_name"`
+	x_y_z=`
+		dc -e "
+			16 i
+			$network_id FE % 1 + n
+			[.] n
+			$host_id FFFE % 1 + d
+			100 / n
+			[.] n
+			100 % n
+		"
+	`
+	printf '10.%s\t%s\n' $x_y_z "$fqdn"
+	shift
+	test $# = 0 && break
+done
