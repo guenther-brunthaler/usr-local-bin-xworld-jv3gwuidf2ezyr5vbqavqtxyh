@@ -11,6 +11,8 @@ s2md5uc() {
 }
 
 
+LC_ALL=C
+export LC_ALL
 while :
 do
 	fqdn=${1:?Usage: ${0##*/} <fqdn> ...}
@@ -25,9 +27,13 @@ do
 	network_id=`s2md5uc "$network_name"`
 	x_y_z=`
 		dc -e "
-			1 16 i $network_id FE % + n
-			[.] n 1 $host_id FFFE % + d 100 / n
-			[.] n 100 % n
+			16 i
+			$network_id FE % 1 + n
+			[.] n
+			$host_id FFFE % 1 + d
+			100 / n
+			[.] n
+			100 % n
 		"
 	`
 	printf '10.%s\t%s\n' $x_y_z "$fqdn"
