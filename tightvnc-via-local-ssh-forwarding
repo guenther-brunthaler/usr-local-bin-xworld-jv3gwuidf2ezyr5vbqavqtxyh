@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 11.200
+	$APP version 12.164
 
-	(c) 2009 - 2011 by Guenther Brunthaler.\n
+	(c) 2009 - 2012 by Guenther Brunthaler.\n
 	This source file is free software.\n
 	Distribution is permitted under the terms of the GPLv3.
 .
@@ -114,12 +114,68 @@ wr() {
 LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
 
 
+check_viewer() {
+	VNCVIEWER=`which "$1" 2> /dev/null`
+	if test -z "$VNCVIEWER" || test ! -f "$VNCVIEWER" \
+		|| test ! -x "$VNCVIEWER"
+	then
+		VNCVIEWER=/usr/bin/$1
+	fi
+	test -f "$VNCVIEWER" && test -x "$VNCVIEWER"
+}
+
+
+use_tigervnc() {
+	# TigerVNC.
+	set -- "$VNCVIEWER"
+	test -n "$PWDFILE" && set -- "$@" --PasswordFile="$PWDFILE"
+	if test -n "$COMPAT"
+	then
+		set -- "$@" --ZlibLevel=9
+	else
+		set -- "$@" --CompressLevel="$COMPRESSION" \
+			--QualityLevel="$QUALITY"
+	fi
+	set -- "$@" --Shared=1 --AutoSelect=0 localhost:"$VNCDISPLAY"
+	run exec "$@"
+}
+
+
+use_tightvnc() {
+	# TightVNC.
+	set -- "$VNCVIEWER"
+	test -n "$PWDFILE" && set -- "$@" --passwd "$PWDFILE"
+	set -- "$@" -compresslevel "$COMPRESSION" -quality "$QUALITY" \
+		-encodings "copyrect tight hextile" localhost::$PORT
+	run exec "$@"
+}
+
+
+use_vnc() {
+	# Fallback/default: Plain VNC.
+	set -- "$VNCVIEWER"
+	test -n "$PWDFILE" && set -- "$@" --passwd "$PWDFILE"
+	set -- "$@" -encodings "copyrect hextile" localhost::$PORT
+	run exec "$@"
+}
+
+
+use_ssvnc() {
+	# ssvncviewer.
+	set -- "$VNCVIEWER"
+	test -n "$PWDFILE" && set -- "$@" -passwd "$PWDFILE"
+	set -- "$@" -compresslevel "$COMPRESSION" -quality "$QUALITY" \
+		-encodings "copyrect tight hextile" localhost::$PORT
+	run exec "$@"
+}
+
+
 # Start of command line processing.
 # Define presets.
 VERBOSE=
 COMPAT=
 DRY=
-QUALITY=4
+QUALITY=3
 COMPRESSION=9
 PORT=5900
 PWDFILE="$HOME/.vnc/client_passwd"
@@ -165,42 +221,21 @@ test $# = 0 || die "Unexpected excess arguments: $*"
 # End of command line processing.
 inform "Assumption: Local port $PORT has been forwarded (i. e. via SSH)"
 inform "to remote TightVNC server."
-VNCVIEWER=`which vncviewer 2> /dev/null`
-if
-	test -z "$VNCVIEWER" || test ! -f "$VNCVIEWER" \
-	|| test ! -x "$VNCVIEWER"
-then
-	VNCVIEWER=/usr/bin/vncviewer
-fi
-run -always test -f "$VNCVIEWER"; run -always test -x "$VNCVIEWER"
 run -always test "$PORT" -ge 5900
 VNCDISPLAY=`expr $PORT - 5900`
 run -always test "$VNCDISPLAY" -ge 0
-set -- "$VNCVIEWER"
-if
-	"$VNCVIEWER" --help 2>& 1 | grep -qi TigerVNC
+if check_viewer ssvncviewer
 then
-	# TigerVNC.
-	test -n "$PWDFILE" && set -- "$@" --PasswordFile="$PWDFILE"
-	if
-		test -n "$COMPAT"
+	use_ssvnc
+elif check_viewer vncviewer
+then
+	if "$VNCVIEWER" --help 2>& 1 | grep -qi TigerVNC
 	then
-		set -- "$@" --ZlibLevel=9
+		use_tigervnc
+	elif "$VNCVIEWER" --help 2>& 1 | grep -qi TightVNC
+	then
+		use_tightvnc
 	else
-		set -- "$@" --CompressLevel="$COMPRESSION" \
-			--QualityLevel="$QUALITY"
+		use_vnc
 	fi
-	set -- "$@" --Shared=1 --AutoSelect=0 localhost:"$VNCDISPLAY"
-elif
-	"$VNCVIEWER" --help 2>& 1 | grep -qi TightVNC
-then
-	# TightVNC.
-	test -n "$PWDFILE" && set -- "$@" --passwd "$PWDFILE"
-	set -- "$@" -compresslevel "$COMPRESSION" -quality "$QUALITY" \
-		-encodings "copyrect tight hextile" localhost::$PORT
-else
-	# Default: Plain VNC.
-	test -n "$PWDFILE" && set -- "$@" --passwd "$PWDFILE"
-	set -- "$@" -encodings "copyrect hextile" localhost::$PORT
 fi
-run exec "$@"
