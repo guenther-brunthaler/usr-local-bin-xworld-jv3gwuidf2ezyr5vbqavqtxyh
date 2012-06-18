@@ -11,7 +11,8 @@
 
 
 s2md5uc() {
-	printf '%s' "$1" | md5sum -b | cut -c-32 | awk '{print toupper($0)}'
+	printf '%s' "$1" | "$MD5SUM" -b \
+		| cut -c-32 | awk '{print toupper($0)}'
 }
 
 
@@ -45,6 +46,8 @@ get_from_etc_hosts() {
 }
 
 
+MD5SUM=`which md5sum` || exit
+DC=`which dc` || exit
 LC_ALL=C
 export LC_ALL
 test $# = 0 && set -- `get_from_etc_hosts`
@@ -61,7 +64,7 @@ do
 	host_id=`s2md5uc "$host_name"`
 	network_id=`s2md5uc "$network_name"`
 	x_y_z=`
-		dc -e "
+		"$DC" -e "
 			16 i
 			$network_id FE % 1 + n
 			[.] n
