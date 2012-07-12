@@ -1,0 +1,16 @@
+#! /bin/sh
+# Append the output of this script to your ~/.Xmodmap, then uncomment the
+# "keycode ="-lines you want to use and replace the '?' with the raw key to be
+# mapped (which has been determined by running 'xev').
+#
+# (c) 2012 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+sed -e '
+	s,^ *#define \(XF86\)XK_\([-_.A-Za-z0-9]*\) *\(.*0x[0-9A-Fa-f]*.*/[*] *\(.*[^ ]\) *[*]/\)\?.*,\1\2:\4:,
+	t c
+	d
+	:c
+	s,^\([^:]*\):\(.*\):$,! \2\n!keycode ? = \1\n,
+' /usr/include/X11/XF86keysym.h \
+| sed -e '/^!\( *[?]*\)\? *$/ d'
