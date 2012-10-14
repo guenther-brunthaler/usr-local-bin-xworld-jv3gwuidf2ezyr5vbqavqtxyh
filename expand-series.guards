@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 8.337
-	(c) 2008 by Guenther Brunthaler.
+	$APP Version 12.286
+	(c) 2008 - 2012 by Guenther Brunthaler.
 
 	This script is free software.
 	Distribution is allowed under the terms of the GPLv3.
@@ -150,7 +150,7 @@ enum_tokens() {
 		fi
 	done
 	CHOST=${PORTAGE_CONFIGROOT%%/}
-	CHOST="`. "$CHOST/etc/make.conf" && printf '%s\n' "$CHOST"`"
+	CHOST="`. "$CHOST/etc/portage/make.conf" && printf '%s\n' "$CHOST"`"
 	test -n "$CHOST" || die 'Could not determine $CHOST!'
 	set -- "$@" "$CHOST" "${CHOST%%-*}"
 	$CALLBACK "$@"

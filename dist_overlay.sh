@@ -44,7 +44,7 @@ DIST_DEEPSCAN_OPTS="-follow"
 ###########################################################
 # include variables from gentoo make.globals and make.conf
 source /etc/make.globals
-source /etc/make.conf
+source /etc/portage/make.conf
 PORTAGE_RSYNC_EXTRA_OPTS
 
 # some colors for colored output
