@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$APP version 10.185
+	$APP version 12.288
 
-	(c) 2010 by Guenther Brunthaler.
+	(c) 2010 - 2012 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -284,6 +284,7 @@ hex2base35() {
 sed_s() {
 	local REPSUB STR RE S
 	REPSUB=$1; shift; STR=$1; shift
+	RE=
 	for S
 	do
 		RE=$RE$S

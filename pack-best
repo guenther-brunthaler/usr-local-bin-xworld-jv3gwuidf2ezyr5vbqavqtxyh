@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 10.350
+	$APP version 12.288
 
-	(c) 2010 by Guenther Brunthaler.\n
+	(c) 2010 - 2012 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -112,6 +112,7 @@ write_ok() {
 
 try_better() {
 	local OUT EXTREME
+	EXTREME=
 	test x$1 = x-e && { EXTREME=${TRY_EXTREME:+$2}; shift 2; }
 	OUT=$IN.$1
 	test -n "$EXTREME" && {
@@ -157,6 +158,7 @@ try_better() {
 pack() {
 	local IN BEST SHORTEST REPLY TRY_EXTREME
 	IN=$1
+	BEST=
 	run test -f "$IN"
 	size "$IN"; SHORTEST=$REPLY
 	if test $SHORTEST -lt $EXTREME_THRESHOLD

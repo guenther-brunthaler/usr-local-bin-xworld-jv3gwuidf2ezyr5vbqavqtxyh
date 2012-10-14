@@ -1,8 +1,8 @@
 #! /bin/bash
 show_version() {
 	wr . <<- EOF
-	$APP Version 9.299
-	(c) 2009 by Guenther Brunthaler.
+	$APP Version 12.288
+	(c) 2009 - 2012 by Guenther Brunthaler.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -69,6 +69,7 @@ system() {
 # If $1 is ".", wrap only but do not fill paragraphs.
 wr() {
 	local S
+	S=
 	if test x"$1" = x"."; then
 		S=-s; shift
 	fi
@@ -108,7 +109,7 @@ process_args() {
 				*) break;;
 			esac
 		fi
-		if test "${COPTS#--}" = "$COPTS"
+		if test x"${COPTS#--}" = x"$COPTS"
 		then
 			TAIL="${COPTS#-?}"; # Switch clustering.
 			COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
@@ -116,7 +117,7 @@ process_args() {
 			COPT="$COPTS"; COPTS=
 		fi
 		# Any arguments are at $1 and onwards; must be shifted off.
-		case "$COPT" in
+		case $COPT in
 			--) break;; # Must be first!
 			--help | -h) show_help | less -e; exit;;
 			--version) show_version; exit;;

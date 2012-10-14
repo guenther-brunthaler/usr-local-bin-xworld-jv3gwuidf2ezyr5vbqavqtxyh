@@ -19,6 +19,7 @@ removewrite() {
 	local DEL NEW OIFS
 	DEL=$1
 	OIFS=$IFS; IFS=:; set --:$SANDBOX_WRITE; IFS=$OIFS
+	NEW=
 	while test $# -gt 0; do
 		test x"$1" != x"$DEL" && NEW=$NEW${NEW:+:}$1
 		shift

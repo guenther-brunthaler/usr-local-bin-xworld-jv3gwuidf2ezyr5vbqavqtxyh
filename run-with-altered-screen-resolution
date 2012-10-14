@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 11.267
-	(c) 2008 - 2011 by Guenther Brunthaler.
+	$APP Version 12.288
+	(c) 2008 - 2012 by Guenther Brunthaler.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -78,6 +78,7 @@ system() {
 # If $1 is ".", wrap only but do not fill paragraphs.
 wr() {
 	local S
+	S=
 	if test x"$1" = x"."; then
 		S=-s; shift
 	fi

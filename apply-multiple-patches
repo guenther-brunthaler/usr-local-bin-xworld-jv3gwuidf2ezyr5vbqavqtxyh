@@ -1,8 +1,4 @@
 #!/bin/sh
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/apply-multiple-patches $
-# $Author: root $
-# $Date: 2007-07-09T20:07:53.573575Z $
-# $Revision: 826 $
 
 
 usage() {
@@ -69,8 +65,8 @@ usage() {
 	  before succeeding, each patch might actually be
 	  attempted multiple times before it is finally applied.
 
-	Version 1.0
-	Written by Guenther Brunthaler in 2007.
+	Version 12.288
+	(c) 2007 - 2012 by Guenther Brunthaler
 	EOT
 }
                                                                                                                              
@@ -92,6 +88,7 @@ inform() {
 
 run() {
 	local TRY RC
+	TRY=
 	while true; do
 		case $1 in
 			--) shift; break;;

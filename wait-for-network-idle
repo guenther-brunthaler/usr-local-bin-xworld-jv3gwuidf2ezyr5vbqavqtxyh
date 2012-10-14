@@ -1,8 +1,4 @@
 #!/bin/sh
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/wait-for-network-idle $
-# $Author: root $
-# $Date: 2007-07-21T19:23:47.207145Z $
-# $Revision: 850 $
 
 
 usage() {
@@ -57,8 +53,8 @@ usage() {
 	The tools will return a status code of 2 if any errors
 	occur during processing.
 
-	Version 1.1
-	Written by Guenther Brunthaler in 2010.
+	Version 12.288
+	(c) 2010 - 2012 by Guenther Brunthaler
 .
 }
                                                                                                                              
@@ -80,6 +76,7 @@ inform() {
 
 run() {
 	local TRY RC
+	TRY=
 	while true; do
 		case "$1" in
 			--) shift; break;;

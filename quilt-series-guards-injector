@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 10.207
+	$APP version 12.288
 
-	(c) 2010 by Guenther Brunthaler.\n
+	(c) 2010 - 2012 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
 .
 }

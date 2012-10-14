@@ -1,10 +1,4 @@
-#!/bin/false
-#
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/xworld/functions/lookup.sh $
-# $Author: root(xtreme) $
-# $Date: 2006-08-23T03:52:25.392812Z $
-# $Revision: 221 $
-
+#! /bin/false
 # Source this file from within your script file.
 #
 # It will set up the specified environment variables
@@ -79,7 +73,7 @@
 
 die_pm7csrzj8zcp2p5kh63vcrxia() {
 	echo "ERROR in 'lookup.sh' (called from '$0'): $*" >& 2
-	exit 1
+	false; exit
 }
 
 
@@ -88,74 +82,85 @@ die_pm7csrzj8zcp2p5kh63vcrxia() {
 # characters which may cause problems.
 get_absname_pm7csrzj8zcp2p5kh63vcrxia() {
 	local N D ORIG FROM INTO
-	N="$1"
-	while true; do
+	N=$1
+	while :
+	do
 		# Already absolute?
-		test "${N#/}" != "$N" && break
+		test x"${N#/}" != x"$N" && break
 		# Filename only?
-		if [ \( ! -e "$N" \) -a "${N#*/}" = "$N" ]; then
-			N="$(which -- "$N")"
+		if test ! -e "$N" && test x"${N#*/}" = x"$N"
+		then
+			N=`which -- "$N"`
 			break
 		fi
 		# Must be relative to current directory.
-		D="$(pwd)"
-		N="$D${D:+/}$N"
+		D=`pwd`
+		N=$D${D:+/}$N
 		break
 	done
-	if [ ! -f "$N" ]; then
+	if test ! -f "$N"
+	then
 		die_pm7csrzj8zcp2p5kh63vcrxia \
-			"Cannot locate script '$ORIG'!"
+			"Cannot locate script '$N'!"
 	fi
 	# Strip leading slash.
-	N="${N#/}"
-	ORIG="$N"
+	N=${N#/}
+	ORIG=$N
 	# Now "interpret" the path; i. e. resolve it step by step,
 	# while keeping track of the resulting canonical path.
 	NS=
-	while [ -n "$ORIG" ]; do
-		N="${ORIG%%/*}"
-		if [ "$N" = "$ORIG" ]; then
+	while test -n "$ORIG"
+	do
+		N=${ORIG%%/*}
+		if test x"$N" = x"$ORIG"
+		then
 			ORIG=
 		else
-			ORIG="${ORIG#*/}"
+			ORIG=${ORIG#*/}
 		fi
-		case "$N" in
+		case $N in
 			.)	;;
-			..)	NS="${NS%/*}";;
-			*)	NS="$NS${NS:+/}$N";;
+			..)	NS=${NS%/*};;
+			*)	NS=$NS${NS:+/}$N;;
 		esac
 	done
 	# URL-encode problematic characters.
 	for D in %25 ' 20' /2F @40 '$24' :3A; do
-		FROM="${D%??}"
-		INTO="%${D#$FROM}"
-		ORIG="$NS"
+		FROM=${D%??}
+		INTO=%${D#$FROM}
+		ORIG=$NS
 		NS=
-		while [ -n "$ORIG" ]; do
-			N="${ORIG%%$FROM*}"
-			if [ "$N" = "$ORIG" ]; then
+		while test -n "$ORIG"
+		do
+			N=${ORIG%%$FROM*}
+			if test x"$N" = x"$ORIG"
+			then
 				ORIG=
 			else
-				ORIG="${ORIG#*$FROM}"
+				ORIG=${ORIG#*$FROM}
 			fi
-			NS="$NS${NS:+$INTO}$N"
+			NS=$NS${NS:+$INTO}$N
 		done
 	done
 }
 
 
 getval_pm7csrzj8zcp2p5kh63vcrxia() {
-	if [ -f "$SF" ]; then
-		if [ -n "$ML" ]; then
+	if test -f "$SF"
+	then
+		if test -n "$ML"
+		then
 			VALUE=
-			while read LINE; do
-				VALUE="$VALUE$LINE$NL"
+			while read LINE
+			do
+				VALUE=$VALUE$LINE$NL
 			done < "$SF"
 		else
 			read VALUE <"$SF"
 		fi
-	elif [ -n "$HAVE_DFL" ]; then
-		VALUE="$DEFAULT"
+	elif test -n "$HAVE_DFL"
+	then
+		VALUE=$DEFAULT
 	else
 		die_pm7csrzj8zcp2p5kh63vcrxia \
 			"Cannot locate key '$KEY' (file '$SF')!"
@@ -164,8 +169,8 @@ getval_pm7csrzj8zcp2p5kh63vcrxia() {
 
 
 get_from_pm7csrzj8zcp2p5kh63vcrxia() {
-	case "$1" in
-		filename | system-key) OP="$1";;
+	case $1 in
+		filename | system-key) OP=$1;;
 		*)
 			die_pm7csrzj8zcp2p5kh63vcrxia \
 				"Unsupported --from argument '$1'!"
@@ -186,15 +191,16 @@ process_pm7csrzj8zcp2p5kh63vcrxia() {
 	# of the current interface.
 	# Always keep in sync with the example
 	# in the initial comments!
-	IFACE="1"
+	IFACE=1
 	#
-	SCRIPT="$0"
-	while true; do
-		case "$1" in
-			--key) SKEY="$2";;
-			--namespace) NS="$2";;
-			--script) SCRIPT="$2";;
-			--version) REQUIRE="$2";;
+	SCRIPT=$0
+	while :
+	do
+		case $1 in
+			--key) SKEY=$2;;
+			--namespace) NS=$2;;
+			--script) SCRIPT=$2;;
+			--version) REQUIRE=$2;;
 			-*)
 				die_pm7csrzj8zcp2p5kh63vcrxia \
 					"Unknown option '$1'!"
@@ -203,22 +209,25 @@ process_pm7csrzj8zcp2p5kh63vcrxia() {
 		esac
 		shift; shift
 	done
-	if [ -z "$REQUIRE" ]; then
+	if test -z "$REQUIRE"
+	then
 		die_pm7csrzj8zcp2p5kh63vcrxia \
 			"No interface version has been specified!"
-	elif [ "$REQUIRE" -gt "$IFACE" ]; then
+	elif test "$REQUIRE" -gt "$IFACE"
+	then
 		die_pm7csrzj8zcp2p5kh63vcrxia \
 			"The installed lookup.sh provides interface" \
 			"version $IFACE, but '$0' requested" \
 			"a newer version $REQUIRE!"
 	fi
-	if [ "$REQUIRE" -ne "$IFACE" ]; then
+	if test "$REQUIRE" -ne "$IFACE"
+	then
 		VALUE=
 		for LINE in \
 			"The installed lookup.sh provides interface" \
 			"version $IFACE, but '$0' requested the older" \
 			"version $REQUIRE! Update the script a.s.a.p."
-		do VALUE="$VALUE$LINE"$'\n'
+		do VALUE=$VALUE$LINE$'\n'
 		done
 		logger -p user.warning -t lookup.sh "$VALUE"
 	fi

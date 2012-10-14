@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$SCRIPT version 10.124
+	$SCRIPT version 12.288
 
-	(c) 2008 - 2010 by Guenther Brunthaler.
+	(c) 2008 - 2012 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -128,6 +128,7 @@ backparse_ws() {
 # Inserts a backslash before each character in $PATTERN.
 quote() {
 	local STRIPPED OUT
+	OUT=
 	while true; do
 		STRIPPED=${PATTERN#?}
 		test x"$STRIPPED" = x"$PATTERN" && break
