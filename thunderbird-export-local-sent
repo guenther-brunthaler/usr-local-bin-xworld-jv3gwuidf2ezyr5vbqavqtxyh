@@ -1,9 +1,4 @@
 #! /usr/bin/perl
-#
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/thunderbird-export-local-sent $
-# $Author: root(xvaio) $
-# $Date: 2006-10-05T20:52:36.492553Z $
-# $Revision: 326 $
 
 
 use strict;
@@ -25,9 +20,19 @@ die "Too many arguments" if @ARGV;
 unless ($server) {
    die 'Missing destination [user@]host specification' unless $dst;
 }
-my $base= $ENV{HOME} || die '$HOME not set';
-$base =~ s!/*$!/.thunderbird!;
-die "directory '$base' does not exist" unless -d $base;
+my $base;
+{
+   my $b2= $ENV{HOME} || die '$HOME not set';
+   foreach my $subdir (qw/.thunderbird .icedove/) {
+      my $d= $b2;
+      $d =~ s!/*$!/$subdir!;
+      if (-d $d) {
+         $base= $d;
+         last;
+      }
+   }
+}
+die "Mail base directory does not exist" unless $base;
 my $fh= new Lib::Workfile;
 $in= $fh->open(-filename => "$base/profiles.ini");
 my(%s, %sc);
