@@ -1,0 +1,39 @@
+#! /usr/bin/env lua-5.2
+assert(_VERSION == 'Lua 5.2')
+setmetatable(_ENV, {__newindex= function(_, v) error("global: " .. v, 2) end})
+
+local keep= "-A-Za-z0-9_.~"
+local ok= {}
+do
+   local first, last, lower, upper
+   local i= 1
+   while true do
+      first, last, lower, upper= string.find(keep, "^(.)-(.)", i)
+      if first then
+         lower, upper= string.byte(lower), string.byte(upper)
+         for j= lower, upper do ok[j]= true; end
+      else
+         first, last, lower= string.find(keep, "^(.)", i)
+         if not first then break; end
+         lower= string.byte(lower)
+         ok[lower]= true
+      end
+      i= last + 1
+   end
+end
+
+local out
+for _, s in ipairs(arg) do
+   out= {}
+   for i= 1, string.len(s) do
+      i= string.byte(s, i)
+      if ok[i] then
+         i= string.char(i)
+      else
+         assert(i < 128, "not an ASCII character")
+         i= string.format("%%%02x", i)
+      end
+      table.insert(out, i)
+   end
+   print(table.concat(out))
+end

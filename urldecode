@@ -1,0 +1,27 @@
+#! /usr/bin/env lua-5.2
+assert(_VERSION == 'Lua 5.2')
+setmetatable(_ENV, {__newindex= function(_, v) error("global: " .. v, 2) end})
+
+local function x2d(hex)
+   local res= {hex= hex}
+   local xpr= "dec= 0x" .. hex
+   assert(load(xpr, xpr, "t", res))()
+   return res.dec
+end
+
+local out, first, last, code, i
+for _, s in ipairs(arg) do
+   out= {}; i= 1
+   while true do
+      first, last, code= string.find(s, "^%%(%x%x)", i)
+      if first then
+         code= string.char(x2d(code))
+      else
+         first, last, code= string.find(s, "^(.)", i)
+         if not first then break; end
+      end
+      table.insert(out, code)
+      i= last + 1
+   end
+   print(table.concat(out))
+end
