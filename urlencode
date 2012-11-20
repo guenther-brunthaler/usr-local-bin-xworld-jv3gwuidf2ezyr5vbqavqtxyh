@@ -2,26 +2,34 @@
 assert(_VERSION == 'Lua 5.2')
 setmetatable(_ENV, {__newindex= function(_, v) error("global: " .. v, 2) end})
 
+-- URL-encodes any number of ASCII string arguments
+--
+-- (c) 2012 by Guenther Brunthaler.
+-- This script is free software.
+-- Distribution is permitted under the terms of the GPLv3.
+
 local keep= "-A-Za-z0-9_.~"
-local ok= {}
-do
+
+local function add_charclass_to_hash(h, ccl)
    local first, last, lower, upper
    local i= 1
    while true do
-      first, last, lower, upper= string.find(keep, "^(.)-(.)", i)
+      first, last, lower, upper= string.find(ccl, "^(.)-(.)", i)
       if first then
          lower, upper= string.byte(lower), string.byte(upper)
-         for j= lower, upper do ok[j]= true; end
+         for j= lower, upper do h[j]= true; end
       else
-         first, last, lower= string.find(keep, "^(.)", i)
+         first, last, lower= string.find(ccl, "^(.)", i)
          if not first then break; end
          lower= string.byte(lower)
-         ok[lower]= true
+         h[lower]= true
       end
       i= last + 1
    end
 end
 
+local ok= {}
+add_charclass_to_hash(ok, keep)
 local out
 for _, s in ipairs(arg) do
    out= {}

@@ -2,11 +2,17 @@
 assert(_VERSION == 'Lua 5.2')
 setmetatable(_ENV, {__newindex= function(_, v) error("global: " .. v, 2) end})
 
+-- Decodes any number of URL-encoded string arguments
+--
+-- (c) 2012 by Guenther Brunthaler.
+-- This script is free software.
+-- Distribution is permitted under the terms of the GPLv3.
+
 local function x2d(hex)
-   local res= {hex= hex}
-   local xpr= "dec= 0x" .. hex
-   assert(load(xpr, xpr, "t", res))()
-   return res.dec
+   local result= {}
+   local xpr= "d=0x" .. hex
+   assert(load(xpr, xpr, "t", result))()
+   return result.d
 end
 
 local out, first, last, code, i
