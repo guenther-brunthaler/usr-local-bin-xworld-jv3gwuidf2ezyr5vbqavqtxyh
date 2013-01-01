@@ -1,0 +1,223 @@
+#! /bin/sh
+show_version() {
+	wr <<- .
+	$APP version 13.1
+
+	(c) 2013 by Guenther Brunthaler.\n
+	This script file is free software.\n
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+
+show_help() {
+	wr <<- .
+	$APP - replace text within symlink target references
+	
+	$APP retrieves existing symlinks' target references as text, applies a
+	text substitution within each reference, and then sets the resulting
+	texts as the new target references.
+	
+	Use $APP when a subdirectory tree has been moved to a different base
+	location within the filesystem. It will allow existing symlinks
+	referencing the original tree to be redirected to the new tree
+	location without having to recreate them completely from scratch.
+	
+	$APP has three modes how text substitution is performed:
+	
+	* Without any options, a simple text string anchored at the beginning
+	of the symlink reference is matched. At most a single replacement per
+	symlink takes place.
+	
+	* With the -F option, a simple text string is found at any position
+	within the symlink reference. If multiple instances of the search
+	string are found, all of them will be replaced.
+	
+	* With the -r option, a basic regular expression can be specified as
+	the search string, and the replacement string may contain references
+	to captures. At most a single replacement per symlink takes place.
+
+
+	Usage: $APP [ options ] <searchexp> <replacement> <symlink> ...
+	
+	<searchexp> is the search expression. Depending on the search mode, it
+	is either a simple text string (which may include whitespace and
+	arbitrary symbol characters) or a basic regular expression. Don't
+	forget to properly escape the search expression argument in order to
+	protect it from automatic shell substitutions!
+	
+	<replacement> is the string to be substituted. In case of regular
+	expression searches only, this string may also contain capture
+	references like "\1" for the first captured subexpression.
+	
+	<symlink> is the first symlink argument to be processed. An arbitrary
+	number of symlink arguments can be specified.
+	
+
+	Options:
+
+	-F: Use instring searches replacing each found substring.\n
+	-r:\n
+	    Use regex searches and honor capture references in replacement
+	    string.\n
+	-g:\n
+	    Replace as many matches as possible even in anchored or regex
+	    search modes (which by default match at most once).\n
+	-q: Suppress output of diagnostic default messages.\n
+	-h: Display this help text.\n
+	-V: Display version information.\n
+	-v: Verbose operation.\n
+	-n:\n
+	    Just print what would be done, but don't actually do anything.\n
+.
+	println
+	show_version
+}
+
+
+set -e
+trap "echo 'Failed!' >& 2" 0
+
+
+usage() {
+	APP=${0##*/}
+	cat <<- . | wr
+.
+}
+
+
+println() {
+	printf '%s\n' "$*"
+}
+
+
+wr() {
+	local REPLY
+	while IFS= read -r REPLY
+	do
+		{
+			while test -n "$REPLY" || IFS= read -r REPLY
+			do
+				ORIG=$REPLY; REPLY=${REPLY%\\n}
+				println "$REPLY"
+				test x"$ORIG" != x"$REPLY"  && break
+				REPLY=
+			done
+		} | fmt -w "$LINEWIDTH" || exit
+	done
+}
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
+
+# $1: source, $2: search, $3: rplc, $4: flags.
+regexsubst() {
+	local e ei fbd
+	fbd="'"'^$"\*.[]'$2$3
+	ei=33
+	while :
+	do
+		e=`printf "%03o" $ei`
+		e=`printf "\\\\$e"`
+		test x"${fbd%"$e"*}" = x"$fbd" && break
+		ei=`expr $ei + 1`
+		test $ei != 127
+	done
+	test -n "$DEBUG" && echo "Escape char is >>>$e<<<" >& 2
+	printf '%s' "$1" | sed -e "s$e$2$e$3$e$4"
+}
+
+
+quotemeta_SEARCH() {
+	local
+	SEARCH=`regexsubst "$SEARCH" '\\([][^.$\\*]\\)' '\\\\\\\\\\1' g`
+}
+
+
+die() {
+	println "$*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Command >>>$*<<< failed with return code ${?}!"
+}
+
+
+exe() {
+	if test -n "$DRY_RUN"
+	then
+		echo "SIMULATION: $*" >& 2
+	else
+		run "$@"
+	fi
+}
+
+
+VERBOSE=
+DRY_RUN=
+SMODE=anchored
+RFLAGS=
+QUIET=
+DEBUG=
+while getopts FrngDqvhV OPT
+do
+	case $OPT in
+		F) SMODE=instring; RFLAGS=g;;
+		r) SMODE=regex;;
+		g) RFLAGS=g;;
+		q) QUIET=Y;;
+		v) VERBOSE=Y;;
+		D) DEBUG=Y;;
+		n) DRY_RUN=Y;;
+		h) show_help; trap - 0; exit;;
+		V) show_version; trap - 0; exit;;
+		*) false; exit
+	esac
+done
+shift `expr $OPTIND - 1`
+SEARCH=$1; shift
+test -n "$SEARCH" || die "Missing search expression!"
+test $# -gt 0 || die "Missing replacement string!"
+RPLC=$1; shift
+case $SMODE in
+	anchored) quotemeta_SEARCH; SEARCH='^'$SEARCH;;
+	instring) quotemeta_SEARCH
+esac
+if test -n "$DEBUG"
+then
+	echo "Search Regex: >>>$SEARCH<<<"
+	echo "Replacement Expression: >>>$RPLC<<<"
+fi >& 2
+TLINKS=0; PLINKS=0
+for SYMLINK
+do
+	test -L "$SYMLINK" || die ">>>$SYMLINK<<< ist not a symbolic link!"
+	OTARGET=`readlink "$SYMLINK"`
+	NTARGET=`regexsubst "$OTARGET" "$SEARCH" "$RPLC" "$RFLAGS"`
+	if test -n "$DEBUG"
+	then
+		echo "symlink path: >>>$SYMLINK<<<"
+		echo "old target: >>>$OTARGET<<<"
+		echo "new target: >>>$NTARGET<<<"
+	fi >& 2
+	TLINKS=`expr $TLINKS + 1`
+	test x"$OTARGET" = x"$NTARGET" && continue
+	if test -n "$VERBOSE"
+	then
+		echo "Retargeting symlink >>>$SYMLINK<<<"
+		echo "from >>>$OTARGET<<<"
+		echo "  to >>>$NTARGET<<<."
+		echo
+	fi >& 2
+	exe ln -snf -- "$NTARGET" "$SYMLINK"
+	PLINKS=`expr $PLINKS + 1`
+done
+if test -z "$QUIET"
+then
+	echo "$TLINKS total symlinks have been examined."
+	echo "$PLINKS symlinks have been retargeted."
+fi >& 2
+trap - 0
