@@ -1,0 +1,64 @@
+#! /bin/sh
+UUID=1hnl3x4t09zshghl88m997h4e
+test -n "$HOME" && test -d "$HOME"
+: ${XDG_DATA_HOME:=$HOME/.local/share}
+SETTINGSFILE=$XDG_DATA_HOME/misc/${0##*/}_${UUID}.cfg
+if test ! -e "$SETTINGSFILE"
+then
+	(
+		d=`dirname "$SETTINGSFILE"`
+		f=`basename "$SETTINGSFILE"`
+		ensure_dir() {
+			test -d "$1" && return
+			ensure_dir "`dirname \"$1\"`"
+			mkdir -m 700 "$1" || exit
+		}
+		ensure_dir "$d"
+		found=
+		for old in "$d"/*$UUID*
+		do
+			if test -f "$old"
+			then
+				mv -- "$old" "$SETTINGSFILE" || exit
+				found=Y
+				break
+			fi
+		done
+		if test -z "$found"
+		then
+			> "$SETTINGSFILE"
+			chmod 600 -- "$SETTINGSFILE"
+		fi
+	)
+fi
+basedir=`. "$SETTINGSFILE" && printf "%s\n" "$basedir"`
+b=${basedir:-"$HOME"}
+cppflags="-DNDEBUG"
+cflags="-pipe -Os -s -I$b/include"
+ldflags="-Wl,-O1 -Wl,--as-needed -Wl,--hash-style=gnu -L$b/lib"
+script="./configure"
+dry_run=
+while getopts b:p:s:c:l:n OPT
+do
+        case $OPT in
+        	b) b=$OPTARG;;
+        	p) cppflags="$OPTARG $cppflags";;
+		c) cflags="$OPTARG $cflags";;
+		l) ldflags="$OPTARG $ldflags";;
+		s) script=$OPTARG;;
+		n) dry_run=y;;
+		*) false; exit;;
+        esac
+done
+shift `expr $OPTIND - 1`
+test -n "$b" && test -d "$b" || exit
+if test x"$basedir" != x"$b"
+then
+	{
+		echo "basedir=\"$b\""
+	} > "$SETTINGSFILE"
+fi
+set -- exec "$script" --prefix="$b" CPPFLAGS="$cppflags" CFLAGS="$cflags" \
+	CXXFLAGS="$cflags" LDFLAGS="$ldflags" "$@"
+test -z "$dry_run" && "$@"
+echo "SIMULATION: $*"
