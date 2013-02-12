@@ -1,4 +1,59 @@
 #! /bin/sh
+usage() {
+APP=${0##*/}
+cat << .
+$APP - run ./configure with customized defaults
+
+This script runs ./configure with proper settings for optimized release builds
+without debugging information.
+
+Usage: $APP <options>
+       $APP <options> -- <additional_configure_arguments> ...
+
+The first case only uses the settings directly provided by this script, while
+the second case appends additional command line arguments to the constructed
+./configure command line.
+
+$APP supports the following options:
+
+-b <installation_prefix>
+   Overrides the default value to be used for --prefix in ./configure. This
+   also saves the specified path as the default value for future runs of the
+   script.
+   
+-p <additional_CPPFLAGS>
+   Appends additional C/C++ preprocessor flags to the one defined by this
+   script for use by ./configure. Use this to define additional -D and -I
+   options.
+   
+-c <additional_CFLAGS_and_CXXFLAGS>
+   Appends additional C/C++ compiler flags to the one defined by this script
+   for use by ./configure. Use this to specify -Os or -O3 if desired, because
+   the default is to use -O2 for creating normally optimized executables.
+
+-l <additional_LDFLAGS>
+   Appends additional linker flags to the one defined by this script for use
+   by ./configure. Use this to define additional "-L"-, "-l"- and
+   "-Wl,"-flags.
+
+-s <configure_script_path>
+   Specifies that a different script than ./configure should be run. This is
+   useful for out-of-source builds where the configure script resides in a
+   different directory than in the build directory.
+
+-n
+   Dry run. Display what would be done, but don't actually do anything. This
+   can be used, for instance, to check which default --prefix will be used if
+   no -b option is given.
+   
+-h
+   Display this text.
+
+(c) 2013 by Guenther Brunthaler.
+This script file is free software.
+Distribution is permitted under the terms of the GPLv3.
+.
+}
 UUID=1hnl3x4t09zshghl88m997h4e
 test -n "$HOME" && test -d "$HOME"
 : ${XDG_DATA_HOME:=$HOME/.local/share}
@@ -34,11 +89,11 @@ fi
 basedir=`. "$SETTINGSFILE" && printf "%s\n" "$basedir"`
 b=${basedir:-"$HOME"}
 cppflags="-DNDEBUG"
-cflags="-pipe -Os -s -I$b/include"
+cflags="-pipe -O2 -s -I$b/include"
 ldflags="-Wl,-O1 -Wl,--as-needed -Wl,--hash-style=gnu -L$b/lib"
 script="./configure"
 dry_run=
-while getopts b:p:s:c:l:n OPT
+while getopts b:p:s:c:l:nh OPT
 do
         case $OPT in
         	b) b=$OPTARG;;
@@ -47,6 +102,7 @@ do
 		l) ldflags="$OPTARG $ldflags";;
 		s) script=$OPTARG;;
 		n) dry_run=y;;
+		h) usage; exit;;
 		*) false; exit;;
         esac
 done
