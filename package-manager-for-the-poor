@@ -125,6 +125,25 @@ will also install a package, but override the package name under which the
 package will be recorded as being installed. This will record the name of the
 installed package as "name-1.0.alpha" instead of "name-1.0".
 
+*** Configuration file:
+
+The script reads settings from the following configuration file:
+
+$CONFIG_FILE
+
+The location of that file can be changed by setting environment variable
+XDG_CONFIG_HOME (which defaults to "\$HOME/.config").
+
+*** The database of installed packages:
+
+Information about all currently installed packages is stored in the following
+directory:
+
+$DATA_DIR
+
+The location of that directory can be changed by setting environment variable
+XDG_DATA_HOME (which defaults to "\$HOME/.local/share").
+
 --------------
 
 
@@ -187,7 +206,46 @@ cmd_uninstall() {
 
 die() {
 	echo "ERROR: $*" >& 2
-	OK=Y; false; exit
+	OK=Y; false
+}
+
+
+# Ensures a directory exists by creating it recursively if necessary.
+# Assumes set -e.
+ensure_dir() {
+	test -d "$1" && return
+	ensure_dir "`dirname -- \"$1\"`"
+	mkdir -m 700 -- "$1"
+}
+
+
+# Locate or migrate configuration file or data directory $2.
+#
+# $2 needs to have $UUID as part of its name. If $1 is -d then $2 is a
+# directory. If $1 is -f then $2 is a file.
+#
+# Returns true if $2 exists or has been migrated successfully.
+#
+# Returns false if the caller should create $2. In this case, the parent
+# directory of $2 will already exist.
+locate_config() {
+	test $1 "$2" && return
+	test ! -e "$2"
+	local d f found old
+	d=`dirname -- "$2"`
+	f=`basename -- "$2"`
+	ensure_dir "$d"
+	found=
+	for old in "$d"/*$UUID*
+	do
+		if test $1 "$old"
+		then
+			mv -- "$old" "$2"
+			found=Y
+			break
+		fi
+	done
+	! test -z "$found" # Avoid termination by set -e.
 }
 
 
@@ -196,6 +254,10 @@ OK=
 trap cleanup 0
 UUID=7rttpq19eb58ybhqm18dktllt
 APP=${0##*/}
+test -n "$HOME" && test -d "$HOME"
+: ${XDG_DATA_HOME:=$HOME/.local/share} ${XDG_CONFIG_HOME:=$HOME/.config}
+CONFIG_FILE=$XDG_CONFIG_HOME/${APP}_$UUID.conf
+DATA_DIR=$XDG_DATA_HOME/${APP}_$UUID
 CMD=
 while getopts piluhV OPT
 do
@@ -206,11 +268,21 @@ do
 		u) NC=cmd_uninstall;;
 		h) OK=Y; usage; exit;;
 		V) OK=Y; version; exit;;
-		*) false; exit
+		*) false
 	esac
 	test -z "$CMD" || die "Exactly one command is required!"
 	CMD=$NC
 done
 shift `expr $OPTIND - 1`
+if ! locate_config -f "$CONFIG_FILE"
+then
+	> "$CONFIG_FILE"
+	chmod 600 -- "$CONFIG_FILE"
+fi
+if ! locate_config -d "$DATA_DIR"
+then
+	mkdir -m 700 -- "$DATA_DIR"
+fi
+basedir=`. "$SETTINGSFILE" && printf "%s\n" "$basedir"`
 "$CMD" "$@"
 OK=Y
