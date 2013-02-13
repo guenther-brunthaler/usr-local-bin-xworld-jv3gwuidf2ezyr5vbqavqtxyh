@@ -26,6 +26,7 @@ Commands:
 -i: Install files from a package, from a directory, or from "make install".
 -l: List files from an installed or uninstalled package or list packages.
 -s: Search to which installed package a file/path belongs.
+-v: Verify that package files are still the same as after installation.
 -u: Uninstall a previously installed package.
 -p: Create a package from directory tree contents or from a file list.
 -h: Show this help.
@@ -40,6 +41,7 @@ Usage variants:
 -i /path/to/staging/dir pkgname: Same but override package name.
 -i /path/to/package/file: Install from package file.
 -i /path/to/package/file pkgname: Same but override package name.
+-v pkgname: Verify contents of the installed package.
 
 *** Example: Install files after "./configure && make":
 
@@ -147,27 +149,8 @@ $DATA_DIR
 
 The location of that directory can be changed by setting environment variable
 XDG_DATA_HOME (which defaults to "\$HOME/.local/share").
-
---------------
-
-
-Then change to the staging directory and run
-
-
-This is just an example; change the storage path and package name as you like.
-The saved file contains the file list of the package for later uninstallation.
-
-Finally, install the files from the staging dir into the live file system via
-
-\$ rsync -pvrl ./\$HOME/ \$HOME/
-
-In order to uninstall package 'name_of_package' at some later time:
-
-\$ zcat ~/var/lib/manually_installed/name_of_package.flist.gz | $APP
-\$ rm ~/var/lib/manually_installed/name_of_package.flist.gz
-
 .
-	version
+	echo; version
 }
 
 
@@ -381,13 +364,20 @@ calcsum() {
 }
 
 
-stat1() {
-	stat -c "a=%a o=%u:%g m=%Y s=%s" "$p"
+# $1: type, $2: path.
+stat2() {
+	case $1 in
+		file) f="a=%a o=%u:%g m=%Y s=%s";;
+		dir) f="a=%a o=%u:%g";;
+		sym) f="s=%s";;
+		*) false
+	esac
+	stat -c "$f" "$2"
 }
 
 
 # Set $n to directory entry type.
-stat2() {
+stat1() {
 	if test -L "$1"
 	then
 		n=sym
@@ -467,8 +457,8 @@ cmd_install() {
 				while IFS= read -r line
 				do
 					p=${line#p=}
-					x=`stat1 "$p"`
-					stat2 "$p"
+					stat1 "$p"
+					x=`stat2 "$n" "$p"`
 					x="t=$n $x"
 					n=`calcsum $n "$CHKDFLTYPE" "$p"`
 					echo "$x${n:+ }$n $line"
