@@ -1,0 +1,215 @@
+#! /bin/sh
+version() {
+	cat << .
+$APP version 13.44
+
+(c) 2013 by Guenther Brunthaler.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+.
+}
+
+
+usage() {
+	cat << .
+$APP - poor man's package management script
+
+This is a simple script for installing and uninstalling user-built packages.
+
+It depends on a minimal set of external commands and is intended to work even
+in minimal system installations.
+
+Usage: $APP <command> <arguments> ...
+
+Commands:
+
+-i: Install files from a package, from a directory, or from "make install".
+-l: List files from an installed or uninstalled package or list packages.
+-s: Search to which installed package a file/path belongs.
+-u: Uninstall a previously installed package.
+-p: Create a package from directory tree contents or from a file list.
+-h: Show this help.
+-V: Show version information.
+
+Usage variants:
+-i: Like "make install" but record for later uninstallation.
+-i /path/to/staging/dir: Install from staging directory contents.
+-i /path/to/staging/dir pkgname: Same but override package name.
+-i /path/to/package/file: Install from package file.
+-i /path/to/package/file pkgname: Same but override package name.
+
+*** Example: Install files after "./configure && make":
+
+This does not require creating a package first. The package has to
+be built already, such as by
+
+\$ ./configure --prefix=\$HOME
+\$ make
+
+Now run
+
+\$ $APP -i
+
+This will automatically do a
+
+\$ make install DESTDIR=\$STAGING_DIR
+
+thus installing all files to be installed into a temporary staging directory
+\$STAGING_DIR.
+
+It will then create and save a file list for later uninstallation by using the
+basename of the current directory as a the package name.
+
+Finally, it will merge the contents of the staging directory into the live
+file system, thus completing the installation. The temporary staging directory
+will be removed after this.
+
+*** Example: Install files from a staging directory:
+
+In this case, all the files to be installed need to be copied to a staging
+directory manually first. For instance:
+
+\$ ./configure --prefix=\$HOME
+\$ make
+\$ test -e mypackage-1.0 && rm -rf mypackage-1.0
+\$ mkdir mypackage-1.0
+\$ make install DESTDIR=\`pwd\`/mypackage-1.0
+
+The contents of the staging directory will be
+copied to the root of the live file system recursively.
+
+\$ $APP -i mypackage-1.0
+
+The basename of the staging directory will be used as the package name.
+
+\$ $APP -i /path/to/staging/directory package_name-1.0
+
+This is the same, except that the package name is specified directly as an
+additional argument. In this case, the basename of the staging directory has
+no effect on the package name.
+
+*** Example: Install files from a package:
+
+A package is a simple archive containing the contents of a staging directory.
+Installing from a package is quite similar to installing from a staging
+directory, only that an archive file is specified instead of a directory.
+
+\$ $APP -i /path/to/staging/directory package_name-1.0.tgz
+
+In this case, the basename of the package file (minus the filename extension)
+will be used as the package name. The package name is thus "package_name-1.0".
+
+If the stripped filename extension has been preceded by ".tar", this will be
+stripped as well:
+
+\$ $APP -i /path/to/staging/directory package_name-1.0.tar.gz
+
+The following file extensions are directly supported by this script:
+
+.tar.bz2
+.tar.gz
+.tbz
+.tgz
+
+This means the script will automatically add the right option for tar when
+unpacking.
+
+Other extensions are supported as long as tar knows how to unpack such files
+automatically without requiring specific options.
+
+The recommended file extension/format for packages is ".tgz".
+
+\$ $APP -i /path/to/staging/directory name-1.0.tgz name-1.0.alpha
+
+will also install a package, but override the package name under which the
+package will be recorded as being installed. This will record the name of the
+installed package as "name-1.0.alpha" instead of "name-1.0".
+
+--------------
+
+
+Then change to the staging directory and run
+
+\$ cd staging
+\$ find -depth | tee /dev/stderr | gzip -9 > ~/var/lib/manually_installed/name_of_package.flist.gz
+
+This is just an example; change the storage path and package name as you like.
+The saved file contains the file list of the package for later uninstallation.
+
+Finally, install the files from the staging dir into the live file system via
+
+\$ rsync -pvrl ./\$HOME/ \$HOME/
+
+In order to uninstall package 'name_of_package' at some later time:
+
+\$ zcat ~/var/lib/manually_installed/name_of_package.flist.gz | $APP
+\$ rm ~/var/lib/manually_installed/name_of_package.flist.gz
+
+.
+	version
+}
+
+
+cleanup() {
+	test -z "$OK" && echo 'Failed!' >& 2
+	test -n "$OK"
+}
+
+
+uninstall() {
+	cd /
+	while IFS= read -r LINE
+	do
+		test x"$LINE" = x"." && continue
+		test x"${LINE#./}" != x"$LINE" || {
+			echo "All lines need to start with './'!" >& 2
+			false; exit
+		}
+		if test -d "$LINE"
+		then
+			# It is possible that $LINE is a symlink to a directory. In
+			# this case removal will always fail. But this is a good
+			# thing, because such symlinks were most likely not created by
+			# the installer and should be kept. Just think about a symlink
+			# /lib64 -> /lib.
+			rmdir -- "$LINE" || true
+		elif test -e "$LINE"
+		then
+			rm -- "$LINE" || {
+				echo "Could not delete '/$LINE'!" >& 2
+				false
+			}
+		fi
+	done
+}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	OK=Y; false; exit
+}
+
+
+set -e
+OK=
+trap cleanup 0
+APP=${0##*/}
+CMD=
+while getopts piluhV OPT
+do
+	case $OPT in
+		p) NC=package;;
+		i) NC=install;;
+		l) NC=list;;
+		u) NC=uninstall;;
+		h) OK=Y; usage; exit;;
+		V) OK=Y; version; exit;;
+		*) false; exit
+	esac
+	test -z "$CMD" || die "Exactly one command is required!"
+	CMD=$NC
+done
+shift `expr $OPTIND - 1`
+"$CMD"
+echo "Uninstallation complete." >& 2
+OK=Y
