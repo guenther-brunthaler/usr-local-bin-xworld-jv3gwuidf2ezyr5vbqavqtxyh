@@ -41,6 +41,9 @@ Usage variants:
 -i /path/to/staging/dir pkgname: Same but override package name.
 -i /path/to/package/file: Install from package file.
 -i /path/to/package/file pkgname: Same but override package name.
+-l /path/to/package: List package contents.
+-l pkgname: List contents of already-installed package.
+-l: Display list of currently installed packages.
 -v pkgname: Verify contents of the installed package.
 
 *** Example: Install files after "./configure && make":
@@ -262,7 +265,7 @@ create_tmp_dir() {
 locate_flist() {
 	local xt b
 	b=$DATA_DIR/$1
-	for xt in .gz .bz2 .xz .lzma ""
+	for xt in .gz .bz2 .xz .lzma .txt
 	do
 		FLIST=$b$xt
 		test -f "$FLIST" && return
@@ -471,6 +474,24 @@ cmd_install() {
 }
 
 
+cmd_list() {
+	case $# in
+		0)
+			echo "List of currently installed packages:" >& 2
+			ls -- "$DATA_DIR" | while IFS= read pkg
+			do
+				f=$DATA_DIR/$pkg
+				when=`date -r "$f" +"%Y-%m-%d %H:%M:%S"`
+				printf '%s %s\n' "$when" "${pkg%.*}"
+			done
+			;;
+		1)
+			;;
+		*) test $# = 2
+	esac
+}
+
+
 set -e
 OK=
 TDIR=
@@ -501,13 +522,14 @@ CONFIG_FILE=$XDG_CONFIG_HOME/${APP_}_$UUID.conf
 DATA_DIR=$XDG_DATA_HOME/${APP_}_$UUID
 cmd=
 ITARGET=/
-while getopts pilud:hV OPT
+while getopts pivlud:hV OPT
 do
 	case $OPT in
 		p) nc=cmd_package;;
 		i) nc=cmd_install;;
 		d) ITARGET=$OPTARG;;
 		l) nc=cmd_list;;
+		v) nc=cmd_verify;;
 		u) nc=cmd_uninstall;;
 		h) OK=Y; usage; exit;;
 		V) OK=Y; version; exit;;
