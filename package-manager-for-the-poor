@@ -31,6 +31,9 @@ Commands:
 -h: Show this help.
 -V: Show version information.
 
+Options:
+-d <directory>: Divert installation to <directory> instead of to "/".
+
 Usage variants:
 -i: Like "make install" but record for later uninstallation.
 -i /path/to/staging/dir: Install from staging directory contents.
@@ -106,6 +109,7 @@ stripped as well:
 
 The following file extensions are directly supported by this script:
 
+.tar
 .tar.bz2
 .tar.gz
 .tbz
@@ -149,8 +153,6 @@ XDG_DATA_HOME (which defaults to "\$HOME/.local/share").
 
 Then change to the staging directory and run
 
-\$ cd staging
-\$ find -depth | tee /dev/stderr | gzip -9 > ~/var/lib/manually_installed/name_of_package.flist.gz
 
 This is just an example; change the storage path and package name as you like.
 The saved file contains the file list of the package for later uninstallation.
@@ -171,6 +173,7 @@ In order to uninstall package 'name_of_package' at some later time:
 
 cleanup() {
 	test -z "$OK" && echo 'Failed!' >& 2
+	test -n "$TDIR" && release_tmp_dir
 	test -n "$OK"
 }
 
@@ -252,22 +255,205 @@ locate_config() {
 }
 
 
+release_tmp_dir() {
+	rm -rf -- "$TDIR" || :
+	TDIR=
+}
+
+
+create_tmp_dir() {
+	local t
+	while :
+	do
+		t=`"$TEMPFILE"`
+		rm -- "$t"
+		mkdir -m 700 -- "$t" && break
+		sleep 1
+	done
+	TDIR=$t
+}
+
+
+# Set FLIST to the file list name of the package $1.
+# Returns true for success.
+locate_flist() {
+	local xt b
+	b=$DATA_DIR/$1
+	for xt in .gz .bz2 .xz .lzma ""
+	do
+		FLIST=$b$xt
+		test -f "$FLIST" && return
+	done
+	FLIST=
+	! true
+}
+
+
+pack_best() {
+	gzip -9 "$1"
+}
+
+
+# [ <option> ] VAR $cmd: Sets $VAR to path of executable $cmd.
+# Without option: Return code indicates success.
+# -i: Ignore failure; always report success.
+# -f: Die if command could not be found.
+# In all cases, $VAR is set to empty if command not found.
+getcmd() {
+	case $1 in
+		-*) ;;
+		*) set -- -- "$@"
+	esac
+	# There is a bug in bash's eval: It does not return the status of a
+	# backquote substitution. Adding a redundant test to fix it.
+	eval "$2=`which \"$3\" 2> /dev/null`; test $? = 0" && return
+	eval "$2="
+	test $1 = "-f" && die "Required utility '$3' is not installed!"
+	! test $1 != "-i"
+}
+
+
+# <startdir> <callback> [ <targetpath> ]
+dirwalk() {
+	local s t
+	s=${1%/}; t=${3%/}
+	(
+		cd "$1"
+		find . ! -path . | cut -d/ -f2-
+	) | while IFS= read -r e
+	do
+		"$2" "$s/$e" "$t/$e"
+	done
+}
+
+
+pre_check() {
+	if test -d "$1"
+	then
+		test -d "$2" && return
+	elif test ! -f "$1"
+	then
+		die "Unsupported file type in relative source path '$1'!"
+	fi
+	if test -e "$2"
+	then
+		die "Installation pre-check failed: '$2' already exists!"
+	fi
+}
+
+
+merge_into() {
+	test -e "$2" && return
+	if test -L "$1"
+	then
+		local target
+		target=`readlink "$1"`
+		ln -s -- "$target" "$2"
+	elif test -d "$1"
+	then
+		local mode
+		mode=`stat -c %a -- "$1"`; test -n "$mode"
+		mkdir -m "$mode" -- "$2"
+	else
+		test -f "$1"
+		# Suppress messages that changing ownership failed.
+		cp -p -- "$1" "$2" 2> /dev/null
+	fi
+}
+
+
+cmd_install() {
+	local dir pkg
+	case $# in
+		0)
+			dir=`pwd`
+			test -n "$dir"; test -d "$dir"
+			pkg=`basename "$dir"`; test -n "$pkg"
+			create_tmp_dir
+			make install DESTDIR="$TDIR"
+			cmd_install "$TDIR" "$pkg"
+			release_tmp_dir
+			;;
+		1)
+			test -n "$1"
+			if test -d "$1"
+			then
+				dir=`readlink -f "$1"`
+				test -n "$dir"; test -d "$dir"
+				pkg=`basename "$dir"`
+			else
+				test -f "$1"
+				pkg=${1%.*}; pkg=${pkg%.tar}
+			fi
+			test -n "$pkg"
+			cmd_install "$1" "$pkg"
+			;;
+		*)	test $# = 2
+			pkg=$2; test -n "$pkg"
+			if locate_flist "$pkg"
+			then
+				die "Package '$pkg' is already installed!"
+			fi
+			if test -f "$1"
+			then
+				local copt
+				case $1 in
+					*.tgz | *.tar.gz) copt=-z;;
+					*.tbz | *.tar.bz2) copt=-j;;
+					*) copt=
+				esac
+				create_tmp_dir
+				"$TAR" -x $copt -f "$1" -C "$TDIR"
+				cmd_install "$TDIR" "$pkg"
+				release_tmp_dir
+			else
+				test -d "$1"
+				dirwalk "$1" pre_check "$ITARGET"
+				local FLIST
+				FLIST=$DATA_DIR/$pkg; test ! -e "$FLIST"
+				(
+					cd "$1"
+					find . -depth ! -path . \
+					| cut -d/ -f2-
+				) | {
+					pfx=${ITARGET%/}/
+					while IFS= read -r p
+					do
+						printf 'p=%s%s\n' "$pfx" "$p"
+					done
+				} > "$FLIST"
+				pack_best "$FLIST"
+				dirwalk "$1" merge_into "$ITARGET"
+			fi
+	esac
+}
+
+
 set -e
 OK=
+TDIR=
 trap cleanup 0
 UUID=7rttpq19eb58ybhqm18dktllt
 APP=${0##*/}
+getcmd -f TEMPFILE tempfile
+getcmd -i GZIP gzip
+getcmd -i BZIP2 bzip2
+getcmd -i XZ xz
+getcmd -i LZMA lzma
+getcmd -f TAR tar
 test -n "$HOME" && test -d "$HOME"
 : ${XDG_DATA_HOME:=$HOME/.local/share} ${XDG_CONFIG_HOME:=$HOME/.config}
 APP_=`printf '%s' "$APP" | tr -sc '[:alnum:]' _`
 CONFIG_FILE=$XDG_CONFIG_HOME/${APP_}_$UUID.conf
 DATA_DIR=$XDG_DATA_HOME/${APP_}_$UUID
 cmd=
-while getopts piluhV OPT
+ITARGET=/
+while getopts pilud:hV OPT
 do
 	case $OPT in
 		p) nc=cmd_package;;
 		i) nc=cmd_install;;
+		d) ITARGET=$OPTARG;;
 		l) nc=cmd_list;;
 		u) nc=cmd_uninstall;;
 		h) OK=Y; usage; exit;;
@@ -278,6 +464,17 @@ do
 	cmd=$nc
 done
 shift `expr $OPTIND - 1`
+test -n "$ITARGET"
+if test x"${ITARGET#/}" = x"$ITARGET"
+then
+	ITARGET=`pwd`/$ITARGET
+	test x"${ITARGET#/}" != x"$ITARGET"
+fi
+ITARGET=${ITARGET##/}; ITARGET=/${ITARGET%%/}
+if test ! -d "$ITARGET"
+then
+	die "Installation target directory '$ITARGET' does not exist!"
+fi
 test -n "$cmd" || die "Ḿissing command!"
 if ! locate_config -f "$CONFIG_FILE"
 then
