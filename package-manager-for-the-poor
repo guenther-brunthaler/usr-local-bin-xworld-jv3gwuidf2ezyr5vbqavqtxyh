@@ -156,7 +156,7 @@ cleanup() {
 }
 
 
-uninstall() {
+cmd_uninstall() {
 	cd /
 	while IFS= read -r LINE
 	do
@@ -181,6 +181,7 @@ uninstall() {
 			}
 		fi
 	done
+	echo "Uninstallation complete." >& 2
 }
 
 
@@ -193,15 +194,16 @@ die() {
 set -e
 OK=
 trap cleanup 0
+UUID=7rttpq19eb58ybhqm18dktllt
 APP=${0##*/}
 CMD=
 while getopts piluhV OPT
 do
 	case $OPT in
-		p) NC=package;;
-		i) NC=install;;
-		l) NC=list;;
-		u) NC=uninstall;;
+		p) NC=cmd_package;;
+		i) NC=cmd_install;;
+		l) NC=cmd_list;;
+		u) NC=cmd_uninstall;;
 		h) OK=Y; usage; exit;;
 		V) OK=Y; version; exit;;
 		*) false; exit
@@ -210,6 +212,5 @@ do
 	CMD=$NC
 done
 shift `expr $OPTIND - 1`
-"$CMD"
-echo "Uninstallation complete." >& 2
+"$CMD" "$@"
 OK=Y
