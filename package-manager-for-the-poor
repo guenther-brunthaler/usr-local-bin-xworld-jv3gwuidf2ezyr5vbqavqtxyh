@@ -256,8 +256,9 @@ UUID=7rttpq19eb58ybhqm18dktllt
 APP=${0##*/}
 test -n "$HOME" && test -d "$HOME"
 : ${XDG_DATA_HOME:=$HOME/.local/share} ${XDG_CONFIG_HOME:=$HOME/.config}
-CONFIG_FILE=$XDG_CONFIG_HOME/${APP}_$UUID.conf
-DATA_DIR=$XDG_DATA_HOME/${APP}_$UUID
+APP_=`printf '%s' "$APP" | tr -sc '[:alnum:]' _`
+CONFIG_FILE=$XDG_CONFIG_HOME/${APP_}_$UUID.conf
+DATA_DIR=$XDG_DATA_HOME/${APP_}_$UUID
 CMD=
 while getopts piluhV OPT
 do
