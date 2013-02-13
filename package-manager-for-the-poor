@@ -205,7 +205,10 @@ cmd_uninstall() {
 
 
 die() {
-	echo "ERROR: $*" >& 2
+	{
+		echo "ERROR: $*"
+		echo "Use -h for help."
+	} >& 2
 	OK=Y; false
 }
 
@@ -259,22 +262,23 @@ test -n "$HOME" && test -d "$HOME"
 APP_=`printf '%s' "$APP" | tr -sc '[:alnum:]' _`
 CONFIG_FILE=$XDG_CONFIG_HOME/${APP_}_$UUID.conf
 DATA_DIR=$XDG_DATA_HOME/${APP_}_$UUID
-CMD=
+cmd=
 while getopts piluhV OPT
 do
 	case $OPT in
-		p) NC=cmd_package;;
-		i) NC=cmd_install;;
-		l) NC=cmd_list;;
-		u) NC=cmd_uninstall;;
+		p) nc=cmd_package;;
+		i) nc=cmd_install;;
+		l) nc=cmd_list;;
+		u) nc=cmd_uninstall;;
 		h) OK=Y; usage; exit;;
 		V) OK=Y; version; exit;;
 		*) false
 	esac
-	test -z "$CMD" || die "Exactly one command is required!"
-	CMD=$NC
+	test -z "$cmd" || die "Exactly one command is required!"
+	cmd=$nc
 done
 shift `expr $OPTIND - 1`
+test -n "$cmd" || die "Ḿissing command!"
 if ! locate_config -f "$CONFIG_FILE"
 then
 	> "$CONFIG_FILE"
@@ -284,6 +288,6 @@ if ! locate_config -d "$DATA_DIR"
 then
 	mkdir -m 700 -- "$DATA_DIR"
 fi
-basedir=`. "$SETTINGSFILE" && printf "%s\n" "$basedir"`
-"$CMD" "$@"
+basedir=`. "$CONFIG_FILE" && printf "%s\n" "$basedir"`
+"$cmd" "$@"
 OK=Y
