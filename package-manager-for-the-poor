@@ -331,7 +331,10 @@ pre_check() {
 	if test -d "$1"
 	then
 		test -d "$2" && return
-	elif test ! -f "$1"
+	elif test -f "$1"
+	then
+		:
+	elif test ! -L "$1"
 	then
 		die "Unsupported file type in relative source path '$1'!"
 	fi
@@ -358,6 +361,42 @@ merge_into() {
 		test -f "$1"
 		# Suppress messages that changing ownership failed.
 		cp -p -- "$1" "$2" 2> /dev/null
+	fi
+}
+
+
+# $@: obj-type, checksum-kind, path.
+calcsum() {
+	test $1 = dir && return
+	case $1 in
+		sym) readlink "$3";;
+		file) cat "$3"
+	esac | {
+		test -n "$2" && printf 'k=%s c=' "$2"
+		case $2 in
+			md5) "$MD5SUM" -b -- | cut -d" " -f1;;
+			cks) "$CKSUM" -- | tr " " ':'
+		esac
+	}
+}
+
+
+stat1() {
+	stat -c "a=%a o=%u:%g m=%Y s=%s" "$p"
+}
+
+
+# Set $n to directory entry type.
+stat2() {
+	if test -L "$1"
+	then
+		n=sym
+	elif test -d "$1"
+	then
+		n=dir
+	else
+		test -f "$1"
+		n=file
 	fi
 }
 
@@ -422,8 +461,21 @@ cmd_install() {
 						printf 'p=%s%s\n' "$pfx" "$p"
 					done
 				} > "$FLIST"
-				pack_best "$FLIST"
 				dirwalk "$1" merge_into "$ITARGET"
+				local fln line p n x
+				fln=$FLIST.update
+				while IFS= read -r line
+				do
+					p=${line#p=}
+					x=`stat1 "$p"`
+					stat2 "$p"
+					x="t=$n $x"
+					n=`calcsum $n "$CHKDFLTYPE" "$p"`
+					echo "$x${n:+ }$n $line"
+				done < "$FLIST" > "$fln"
+				rm -- "$FLIST"
+				mv -- "$fln" "$FLIST"
+				pack_best "$FLIST"
 			fi
 	esac
 }
@@ -441,6 +493,17 @@ getcmd -i BZIP2 bzip2
 getcmd -i XZ xz
 getcmd -i LZMA lzma
 getcmd -f TAR tar
+getcmd -i MD5SUM md5sum
+getcmd -i CKSUM cksum
+if test -n "$MD5SUM"
+then
+	CHKDFLTYPE=md5
+elif test -n "$CKSUM"
+then
+	CHKDFLTYPE=cks
+else
+	CHKDFLTYPE=
+fi
 test -n "$HOME" && test -d "$HOME"
 : ${XDG_DATA_HOME:=$HOME/.local/share} ${XDG_CONFIG_HOME:=$HOME/.config}
 APP_=`printf '%s' "$APP" | tr -sc '[:alnum:]' _`
