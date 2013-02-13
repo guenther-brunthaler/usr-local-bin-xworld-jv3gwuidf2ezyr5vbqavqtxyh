@@ -264,12 +264,15 @@ create_tmp_dir() {
 # Returns true for success.
 locate_flist() {
 	local xt b
-	b=$DATA_DIR/$1
-	for xt in .gz .bz2 .xz .lzma .txt
-	do
-		FLIST=$b$xt
-		test -f "$FLIST" && return
-	done
+	if test x"${1%/*}" = x"$1"
+	then
+		b=$DATA_DIR/$1
+		for xt in .gz .bz2 .xz .lzma .txt
+		do
+			FLIST=$b$xt
+			test -f "$FLIST" && return
+		done
+	fi
 	FLIST=
 	! true
 }
@@ -394,6 +397,36 @@ stat1() {
 }
 
 
+# Set $copt to the right tar compression option for archive $1.
+get_copt() {
+	case $1 in
+		*.tgz | *.tar.gz) copt=-z;;
+		*.tbz | *.tar.bz2) copt=-j;;
+		*) copt=
+	esac
+}
+
+
+# Print decompressed file list "$1".
+dccat() {
+	case $1 in
+		*.gz) "$GZIP" -dc;;
+		*.bz2) "$BZIP2" -dc;;
+		*.xz) "$XZ" -dc;;
+		*.lzma)
+			if test -n "$LZMA"
+			then
+				"$LZMA" -dc
+			else
+				"$XZ" -dc
+			fi
+			;;
+		*.txt) ;;
+		*) die "Unsupported file extension of list file '$1'!"
+	esac < "$1"
+}
+
+
 cmd_install() {
 	local dir pkg
 	case $# in
@@ -429,11 +462,7 @@ cmd_install() {
 			if test -f "$1"
 			then
 				local copt
-				case $1 in
-					*.tgz | *.tar.gz) copt=-z;;
-					*.tbz | *.tar.bz2) copt=-j;;
-					*) copt=
-				esac
+				get_copt "$1"
 				create_tmp_dir
 				"$TAR" -x $copt -f "$1" -C "$TDIR"
 				cmd_install "$TDIR" "$pkg"
@@ -485,9 +514,19 @@ cmd_list() {
 				printf '%s %s\n' "$when" "${pkg%.*}"
 			done
 			;;
-		1)
-			;;
-		*) test $# = 2
+		*)	test $# = 1
+			if locate_flist "$1"
+			then
+				dccat "$FLIST" | sed -e 's,.*p=,,'
+			elif test -f "$1"
+			then
+				local copt
+				get_copt "$1"
+				"$TAR" -t $copt -f "$1"
+			else
+				die "'$1' is neither an installed package" \
+					"nor a package file!"
+			fi
 	esac
 }
 
