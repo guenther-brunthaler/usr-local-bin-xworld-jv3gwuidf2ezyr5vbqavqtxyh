@@ -28,7 +28,7 @@ Commands:
 -s: Search to which installed package a file/path belongs.
 -v: Verify that package files are still the same as after installation.
 -r: Remove (uninstall) a previously installed package.
--p: Create a package from directory tree contents or from a file list.
+-p: Create a package from directory tree contents or from installed package.
 -h: Show this help.
 -V: Show version information.
 
@@ -46,6 +46,10 @@ Usage variants:
 -l: Display list of currently installed packages.
 -v pkgname: Verify contents of the installed package.
 -r pkgname: Remove (uninstall) the installed package.
+-p /path/to/staging/dir: Create from staging directory contents.
+-p /path/to/staging/dir pkgname: Same but override package name.
+-p pkgname: Create package from already-installed contents.
+-p pkgname savename: Same but override created package name.
 
 *** Example: Install files after "./configure && make":
 
@@ -134,6 +138,62 @@ The recommended file extension/format for packages is ".tgz".
 will also install a package, but override the package name under which the
 package will be recorded as being installed. This will record the name of the
 installed package as "name-1.0.alpha" instead of "name-1.0".
+
+*** Example: Create package from staging directory contents:
+
+This creates a package archive suitable for later installation.
+
+First, install the files to included into some staging directory $STAGING_DIR.
+
+Then change to the directory where the package archive should be created and
+run from there:
+
+\$ $APP -p $STAGING_DIR
+
+This will create a compressed tar archive in the current directory, using the
+base name of $STAGING_DIR as the package name.
+
+Alternatively, run
+
+\$ $APP -p $STAGING_DIR mypkg-1.0
+
+This does the same, except that it uses "mypkg-1.0" as the package name, which
+might create a package archive file "mypkg-1.0.tgz" as a result.
+
+The script always creates an uncompressed tar archive first, and then tries to
+compress it using different compression methods. The shortest resulting
+archive is kept.
+
+*** Example: Create package file from already installed package contents:
+
+This is similar to creating a package archive from a staging directory.
+
+But in this case, the files are taken from the live file system instead of
+from a staging directory.
+
+This requires specifying an already-installed package. The information which
+files to put into the package archive will be taken from the recorded
+uninstallation information of the package.
+
+Warning: This command does not verify that the installed package has not been
+modified. It just uses whatever is currently installed at the recorded paths.
+Use the -v command before building a package if it is important that the
+package has not been modified since installation.
+
+\$ $APP -p pkgname
+
+This command looks into the database of installed packages in order to
+determine what files belong to package "pkgname".
+
+Then it creates a package archive file "pkgname.tgz" in the current directory.
+(The actual file extension may vary because different compression methods may
+be compared and the best one will be used.)
+
+\$ $APP -p pkgname mypkg-1.0
+
+This does the same but overrides the name of the created package archive file.
+In this case, it will be "mypkg-1.0.tgz" (the file extension might vary)
+instead of just "pkgname.tgz".
 
 *** Configuration file:
 
@@ -666,6 +726,11 @@ cmd_remove() {
 }
 
 
+cmd_search() {
+	die "NYI"
+}
+
+
 set -e
 OK=
 TDIR=
@@ -696,7 +761,7 @@ CONFIG_FILE=$XDG_CONFIG_HOME/${APP_}_$UUID.conf
 DATA_DIR=$XDG_DATA_HOME/${APP_}_$UUID
 cmd=
 ITARGET=/
-while getopts pid:lvrhV OPT
+while getopts pid:lvrshV OPT
 do
 	case $OPT in
 		p) nc=cmd_package;;
@@ -705,6 +770,7 @@ do
 		l) nc=cmd_list;;
 		v) nc=cmd_verify;;
 		r) nc=cmd_remove;;
+		s) nc=cmd_search;;
 		h) OK=Y; usage; exit;;
 		V) OK=Y; version; exit;;
 		*) false
