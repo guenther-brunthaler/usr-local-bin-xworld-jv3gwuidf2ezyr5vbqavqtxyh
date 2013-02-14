@@ -34,6 +34,7 @@ Commands:
 
 Options:
 -d <directory>: Divert installation to <directory> instead of to "/".
+-a: Search all packages for "-s", don't stop when the first match is found.
 
 Usage variants:
 -i: Like "make install" but record for later uninstallation.
@@ -50,6 +51,9 @@ Usage variants:
 -p /path/to/staging/dir pkgname: Same but override package name.
 -p pkgname: Create package from already-installed contents.
 -p pkgname savename: Same but override created package name.
+-s ls: Finds "ls" everywhere; in /bin, /usr/bin, /usr/local/bin, ...
+-s bin/ls: Finds "ls" in /usr/bin, /bin, /usr/local/bin, ...
+-s /bin/ls: Finds "ls" only in /bin, not in /usr/bin nor /usr/local/bin, ...
 
 *** Example: Install files after "./configure && make":
 
@@ -194,6 +198,45 @@ be compared and the best one will be used.)
 This does the same but overrides the name of the created package archive file.
 In this case, it will be "mypkg-1.0.tgz" (the file extension might vary)
 instead of just "pkgname.tgz".
+
+*** Example: Search the package database for installed files/directories:
+
+This allows to find out to which package(s) a file/directory belongs.
+
+The search normally stops when the first match is found. But this can be
+changed by using the -a option, which will search all installed packages and
+display all matches.
+
+The argument to -s is a search string, which is a sequence of path
+components separated by "/". It can also be a single component, i. e. without
+any "/".
+
+The last component may be a file or directory basename; any preceding
+components must be directory names (or symlinks to directories).
+
+The whole search string may be preceded by "/", which makes it a anchored search.
+
+By default, the search is not anchored. For instance,
+
+\$ $APP -s bin/ls
+
+will find a file or directory "ls" in every directory "bin", no matter here
+that "bin" is located. It will therefore match /usr/bin/ls as well as /bin/ls.
+On the other hand,
+
+\$ $APP -s /bin/ls
+
+will match /bin/ls and only that.
+
+The individual path components will always have to match entirely, i. e. no
+substring match. Therefore,
+
+\$ $APP -s ld
+
+will find a name "ld" in all directories, but will not match names like "ldd"
+or "bold".
+
+Currently, no wildcards are supported in the search string.
 
 *** Configuration file:
 
@@ -368,6 +411,12 @@ getcmd() {
 }
 
 
+# Removes redundant trailing or repeated slashes.
+cleanup_path() {
+	printf '%s' "$1" | sed -e 's,//*,/,g; s,\(.\)/$,\1,'
+}
+
+
 # <startdir> <callback> [ <targetpath> ]
 dirwalk() {
 	local s t
@@ -521,25 +570,26 @@ cmd_install() {
 			;;
 		*)	test $# = 2
 			pkg=$2; test -n "$pkg"
+			dir=`cleanup_path "$1"`; test -n "$dir"
 			if locate_flist "$pkg"
 			then
 				die "Package '$pkg' is already installed!"
 			fi
-			if test -f "$1"
+			if test -f "$dir"
 			then
 				local copt
-				get_copt "$1"
+				get_copt "$dir"
 				create_tmp_dir
-				"$TAR" -x $copt -f "$1" -C "$TDIR"
+				"$TAR" -x $copt -f "$dir" -C "$TDIR"
 				cmd_install "$TDIR" "$pkg"
 				release_tmp_dir
 			else
-				test -d "$1"
-				dirwalk "$1" pre_check "$ITARGET"
+				test -d "$dir"
+				dirwalk "$dir" pre_check "$ITARGET"
 				local FLIST
 				FLIST=$DATA_DIR/$pkg; test ! -e "$FLIST"
 				(
-					cd "$1"
+					cd "$dir"
 					find . -depth ! -path . \
 					| cut -d/ -f2-
 				) | {
@@ -549,7 +599,7 @@ cmd_install() {
 						printf 'p=%s%s\n' "$pfx" "$p"
 					done
 				} > "$FLIST"
-				dirwalk "$1" merge_into "$ITARGET"
+				dirwalk "$dir" merge_into "$ITARGET"
 				local fln line p n x
 				fln=$FLIST.update
 				while IFS= read -r line
@@ -569,6 +619,20 @@ cmd_install() {
 }
 
 
+uninteresting() {
+	case $1 in
+		*.tmp | *~) return
+	esac
+	! true
+}
+
+
+# Strip package name file extension suffixes from variable $pkg.
+strip_pkg_suffix() {
+	pkg=${pkg%.*}; pkg=${pkg%.tar}
+}
+
+
 cmd_list() {
 	case $# in
 		0)
@@ -577,9 +641,14 @@ cmd_list() {
 				any=
 				while IFS= read pkg
 				do
+					uninteresting && continue
 					f=$DATA_DIR/$pkg
-					when=`date -r "$f" +"%Y-%m-%d %H:%M:%S"`
-					printf '%s %s\n' "$when" "${pkg%.*}"
+					when=`
+						date -r "$f" \
+							+"%Y-%m-%d %H:%M:%S"
+					`
+					strip_pkg_suffix
+					printf '%s %s\n' "$when" "$pkg"
 					any=y
 				done
 				if test -z "$any"
@@ -591,12 +660,12 @@ cmd_list() {
 		*)	test $# = 1
 			if locate_flist "$1"
 			then
-				dccat "$FLIST" | sed -e 's,.*p=,,'
+				dccat "$FLIST" | sed -e 's,.*p=,,' | sort
 			elif test -f "$1"
 			then
 				local copt
 				get_copt "$1"
-				"$TAR" -t $copt -f "$1"
+				"$TAR" -t $copt -f "$1" | sort
 			else
 				die "'$1' is neither an installed package" \
 					"nor a package file!"
@@ -727,7 +796,33 @@ cmd_remove() {
 
 
 cmd_search() {
-	die "NYI"
+	local sstr
+	test $# = 1
+	sstr=`cleanup_path "$1"`
+	# Tranform "a/b" into "/a/b/" and "/a/b" into "//a/b/".
+	test x"${sstr#/}" != x"$sstr" && sstr=/$sstr
+	sstr=$sstr/
+	ls -- "$DATA_DIR" | {
+		any=
+		while IFS= read pkg
+		do
+			uninteresting && continue
+			f=$DATA_DIR/$pkg
+			if
+				dccat "$f" \
+				| sed -e 's,.*p=,,; s,^,//,; s,$,/,' \
+				| grep -qF -- "$sstr" > /dev/null 2>& 1
+			then
+				strip_pkg_suffix
+				printf '%s\n' "$pkg"; any=Y
+				test -z "$PROC_ALL" && break
+			fi
+		done
+		if test -z "$any"
+		then
+			say "(None.)"
+		fi
+	}
 }
 
 
@@ -761,6 +856,7 @@ CONFIG_FILE=$XDG_CONFIG_HOME/${APP_}_$UUID.conf
 DATA_DIR=$XDG_DATA_HOME/${APP_}_$UUID
 cmd=
 ITARGET=/
+PROC_ALL=
 while getopts pid:lvrshV OPT
 do
 	case $OPT in
@@ -771,6 +867,7 @@ do
 		v) nc=cmd_verify;;
 		r) nc=cmd_remove;;
 		s) nc=cmd_search;;
+		a) PROC_ALL=Y;;
 		h) OK=Y; usage; exit;;
 		V) OK=Y; version; exit;;
 		*) false
@@ -785,7 +882,7 @@ then
 	ITARGET=`pwd`/$ITARGET
 	test x"${ITARGET#/}" != x"$ITARGET"
 fi
-ITARGET=${ITARGET##/}; ITARGET=/${ITARGET%%/}
+ITARGET=`cleanup_path "$ITARGET"`
 if test ! -d "$ITARGET"
 then
 	die "Installation target directory '$ITARGET' does not exist!"
