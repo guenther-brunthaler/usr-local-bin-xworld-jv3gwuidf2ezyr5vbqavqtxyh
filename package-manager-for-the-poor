@@ -513,12 +513,20 @@ cmd_list() {
 	case $# in
 		0)
 			say "List of currently installed packages:"
-			ls -- "$DATA_DIR" | while IFS= read pkg
-			do
-				f=$DATA_DIR/$pkg
-				when=`date -r "$f" +"%Y-%m-%d %H:%M:%S"`
-				printf '%s %s\n' "$when" "${pkg%.*}"
-			done
+			ls -- "$DATA_DIR" | {
+				any=
+				while IFS= read pkg
+				do
+					f=$DATA_DIR/$pkg
+					when=`date -r "$f" +"%Y-%m-%d %H:%M:%S"`
+					printf '%s %s\n' "$when" "${pkg%.*}"
+					any=y
+				done
+				if test -z "$any"
+				then
+					say "(None.)"
+				fi
+			}
 			;;
 		*)	test $# = 1
 			if locate_flist "$1"
@@ -550,11 +558,17 @@ contains() {
 }
 
 
+note() {
+	echo "*** $*"
+}
+
+
 remove_or_verify() {
 	test $# = 2
-	local vl FLIST action
+	local vl FLIST action pkg
 	action=$1
-	locate_flist "$2"
+	pkg=$2
+	locate_flist "$pkg"
 	vl="t a o m s k c"
 	dccat "$FLIST" | {
 		RM=y
@@ -578,11 +592,11 @@ remove_or_verify() {
 						"'$kv' for '$fl_p'!"
 				fi
 			done
-			if test ! -e "$fl_p"
+			if test ! -e "$fl_p" && test ! -L "$fl_p"
 			then
 				case $action in
 					v) echo "D $fl_p";;
-					r) say "*** ignoring missing $fl_p";;
+					r) note "ignoring missing $fl_p";;
 					*) false
 				esac
 				continue
@@ -604,7 +618,7 @@ remove_or_verify() {
 				case $action in
 					v) echo "M $fl_p";;
 					r)
-						say "*** not removing" \
+						note "not removing" \
 							"modified $fl_p"
 						;;
 					*) false
@@ -620,7 +634,7 @@ remove_or_verify() {
 					sym) t=symlink;;
 					*) false
 				esac
-				echo "removing $t $fl_p"
+				say "removing $t $fl_p"
 				case $fl_t in
 					file | sym) rm -f -- "$fl_p" || RM=;;
 					dir) ! rmdir -- "$fl_p";;
@@ -628,9 +642,15 @@ remove_or_verify() {
 				esac
 			fi
 		done
-		if test $action = r && test -n "$RM"
+		if test $action = r
 		then
-			rm "$FLIST"
+			if test -n "$RM"
+			then
+				rm "$FLIST"
+				note "completed removal of package $pkg"
+			else
+				note "incomplete removal of package $pkg"
+			fi
 		fi
 	}
 }
