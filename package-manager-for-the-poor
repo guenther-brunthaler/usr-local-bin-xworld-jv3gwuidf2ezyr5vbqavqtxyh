@@ -27,7 +27,7 @@ Commands:
 -l: List files from an installed or uninstalled package or list packages.
 -s: Search to which installed package a file/path belongs.
 -v: Verify that package files are still the same as after installation.
--u: Uninstall a previously installed package.
+-r: Remove (uninstall) a previously installed package.
 -p: Create a package from directory tree contents or from a file list.
 -h: Show this help.
 -V: Show version information.
@@ -45,6 +45,7 @@ Usage variants:
 -l pkgname: List contents of already-installed package.
 -l: Display list of currently installed packages.
 -v pkgname: Verify contents of the installed package.
+-r pkgname: Remove (uninstall) the installed package.
 
 *** Example: Install files after "./configure && make":
 
@@ -157,8 +158,13 @@ XDG_DATA_HOME (which defaults to "\$HOME/.local/share").
 }
 
 
+say() {
+	printf '%s\n' "$*" >& 2
+}
+
+
 cleanup() {
-	test -z "$OK" && echo 'Failed!' >& 2
+	test -z "$OK" && say 'Failed!'
 	test -n "$TDIR" && release_tmp_dir
 	test -n "$OK"
 }
@@ -170,7 +176,7 @@ cmd_uninstall() {
 	do
 		test x"$LINE" = x"." && continue
 		test x"${LINE#./}" != x"$LINE" || {
-			echo "All lines need to start with './'!" >& 2
+			say "All lines need to start with './'!"
 			false; exit
 		}
 		if test -d "$LINE"
@@ -184,12 +190,12 @@ cmd_uninstall() {
 		elif test -e "$LINE"
 		then
 			rm -- "$LINE" || {
-				echo "Could not delete '/$LINE'!" >& 2
+				say "Could not delete '/$LINE'!"
 				false
 			}
 		fi
 	done
-	echo "Uninstallation complete." >& 2
+	say "Uninstallation complete."
 }
 
 
@@ -506,7 +512,7 @@ cmd_install() {
 cmd_list() {
 	case $# in
 		0)
-			echo "List of currently installed packages:" >& 2
+			say "List of currently installed packages:"
 			ls -- "$DATA_DIR" | while IFS= read pkg
 			do
 				f=$DATA_DIR/$pkg
@@ -528,6 +534,115 @@ cmd_list() {
 					"nor a package file!"
 			fi
 	esac
+}
+
+
+# list, token.
+contains() {
+	local token t
+	token=$2
+	set -- $1
+	for t
+	do
+		test x"$t" = x"$token" && return
+	done
+	! true
+}
+
+
+remove_or_verify() {
+	test $# = 2
+	local vl FLIST action
+	action=$1
+	locate_flist "$2"
+	vl="t a o m s k c"
+	dccat "$FLIST" | {
+		RM=y
+		while IFS= read -r line
+		do
+			fl_p=${line#*p=}
+			line=${line%%p=*}; line=${line% }
+			for v in $vl
+			do
+				eval "fl_$vn="
+			done
+			set -- $line
+			for kv
+			do
+				v=${kv#?=}; k=${kv%%=*}
+				if contains "$vl" "$k"
+				then
+					eval "fl_$k=\$v"
+				else
+					say "Ignoring unknown setting" \
+						"'$kv' for '$fl_p'!"
+				fi
+			done
+			if test ! -e "$fl_p"
+			then
+				case $action in
+					v) echo "D $fl_p";;
+					r) say "*** ignoring missing $fl_p";;
+					*) false
+				esac
+				continue
+			fi
+			case $fl_k in
+				"" | md5 | cks) ;;
+				*)
+					say "*** ignoring unsupported" \
+						"'$fl_k' checksum for $fl_p"
+					fl_k=
+			esac
+			stat1 "$fl_p"
+			x=`stat2 "$n" "$fl_p"`
+			x="t=$n $x"
+			n=`calcsum $n "$fl_k" "$fl_p"`
+			x="$x${n:+ }$n"
+			if test x"$line" != x"$x"
+			then
+				case $action in
+					v) echo "M $fl_p";;
+					r)
+						say "*** not removing" \
+							"modified $fl_p"
+						;;
+					*) false
+				esac
+			elif test $action = v
+			then
+				say "= $fl_p"
+			else
+				test $action = r
+				case $fl_t in
+					file) t=file;;
+					dir) t=directory;;
+					sym) t=symlink;;
+					*) false
+				esac
+				echo "removing $t $fl_p"
+				case $fl_t in
+					file | sym) rm -f -- "$fl_p" || RM=;;
+					dir) ! rmdir -- "$fl_p";;
+					*) false
+				esac
+			fi
+		done
+		if test $action = r && test -n "$RM"
+		then
+			rm "$FLIST"
+		fi
+	}
+}
+
+
+cmd_verify() {
+	remove_or_verify v "$@"
+}
+
+
+cmd_remove() {
+	remove_or_verify r "$@"
 }
 
 
@@ -561,7 +676,7 @@ CONFIG_FILE=$XDG_CONFIG_HOME/${APP_}_$UUID.conf
 DATA_DIR=$XDG_DATA_HOME/${APP_}_$UUID
 cmd=
 ITARGET=/
-while getopts pivlud:hV OPT
+while getopts pid:lvrhV OPT
 do
 	case $OPT in
 		p) nc=cmd_package;;
@@ -569,7 +684,7 @@ do
 		d) ITARGET=$OPTARG;;
 		l) nc=cmd_list;;
 		v) nc=cmd_verify;;
-		u) nc=cmd_uninstall;;
+		r) nc=cmd_remove;;
 		h) OK=Y; usage; exit;;
 		V) OK=Y; version; exit;;
 		*) false
