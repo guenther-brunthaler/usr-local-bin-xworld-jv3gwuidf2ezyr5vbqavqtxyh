@@ -171,6 +171,14 @@ The script always creates an uncompressed tar archive first, and then tries to
 compress it using different compression methods. The shortest resulting
 archive is kept.
 
+This variant of the -p command requires that \$STAGING_DIR does not refer to
+the name of an already installed package. If \$STAGING_DIR contains forward
+slashes, this will always be guaranteed.
+
+Otherwise, prepending "./" to the relative path may be necessary in order to
+disambiguate \$STAGING_DIR from an already-installed package of the same name
+(see below).
+
 *** Example: Create package file from already installed package contents:
 
 This is similar to creating a package archive from a staging directory.
@@ -240,6 +248,18 @@ will find a name "ld" in all directories, but will not match names like "ldd"
 or "bold".
 
 Currently, no wildcards are supported in the search string.
+
+*** Example: Forget a package:
+
+\$ $APP -F pkgname
+
+removes the uninstallation information of the package "pkgname".
+
+The installed files of the package are not removed, though.
+
+This command can be handy if the files of a package have already been removed
+manually, but the remaining uninstallation information prevents reinstallation
+of the package.
 
 *** Configuration file:
 
@@ -865,6 +885,44 @@ cmd_forget_package() {
 	echo "Forgetting that package '$1' is installed."
 	echo "(Removing uninstallation information without uninstalling.)"
 	rm -- "$FLIST"
+}
+
+
+# Set $newp to the normalized package name $1.
+normalize_pkgname() {
+	newp=`printf '%s' "$1" | tr -c -- '-+:(@~%)_.A-Za-z0-9' _ | tr -s _`
+	if test x"$newp" != x"$1"
+	then
+		say "Normalizing output package name '$1' into '$newp'."
+	fi
+}
+
+
+cmd_package() {
+	local FLIST newp
+	normalize_pkgname "$2"
+	if locate_flist "$1"
+	then
+		test -z "$newp" && newp=$1
+	elif test -d "$1"
+	then
+		if test -z "$newp"
+		then
+			newp=`cleanup_path "$1"`
+			newp=`basename "$newp"`
+			case $newp in
+			 	/ | . | .. )
+			 		newp=`readlink -f "$1"`
+					newp=`basename "$newp"`
+			esac
+			test -n "$newp"
+			normalize_pkgname "$newp"
+		fi
+	else
+		die "'$1' must either be an existing directory the name" \
+			"of an already-installed package."
+	fi
+	say "Not yet implemented!"
 }
 
 
