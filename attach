@@ -1,4 +1,4 @@
 #! /bin/sh
 cd ~/var/run/dtach
-test $# = 1 && exec dtach -A "$1" -e ^a -z bash
+test $# = 1 && exec dtach -A "$1" -e ^a -z "${SHELL:-bash}"
 ls -1

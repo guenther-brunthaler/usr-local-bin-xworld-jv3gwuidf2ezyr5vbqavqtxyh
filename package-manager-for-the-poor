@@ -1,0 +1,1006 @@
+#! /bin/sh
+version() {
+	cat << .
+$APP version 13.56
+
+(c) 2013 by Guenther Brunthaler.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+.
+}
+
+
+usage() {
+	cat << .
+$APP - poor man's package management script
+
+This is a shell script for installing and uninstalling user-built packages.
+
+It depends on a minimal set of external commands and is intended to work even
+in minimal system installations.
+
+Usage: $APP [ <options> ] <command> <arguments> ...
+
+Commands:
+
+-i: Install files from a package, from a directory, or from "make install".
+-l: List files from an installed or uninstalled package or list packages.
+-s: Search to which installed package a file/path belongs.
+-v: Verify that package files are still the same as after installation.
+-r: Remove (uninstall) a previously installed package.
+-p: Create a package from directory tree contents or from installed package.
+-P: Print path to package list database file of installed package.
+-F: Forget that an installed package ist installed.
+-h: Show this help.
+-V: Show version information.
+
+Options:
+-d <directory>: Divert installation to <directory> instead of to "/".
+-a: Search all packages for "-s", don't stop when the first match is found.
+
+Usage variants:
+-i: Like "make install" but record for later uninstallation.
+-i /path/to/staging/dir: Install from staging directory contents.
+-i /path/to/staging/dir pkgname: Same but override package name.
+-i /path/to/package/file: Install from package file.
+-i /path/to/package/file pkgname: Same but override package name.
+-l /path/to/package: List package contents.
+-l pkgname: List contents of already-installed package.
+-l: Display list of currently installed packages.
+-v pkgname: Verify contents of the installed package.
+-r pkgname: Remove (uninstall) the installed package.
+-p /path/to/staging/dir: Create from staging directory contents.
+-p /path/to/staging/dir pkgname: Same but override package name.
+-p pkgname: Create package from already-installed contents.
+-p pkgname savename: Same but override created package name.
+-s ls: Finds "ls" everywhere; in /bin, /usr/bin, /usr/local/bin, ...
+-s bin/ls: Finds "ls" in /usr/bin, /bin, /usr/local/bin, ...
+-s /bin/ls: Finds "ls" only in /bin, not in /usr/bin nor /usr/local/bin, ...
+-F pkgname: Removes uninstallation information for package w/o uninstalling.
+
+*** Example: Install files after "./configure && make":
+
+This does not require creating a package first. The package has to
+be built already, such as by
+
+\$ ./configure --prefix=\$HOME
+\$ make
+
+Now run
+
+\$ $APP -i
+
+This will automatically do a
+
+\$ make install DESTDIR=\$STAGING_DIR
+
+thus installing all files to be installed into a temporary staging directory
+\$STAGING_DIR.
+
+It will then create and save a file list for later uninstallation by using the
+basename of the current directory as a the package name.
+
+Finally, it will merge the contents of the staging directory into the live
+file system, thus completing the installation. The temporary staging directory
+will be removed after this.
+
+*** Example: Install files from a staging directory:
+
+In this case, all the files to be installed need to be copied to a staging
+directory manually first. For instance:
+
+\$ ./configure --prefix=\$HOME
+\$ make
+\$ test -e mypackage-1.0 && rm -rf mypackage-1.0
+\$ mkdir mypackage-1.0
+\$ make install DESTDIR=\`pwd\`/mypackage-1.0
+
+The contents of the staging directory will be
+copied to the root of the live file system recursively.
+
+\$ $APP -i mypackage-1.0
+
+The basename of the staging directory will be used as the package name.
+
+\$ $APP -i /path/to/staging/directory package_name-1.0
+
+This is the same, except that the package name is specified directly as an
+additional argument. In this case, the basename of the staging directory has
+no effect on the package name.
+
+*** Example: Install files from a package:
+
+A package is a simple archive containing the contents of a staging directory.
+Installing from a package is quite similar to installing from a staging
+directory, only that an archive file is specified instead of a directory.
+
+\$ $APP -i /path/to/staging/directory package_name-1.0.tgz
+
+In this case, the basename of the package file (minus the filename extension)
+will be used as the package name. The package name is thus "package_name-1.0".
+
+If the stripped filename extension has been preceded by ".tar", this will be
+stripped as well:
+
+\$ $APP -i /path/to/staging/directory package_name-1.0.tar.gz
+
+The following file extensions are directly supported by this script:
+
+.tar
+.tar.bz2
+.tar.gz
+.tbz
+.tgz
+
+This means the script will automatically add the right option for tar when
+unpacking.
+
+Other extensions are supported as long as tar knows how to unpack such files
+automatically without requiring specific options.
+
+The recommended file extension/format for packages is ".tgz".
+
+\$ $APP -i /path/to/staging/directory name-1.0.tgz name-1.0.alpha
+
+will also install a package, but override the package name under which the
+package will be recorded as being installed. This will record the name of the
+installed package as "name-1.0.alpha" instead of "name-1.0".
+
+*** Example: Create package from staging directory contents:
+
+This creates a package archive suitable for later installation.
+
+First, install the files to included into some staging directory $STAGING_DIR.
+
+Then change to the directory where the package archive should be created and
+run from there:
+
+\$ $APP -p $STAGING_DIR
+
+This will create a compressed tar archive in the current directory, using the
+base name of $STAGING_DIR as the package name.
+
+Alternatively, run
+
+\$ $APP -p $STAGING_DIR mypkg-1.0
+
+This does the same, except that it uses "mypkg-1.0" as the package name, which
+might create a package archive file "mypkg-1.0.tgz" as a result.
+
+The script always creates an uncompressed tar archive first, and then tries to
+compress it using different compression methods. The shortest resulting
+archive is kept.
+
+This variant of the -p command requires that \$STAGING_DIR does not refer to
+the name of an already installed package. If \$STAGING_DIR contains forward
+slashes, this will always be guaranteed.
+
+Otherwise, prepending "./" to the relative path may be necessary in order to
+disambiguate \$STAGING_DIR from an already-installed package of the same name
+(see below).
+
+*** Example: Create package file from already installed package contents:
+
+This is similar to creating a package archive from a staging directory.
+
+But in this case, the files are taken from the live file system instead of
+from a staging directory.
+
+This requires specifying an already-installed package. The information which
+files to put into the package archive will be taken from the recorded
+uninstallation information of the package.
+
+Warning: This command does not verify that the installed package has not been
+modified. It just uses whatever is currently installed at the recorded paths.
+Use the -v command before building a package if it is important that the
+package has not been modified since installation.
+
+\$ $APP -p pkgname
+
+This command looks into the database of installed packages in order to
+determine what files belong to package "pkgname".
+
+Then it creates a package archive file "pkgname.tgz" in the current directory.
+(The actual file extension may vary because different compression methods may
+be compared and the best one will be used.)
+
+\$ $APP -p pkgname mypkg-1.0
+
+This does the same but overrides the name of the created package archive file.
+In this case, it will be "mypkg-1.0.tgz" (the file extension might vary)
+instead of just "pkgname.tgz".
+
+*** Example: Search the package database for installed files/directories:
+
+This allows to find out to which package(s) a file/directory belongs.
+
+The search normally stops when the first match is found. But this can be
+changed by using the -a option, which will search all installed packages and
+display all matches.
+
+The argument to -s is a search string, which is a sequence of path
+components separated by "/". It can also be a single component, i. e. without
+any "/".
+
+The last component may be a file or directory basename; any preceding
+components must be directory names (or symlinks to directories).
+
+The whole search string may be preceded by "/", which makes it a anchored search.
+
+By default, the search is not anchored. For instance,
+
+\$ $APP -s bin/ls
+
+will find a file or directory "ls" in every directory "bin", no matter here
+that "bin" is located. It will therefore match /usr/bin/ls as well as /bin/ls.
+On the other hand,
+
+\$ $APP -s /bin/ls
+
+will match /bin/ls and only that.
+
+The individual path components will always have to match entirely, i. e. no
+substring match. Therefore,
+
+\$ $APP -s ld
+
+will find a name "ld" in all directories, but will not match names like "ldd"
+or "bold".
+
+Currently, no wildcards are supported in the search string.
+
+*** Example: Forget a package:
+
+\$ $APP -F pkgname
+
+removes the uninstallation information of the package "pkgname".
+
+The installed files of the package are not removed, though.
+
+This command can be handy if the files of a package have already been removed
+manually, but the remaining uninstallation information prevents reinstallation
+of the package.
+
+*** Configuration file:
+
+The script reads settings from the following configuration file:
+
+$CONFIG_FILE
+
+The location of that file can be changed by setting environment variable
+XDG_CONFIG_HOME (which defaults to "\$HOME/.config").
+
+*** The database of installed packages:
+
+Information about all currently installed packages is stored in the following
+directory:
+
+$DATA_DIR
+
+The location of that directory can be changed by setting environment variable
+XDG_DATA_HOME (which defaults to "\$HOME/.local/share").
+.
+	echo; version
+}
+
+
+say() {
+	printf '%s\n' "$*" >& 2
+}
+
+
+cleanup() {
+	test -z "$OK" && say 'Failed!'
+	test -n "$TDIR" && release_tmp_dir
+	test -n "$OK"
+}
+
+
+cmd_uninstall() {
+	cd /
+	while IFS= read -r LINE
+	do
+		test x"$LINE" = x"." && continue
+		test x"${LINE#./}" != x"$LINE" || {
+			say "All lines need to start with './'!"
+			false; exit
+		}
+		if test -d "$LINE"
+		then
+			# It is possible that $LINE is a symlink to a directory. In
+			# this case removal will always fail. But this is a good
+			# thing, because such symlinks were most likely not created by
+			# the installer and should be kept. Just think about a symlink
+			# /lib64 -> /lib.
+			rmdir -- "$LINE" || true
+		elif test -e "$LINE"
+		then
+			rm -- "$LINE" || {
+				say "Could not delete '/$LINE'!"
+				false
+			}
+		fi
+	done
+	say "Uninstallation complete."
+}
+
+
+die() {
+	{
+		echo "ERROR: $*"
+		echo "Use -h for help."
+	} >& 2
+	OK=Y; false
+}
+
+
+# Ensures a directory exists by creating it recursively if necessary.
+# Assumes set -e.
+ensure_dir() {
+	test -d "$1" && return
+	ensure_dir "`dirname -- \"$1\"`"
+	mkdir -m 700 -- "$1"
+}
+
+
+# Locate or migrate configuration file or data directory $2.
+#
+# $2 needs to have $UUID as part of its name. If $1 is -d then $2 is a
+# directory. If $1 is -f then $2 is a file.
+#
+# Returns true if $2 exists or has been migrated successfully.
+#
+# Returns false if the caller should create $2. In this case, the parent
+# directory of $2 will already exist.
+locate_config() {
+	test $1 "$2" && return
+	test ! -e "$2"
+	local d f found old
+	d=`dirname -- "$2"`
+	f=`basename -- "$2"`
+	ensure_dir "$d"
+	found=
+	for old in "$d"/*$UUID*
+	do
+		if test $1 "$old"
+		then
+			mv -- "$old" "$2"
+			found=Y
+			break
+		fi
+	done
+	! test -z "$found" # Avoid termination by set -e.
+}
+
+
+release_tmp_dir() {
+	rm -rf -- "$TDIR" || :
+	TDIR=
+}
+
+
+create_tmp_dir() {
+	local t
+	while :
+	do
+		t=`"$TEMPFILE"`
+		rm -- "$t"
+		mkdir -m 700 -- "$t" && break
+		sleep 1
+	done
+	TDIR=$t
+}
+
+
+# Set FLIST to the file list name of the package $1.
+# Returns true for success.
+locate_flist() {
+	local xt b
+	if test x"${1%/*}" = x"$1"
+	then
+		b=$DATA_DIR/$1
+		for xt in .gz .bz2 .xz .lzma .txt
+		do
+			FLIST=$b$xt
+			test -f "$FLIST" && return
+		done
+	fi
+	FLIST=
+	! true
+}
+
+
+pack_best() {
+	gzip -9 "$1"
+}
+
+
+# [ <option> ] VAR $cmd: Sets $VAR to path of executable $cmd.
+# Without option: Return code indicates success.
+# -i: Ignore failure; always report success.
+# -f: Die if command could not be found.
+# In all cases, $VAR is set to empty if command not found.
+getcmd() {
+	case $1 in
+		-*) ;;
+		*) set -- -- "$@"
+	esac
+	# There is a bug in bash's eval: It does not return the status of a
+	# backquote substitution. Adding a redundant test to fix it.
+	eval "$2=`which \"$3\" 2> /dev/null`;\
+		test \$? = 0 && test -n \"\$$2\" && test -x \"\$$2\"" \
+			&& return
+	eval "$2="
+	test $1 = "-f" && die "Required utility '$3' is not installed!"
+	! test $1 != "-i"
+}
+
+
+# Removes redundant trailing or repeated slashes.
+cleanup_path() {
+	printf '%s' "$1" | sed -e 's,//*,/,g; s,\(.\)/$,\1,'
+}
+
+
+# <startdir> <callback> [ <targetpath> ]
+dirwalk() {
+	local s t
+	s=${1%/}; t=${3%/}
+	(
+		cd "$1"
+		find . ! -path . | cut -d/ -f2-
+	) | while IFS= read -r e
+	do
+		"$2" "$s/$e" "$t/$e"
+	done
+}
+
+
+pre_check() {
+	if test -d "$1"
+	then
+		test -d "$2" && return
+	elif test -f "$1"
+	then
+		:
+	elif test ! -L "$1"
+	then
+		die "Unsupported file type in relative source path '$1'!"
+	fi
+	if test -e "$2" || test -L "$2"
+	then
+		die "Installation pre-check failed: '$2' already exists!"
+	fi
+}
+
+
+merge_into() {
+	test -e "$2" && return
+	if test -L "$1"
+	then
+		local target
+		target=`readlink "$1"`
+		ln -s -- "$target" "$2"
+	elif test -d "$1"
+	then
+		local mode
+		mode=`stat -c %a -- "$1"`; test -n "$mode"
+		mkdir -m "$mode" -- "$2"
+	else
+		test -f "$1"
+		# Suppress messages that changing ownership failed.
+		cp -p -- "$1" "$2" 2> /dev/null
+	fi
+}
+
+
+# $@: obj-type, checksum-kind, path.
+calcsum() {
+	test $1 = dir && return
+	case $1 in
+		sym) readlink "$3";;
+		file) cat "$3"
+	esac | {
+		test -n "$2" && printf 'a=%s d=' "$2"
+		case $2 in
+			md5) "$MD5SUM" -b -- | cut -d" " -f1;;
+			cks) "$CKSUM" -- | tr " " ':'
+		esac
+	}
+}
+
+
+# $1: type, $2: path.
+stat2() {
+	case $1 in
+		file) f="m=%a o=%u:%g t=%Y s=%s";;
+		dir) f="m=%a o=%u:%g";;
+		sym) f="s=%s";;
+		*) false
+	esac
+	stat -c "$f" "$2"
+}
+
+
+# Set $n to directory entry type.
+stat1() {
+	if test -L "$1"
+	then
+		n=sym
+	elif test -d "$1"
+	then
+		n=dir
+	else
+		test -f "$1"
+		n=file
+	fi
+}
+
+
+# Set $copt to the right tar compression option for archive $1.
+get_copt() {
+	case $1 in
+		*.tgz | *.tar.gz) copt=-z;;
+		*.tbz | *.tar.bz2) copt=-j;;
+		*) copt=
+	esac
+}
+
+
+# Print decompressed file list "$1".
+dccat() {
+	case $1 in
+		*.gz) "$GZIP" -dc;;
+		*.bz2) "$BZIP2" -dc;;
+		*.xz) "$XZ" -dc;;
+		*.lzma)
+			if test -n "$LZMA"
+			then
+				"$LZMA" -dc
+			else
+				"$XZ" -dc
+			fi
+			;;
+		*.txt) ;;
+		*) die "Unsupported file extension of list file '$1'!"
+	esac < "$1"
+}
+
+
+cmd_install() {
+	local dir pkg
+	case $# in
+		0)
+			dir=`pwd`
+			test -n "$dir"; test -d "$dir"
+			pkg=`basename "$dir"`; test -n "$pkg"
+			create_tmp_dir
+			make install DESTDIR="$TDIR"
+			cmd_install "$TDIR" "$pkg"
+			release_tmp_dir
+			;;
+		1)
+			test -n "$1"
+			if test -d "$1"
+			then
+				dir=`readlink -f "$1"`
+				test -n "$dir"; test -d "$dir"
+				pkg=`basename "$dir"`
+			else
+				test -f "$1"
+				pkg=${1%.*}; pkg=${pkg%.tar}
+			fi
+			test -n "$pkg"
+			cmd_install "$1" "$pkg"
+			;;
+		*)	test $# = 2
+			pkg=$2; test -n "$pkg"
+			dir=`cleanup_path "$1"`; test -n "$dir"
+			if locate_flist "$pkg"
+			then
+				die "Package '$pkg' is already installed!"
+			fi
+			if test -f "$dir"
+			then
+				local copt
+				get_copt "$dir"
+				create_tmp_dir
+				"$TAR" -x $copt -f "$dir" -C "$TDIR"
+				cmd_install "$TDIR" "$pkg"
+				release_tmp_dir
+			else
+				test -d "$dir"
+				dirwalk "$dir" pre_check "$ITARGET"
+				local FLIST
+				FLIST=$DATA_DIR/$pkg; test ! -e "$FLIST"
+				(
+					cd "$dir"
+					find . -depth ! -path . \
+					| cut -d/ -f2-
+				) | {
+					pfx=${ITARGET%/}/
+					while IFS= read -r p
+					do
+						printf 'p=%s%s\n' "$pfx" "$p"
+					done
+				} > "$FLIST".txt
+				dirwalk "$dir" merge_into "$ITARGET"
+				local fln l1 line p n x
+				l1=$FLIST.txt
+				fln=$FLIST.update
+				while IFS= read -r line
+				do
+					p=${line#p=}
+					stat1 "$p"
+					x=`stat2 "$n" "$p"`
+					x="k=$n $x"
+					n=`calcsum $n "$CHKDFLTYPE" "$p"`
+					echo "$x${n:+ }$n $line"
+				done < "$l1" > "$fln"
+				rm -- "$l1"
+				mv -- "$fln" "$FLIST"
+				pack_best "$FLIST"
+			fi
+	esac
+}
+
+
+uninteresting() {
+	case $1 in
+		*.tmp | *~) return
+	esac
+	! true
+}
+
+
+# Strip package name file extension suffixes from variable $pkg.
+strip_pkg_suffix() {
+	pkg=${pkg%.*}; pkg=${pkg%.tar}
+}
+
+
+cmd_list() {
+	case $# in
+		0)
+			say "List of currently installed packages:"
+			ls -- "$DATA_DIR" | {
+				any=
+				while IFS= read pkg
+				do
+					uninteresting && continue
+					f=$DATA_DIR/$pkg
+					when=`
+						date -r "$f" \
+							+"%Y-%m-%d %H:%M:%S"
+					`
+					strip_pkg_suffix
+					printf '%s %s\n' "$when" "$pkg"
+					any=y
+				done
+				if test -z "$any"
+				then
+					say "(None.)"
+				fi
+			}
+			;;
+		*)	test $# = 1
+			if locate_flist "$1"
+			then
+				dccat "$FLIST" | sed -e 's,.*p=,,' | sort
+			elif test -f "$1"
+			then
+				local copt
+				get_copt "$1"
+				"$TAR" -t $copt -f "$1" | sort
+			else
+				die "'$1' is neither an installed package" \
+					"nor a package file!"
+			fi
+	esac
+}
+
+
+# list, token.
+contains() {
+	local token t
+	token=$2
+	set -- $1
+	for t
+	do
+		test x"$t" = x"$token" && return
+	done
+	! true
+}
+
+
+note() {
+	echo "*** $*"
+}
+
+
+rm_symlink_if_safe() {
+	if
+		test -d "$1" \
+		&& test x`
+			"$FIND" -H /"$1" -maxdepth 1 > /dev/null \
+			| "$WC" -l
+		` != x0
+	then
+		note "Not removing symlink to non-empty directory '$1'."
+		false || return
+	fi
+	rm -f -- "$1"
+}
+
+
+cmd_plist_location() {
+	local FLIST
+	locate_flist "$1"
+	printf "%s\n" "$FLIST"
+}
+
+
+remove_or_verify() {
+	test $# = 2
+	local vl FLIST action pkg
+	action=$1
+	pkg=$2
+	locate_flist "$pkg"
+	vl="k m o t s a d"
+	dccat "$FLIST" | {
+		RM=y
+		while IFS= read -r line
+		do
+			fl_p=${line#*p=}
+			line=${line%%p=*}; line=${line% }
+			for v in $vl
+			do
+				eval "fl_$vn="
+			done
+			set -- $line
+			for kv
+			do
+				v=${kv#?=}; k=${kv%%=*}
+				if contains "$vl" "$k"
+				then
+					eval "fl_$k=\$v"
+				else
+					say "Ignoring unknown setting" \
+						"'$kv' for '$fl_p'!"
+				fi
+			done
+			if test ! -e "$fl_p" && test ! -L "$fl_p"
+			then
+				case $action in
+					v) echo "D $fl_p";;
+					r) note "ignoring missing $fl_p";;
+					*) false
+				esac
+				continue
+			fi
+			case $fl_a in
+				"" | md5 | cks) ;;
+				*)
+					say "*** ignoring unsupported" \
+						"checksum algorithm" \
+						"'$fl_a' for $fl_p"
+					fl_a=
+			esac
+			stat1 "$fl_p"
+			x=`stat2 "$n" "$fl_p"`
+			x="k=$n $x"
+			n=`calcsum $n "$fl_a" "$fl_p"`
+			x="$x${n:+ }$n"
+			if test x"$line" != x"$x"
+			then
+				case $action in
+					v) echo "M $fl_p";;
+					r)
+						note "not removing" \
+							"modified $fl_p"
+						;;
+					*) false
+				esac
+			elif test $action = v
+			then
+				say "= $fl_p"
+			else
+				test $action = r
+				case $fl_k in
+					file) t=file;;
+					dir) t=directory;;
+					sym) t=symlink;;
+					*) false
+				esac
+				say "removing $t $fl_p"
+				case $fl_k in
+					sym)
+						rm_symlink_if_safe "$fl_p" \
+						|| RM=
+						;;
+					file) rm -f -- "$fl_p" || RM=;;
+					dir) ! rmdir -- "$fl_p";;
+					*) false
+				esac
+			fi
+		done
+		if test $action = r
+		then
+			if test -n "$RM"
+			then
+				rm "$FLIST"
+				note "completed removal of package $pkg"
+			else
+				note "incomplete removal of package $pkg"
+			fi
+		fi
+	}
+}
+
+
+cmd_verify() {
+	remove_or_verify v "$@"
+}
+
+
+cmd_remove() {
+	remove_or_verify r "$@"
+}
+
+
+cmd_search() {
+	local sstr
+	test $# = 1
+	sstr=`cleanup_path "$1"`
+	# Tranform "a/b" into "/a/b/" and "/a/b" into "//a/b/".
+	test x"${sstr#/}" != x"$sstr" && sstr=/$sstr
+	sstr=$sstr/
+	ls -- "$DATA_DIR" | {
+		any=
+		while IFS= read pkg
+		do
+			uninteresting && continue
+			f=$DATA_DIR/$pkg
+			if
+				dccat "$f" \
+				| sed -e 's,.*p=,,; s,^,//,; s,$,/,' \
+				| grep -qF -- "$sstr" > /dev/null 2>& 1
+			then
+				strip_pkg_suffix
+				printf '%s\n' "$pkg"; any=Y
+				test -z "$PROC_ALL" && break
+			fi
+		done
+		if test -z "$any"
+		then
+			say "(None.)"
+		fi
+	}
+}
+
+
+cmd_forget_package() {
+	local FLIST
+	locate_flist "$1"
+	echo "Forgetting that package '$1' is installed."
+	echo "(Removing uninstallation information without uninstalling.)"
+	rm -- "$FLIST"
+}
+
+
+# Set $newp to the normalized package name $1.
+normalize_pkgname() {
+	newp=`printf '%s' "$1" | tr -c -- '-+:(@~%)_.A-Za-z0-9' _ | tr -s _`
+	if test x"$newp" != x"$1"
+	then
+		say "Normalizing output package name '$1' into '$newp'."
+	fi
+}
+
+
+cmd_package() {
+	local FLIST newp
+	normalize_pkgname "$2"
+	if locate_flist "$1"
+	then
+		test -z "$newp" && newp=$1
+	elif test -d "$1"
+	then
+		if test -z "$newp"
+		then
+			newp=`cleanup_path "$1"`
+			newp=`basename "$newp"`
+			case $newp in
+			 	/ | . | .. )
+			 		newp=`readlink -f "$1"`
+					newp=`basename "$newp"`
+			esac
+			test -n "$newp"
+			normalize_pkgname "$newp"
+		fi
+	else
+		die "'$1' must either be an existing directory the name" \
+			"of an already-installed package."
+	fi
+	say "Not yet implemented!"
+}
+
+
+set -e
+OK=
+TDIR=
+trap cleanup 0
+UUID=7rttpq19eb58ybhqm18dktllt
+APP=${0##*/}
+getcmd -f TEMPFILE tempfile
+getcmd -i GZIP gzip
+getcmd -i BZIP2 bzip2
+getcmd -i XZ xz
+getcmd -i LZMA lzma
+getcmd -f TAR tar
+getcmd -i MD5SUM md5sum
+getcmd -i CKSUM cksum
+getcmd -f WC wc
+getcmd -f FIND find
+if test -n "$MD5SUM"
+then
+	CHKDFLTYPE=md5
+elif test -n "$CKSUM"
+then
+	CHKDFLTYPE=cks
+else
+	CHKDFLTYPE=
+fi
+test -n "$HOME" && test -d "$HOME"
+: ${XDG_DATA_HOME:=$HOME/.local/share} ${XDG_CONFIG_HOME:=$HOME/.config}
+APP_=`printf '%s' "$APP" | tr -sc '[:alnum:]' _`
+CONFIG_FILE=$XDG_CONFIG_HOME/${APP_}_$UUID.conf
+DATA_DIR=$XDG_DATA_HOME/${APP_}_$UUID
+cmd=
+ITARGET=/
+PROC_ALL=
+while getopts pPFid:lvrshV OPT
+do
+	case $OPT in
+		p) nc=cmd_package;;
+		P) nc=cmd_plist_location;;
+		F) nc=cmd_forget_package;;
+		i) nc=cmd_install;;
+		d) ITARGET=$OPTARG;;
+		l) nc=cmd_list;;
+		v) nc=cmd_verify;;
+		r) nc=cmd_remove;;
+		s) nc=cmd_search;;
+		a) PROC_ALL=Y;;
+		h) OK=Y; usage; exit;;
+		V) OK=Y; version; exit;;
+		*) false
+	esac
+	test -z "$cmd" || die "Exactly one command is required!"
+	cmd=$nc
+done
+shift `expr $OPTIND - 1`
+test -n "$ITARGET"
+if test x"${ITARGET#/}" = x"$ITARGET"
+then
+	ITARGET=`pwd`/$ITARGET
+	test x"${ITARGET#/}" != x"$ITARGET"
+fi
+ITARGET=`cleanup_path "$ITARGET"`
+if test ! -d "$ITARGET"
+then
+	die "Installation target directory '$ITARGET' does not exist!"
+fi
+test -n "$cmd" || die "Ḿissing command!"
+if ! locate_config -f "$CONFIG_FILE"
+then
+	> "$CONFIG_FILE"
+	chmod 600 -- "$CONFIG_FILE"
+fi
+if ! locate_config -d "$DATA_DIR"
+then
+	mkdir -m 700 -- "$DATA_DIR"
+fi
+basedir=`. "$CONFIG_FILE" && printf "%s\n" "$basedir"`
+"$cmd" "$@"
+OK=Y
