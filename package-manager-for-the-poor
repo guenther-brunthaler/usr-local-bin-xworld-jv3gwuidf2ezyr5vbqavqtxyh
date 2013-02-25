@@ -1,7 +1,7 @@
 #! /bin/sh
 version() {
 	cat << .
-$APP version 13.44
+$APP version 13.56
 
 (c) 2013 by Guenther Brunthaler.
 This script is free software.
@@ -14,12 +14,12 @@ usage() {
 	cat << .
 $APP - poor man's package management script
 
-This is a simple script for installing and uninstalling user-built packages.
+This is a shell script for installing and uninstalling user-built packages.
 
 It depends on a minimal set of external commands and is intended to work even
 in minimal system installations.
 
-Usage: $APP <command> <arguments> ...
+Usage: $APP [ <options> ] <command> <arguments> ...
 
 Commands:
 
@@ -29,6 +29,7 @@ Commands:
 -v: Verify that package files are still the same as after installation.
 -r: Remove (uninstall) a previously installed package.
 -p: Create a package from directory tree contents or from installed package.
+-P: Print path to package list database file of installed package.
 -h: Show this help.
 -V: Show version information.
 
@@ -478,7 +479,7 @@ calcsum() {
 		sym) readlink "$3";;
 		file) cat "$3"
 	esac | {
-		test -n "$2" && printf 'k=%s c=' "$2"
+		test -n "$2" && printf 'a=%s d=' "$2"
 		case $2 in
 			md5) "$MD5SUM" -b -- | cut -d" " -f1;;
 			cks) "$CKSUM" -- | tr " " ':'
@@ -490,8 +491,8 @@ calcsum() {
 # $1: type, $2: path.
 stat2() {
 	case $1 in
-		file) f="a=%a o=%u:%g m=%Y s=%s";;
-		dir) f="a=%a o=%u:%g";;
+		file) f="m=%a o=%u:%g t=%Y s=%s";;
+		dir) f="m=%a o=%u:%g";;
 		sym) f="s=%s";;
 		*) false
 	esac
@@ -609,7 +610,7 @@ cmd_install() {
 					p=${line#p=}
 					stat1 "$p"
 					x=`stat2 "$n" "$p"`
-					x="t=$n $x"
+					x="k=$n $x"
 					n=`calcsum $n "$CHKDFLTYPE" "$p"`
 					echo "$x${n:+ }$n $line"
 				done < "$FLIST" > "$fln"
@@ -694,13 +695,35 @@ note() {
 }
 
 
+rm_symlink_if_safe() {
+	if
+		test -d "$1" \
+		&& test x`
+			"$FIND" -H /"$1" -maxdepth 1 > /dev/null \
+			| "$WC" -l
+		` != x0
+	then
+		# Don't remove symlinks to non-empty directories.
+		false || return
+	fi
+	rm -f -- "$1"
+}
+
+
+cmd_plist_location() {
+	local FLIST
+	locate_flist "$1"
+	printf "%s\n" "$FLIST"
+}
+
+
 remove_or_verify() {
 	test $# = 2
 	local vl FLIST action pkg
 	action=$1
 	pkg=$2
 	locate_flist "$pkg"
-	vl="t a o m s k c"
+	vl="k m o t s a d"
 	dccat "$FLIST" | {
 		RM=y
 		while IFS= read -r line
@@ -732,17 +755,18 @@ remove_or_verify() {
 				esac
 				continue
 			fi
-			case $fl_k in
+			case $fl_a in
 				"" | md5 | cks) ;;
 				*)
 					say "*** ignoring unsupported" \
-						"'$fl_k' checksum for $fl_p"
-					fl_k=
+						"checksum algorithm" \
+						"'$fl_a' for $fl_p"
+					fl_a=
 			esac
 			stat1 "$fl_p"
 			x=`stat2 "$n" "$fl_p"`
-			x="t=$n $x"
-			n=`calcsum $n "$fl_k" "$fl_p"`
+			x="k=$n $x"
+			n=`calcsum $n "$fl_a" "$fl_p"`
 			x="$x${n:+ }$n"
 			if test x"$line" != x"$x"
 			then
@@ -767,7 +791,11 @@ remove_or_verify() {
 				esac
 				say "removing $t $fl_p"
 				case $fl_t in
-					file | sym) rm -f -- "$fl_p" || RM=;;
+					sym)
+						rm_symlink_if_safe "$fp_p" \
+						|| RM=
+						;;
+					file) rm -f -- "$fl_p" || RM=;;
 					dir) ! rmdir -- "$fl_p";;
 					*) false
 				esac
@@ -842,6 +870,8 @@ getcmd -i LZMA lzma
 getcmd -f TAR tar
 getcmd -i MD5SUM md5sum
 getcmd -i CKSUM cksum
+getcmd -f WC wc
+getcmd -f FIND find
 if test -n "$MD5SUM"
 then
 	CHKDFLTYPE=md5
@@ -859,10 +889,11 @@ DATA_DIR=$XDG_DATA_HOME/${APP_}_$UUID
 cmd=
 ITARGET=/
 PROC_ALL=
-while getopts pid:lvrshV OPT
+while getopts pPid:lvrshV OPT
 do
 	case $OPT in
 		p) nc=cmd_package;;
+		P) nc=cmd_plist_location;;
 		i) nc=cmd_install;;
 		d) ITARGET=$OPTARG;;
 		l) nc=cmd_list;;
