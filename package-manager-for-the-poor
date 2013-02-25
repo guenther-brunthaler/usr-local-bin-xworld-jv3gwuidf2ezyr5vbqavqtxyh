@@ -30,6 +30,7 @@ Commands:
 -r: Remove (uninstall) a previously installed package.
 -p: Create a package from directory tree contents or from installed package.
 -P: Print path to package list database file of installed package.
+-F: Forget that an installed package ist installed.
 -h: Show this help.
 -V: Show version information.
 
@@ -55,6 +56,7 @@ Usage variants:
 -s ls: Finds "ls" everywhere; in /bin, /usr/bin, /usr/local/bin, ...
 -s bin/ls: Finds "ls" in /usr/bin, /bin, /usr/local/bin, ...
 -s /bin/ls: Finds "ls" only in /bin, not in /usr/bin nor /usr/local/bin, ...
+-F pkgname: Removes uninstallation information for package w/o uninstalling.
 
 *** Example: Install files after "./configure && make":
 
@@ -445,7 +447,7 @@ pre_check() {
 	then
 		die "Unsupported file type in relative source path '$1'!"
 	fi
-	if test -e "$2"
+	if test -e "$2" || test -L "$2"
 	then
 		die "Installation pre-check failed: '$2' already exists!"
 	fi
@@ -601,9 +603,10 @@ cmd_install() {
 					do
 						printf 'p=%s%s\n' "$pfx" "$p"
 					done
-				} > "$FLIST"
+				} > "$FLIST".txt
 				dirwalk "$dir" merge_into "$ITARGET"
-				local fln line p n x
+				local fln l1 line p n x
+				l1=$FLIST.txt
 				fln=$FLIST.update
 				while IFS= read -r line
 				do
@@ -613,8 +616,8 @@ cmd_install() {
 					x="k=$n $x"
 					n=`calcsum $n "$CHKDFLTYPE" "$p"`
 					echo "$x${n:+ }$n $line"
-				done < "$FLIST" > "$fln"
-				rm -- "$FLIST"
+				done < "$l1" > "$fln"
+				rm -- "$l1"
 				mv -- "$fln" "$FLIST"
 				pack_best "$FLIST"
 			fi
@@ -703,7 +706,7 @@ rm_symlink_if_safe() {
 			| "$WC" -l
 		` != x0
 	then
-		# Don't remove symlinks to non-empty directories.
+		note "Not removing symlink to non-empty directory '$1'."
 		false || return
 	fi
 	rm -f -- "$1"
@@ -783,16 +786,16 @@ remove_or_verify() {
 				say "= $fl_p"
 			else
 				test $action = r
-				case $fl_t in
+				case $fl_k in
 					file) t=file;;
 					dir) t=directory;;
 					sym) t=symlink;;
 					*) false
 				esac
 				say "removing $t $fl_p"
-				case $fl_t in
+				case $fl_k in
 					sym)
-						rm_symlink_if_safe "$fp_p" \
+						rm_symlink_if_safe "$fl_p" \
 						|| RM=
 						;;
 					file) rm -f -- "$fl_p" || RM=;;
@@ -856,6 +859,15 @@ cmd_search() {
 }
 
 
+cmd_forget_package() {
+	local FLIST
+	locate_flist "$1"
+	echo "Forgetting that package '$1' is installed."
+	echo "(Removing uninstallation information without uninstalling.)"
+	rm -- "$FLIST"
+}
+
+
 set -e
 OK=
 TDIR=
@@ -889,11 +901,12 @@ DATA_DIR=$XDG_DATA_HOME/${APP_}_$UUID
 cmd=
 ITARGET=/
 PROC_ALL=
-while getopts pPid:lvrshV OPT
+while getopts pPFid:lvrshV OPT
 do
 	case $OPT in
 		p) nc=cmd_package;;
 		P) nc=cmd_plist_location;;
+		F) nc=cmd_forget_package;;
 		i) nc=cmd_install;;
 		d) ITARGET=$OPTARG;;
 		l) nc=cmd_list;;
