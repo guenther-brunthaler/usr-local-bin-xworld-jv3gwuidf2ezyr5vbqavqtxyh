@@ -1,0 +1,21 @@
+#! /bin/sh
+# Remove leading and tailing whitespace and convert into a shell remark. If an
+# argument is specified, it modifies what kind of remark is generated. See the
+# "case" below for supported keywords.
+#
+# (c) 2013 by Superuser.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+sfx=
+case $1 in
+	c++) pfx="// ";;
+	c) pfx="/* "; sfx=" */";;
+	jd) pfx=" * ";;
+	*) pfx="# "
+esac
+sed -e '
+	s/[[:space:]]*$//
+	s/^[[:space:]]*//
+	s,^,'"$pfx"',
+	s,$,'"$sfx"',
+'
