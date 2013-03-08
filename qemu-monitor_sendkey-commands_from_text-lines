@@ -1,0 +1,35 @@
+#! /bin/sh
+# Reads lines of text and outputs QEMU monitor "sendkey" commands to "type"
+# those lines within the guest via QEMU keystrokes.
+#
+# I use this to convert 2 lines of text containing username and password into
+# keystrokes to be sent as QEMU keyboard input; thus logging in at the guest
+# console prompt. This allows me to use secure 512 bit passwords within the
+# guest without a need to type them manually.
+#
+# (c) 2013 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+awk '{
+	p= $0
+	for (i= 0; i < length(p); ++i) {
+		k= substr(p, i + 1, 1)
+		if (k ~ /[A-Z]/) k= "shift-" tolower(k)
+		else if (k == "-") k= "minus"
+		else if (k == "=") k= "equal"
+		else if (k == "\t") k= "tab"
+		else if (k == "\033") k= "esc"
+		else if (k == ",") k= "comma"
+		else if (k == ".") k= "dot"
+		else if (k == "/") k= "slash"
+		else if (k == "*") k= "asterisk"
+		else if (k == " ") k= "spc"
+		else if (k !~ /[<a-z0-9]/) {
+			print "Unsupported character \"" k "\" encountered!" \
+			> "/dev/stderr"
+			exit 1
+		}
+		print "sendkey " k
+	}
+	print "sendkey ret"
+}' "$@"
