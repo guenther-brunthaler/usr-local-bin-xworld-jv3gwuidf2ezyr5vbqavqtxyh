@@ -1,18 +1,13 @@
-#!/bin/false
-# $HeadURL"
-# $Author: root $
-# $Date: 2006-11-29T23:32:39.877454Z $
-# $Revision: 457 $
-
-# Call this snippet with a single argument:
-# A path including a filename prefix.
+#! /bin/false
+# Call this snippet with a single argument: A path
+# including a filename prefix.
 #
-# All files matching the current system will then
-# be executed as snippets in the current shell context.
+# All files matching the current system will then be
+# executed as snippets in the current shell context.
 #
-# It is therefore important that the snippets take
-# care not to pollute the shell variable/function namespace
-# without stringent reason.
+# It is therefore important that the snippets take care not
+# to pollute the shell variable/function namespace without
+# stringent reason.
 #
 # In order to be executed, the snippets must conform
 # to the following name syntax:
@@ -46,29 +41,34 @@ call_65khet0pxstjidx3e59ig8j3j() {
 	local NS SYSTEM_KEY
 	NS=_65khet0pxstjidx3e59ig8j3j
 	local SUFFIX VERBOSE$NS ST F$NS F
-	. /usr/local/bin/xworld/functions/lookup.sh --version 1 \
-		SYSTEM_KEY --from system-key
-	if [ "$1" = "--verbose" ]; then
+	set -- --version 2 SYSTEM_KEY --from system-key --stop "$@"
+	. /usr/local/bin/xworld/functions/lookup.sh
+	if test x"$1" = x"--verbose"
+	then
 		VERBOSE_65khet0pxstjidx3e59ig8j3j=1
 		shift
 	fi
 	SUFFIX="${1%/*}"
-	if [ "$SUFFIX" = "$1" ]; then
+	if test x"$SUFFIX" = x"$1"
+	then
 		warn$NS "Invalid snippet prefix '$1'!"
-	elif [ ! -d "$SUFFIX" ]; then
+	elif test ! -d "$SUFFIX"
+	then
 		warn$NS "Invalid snippet directory '$SUFFIX'!"
 	fi
 	SUFFIX="@$SYSTEM_KEY.sh"
-	for F_65khet0pxstjidx3e59ig8j3j in $1-??*$SUFFIX; do
+	for F_65khet0pxstjidx3e59ig8j3j in $1-??*$SUFFIX
+	do
 		F="$F_65khet0pxstjidx3e59ig8j3j"
 		test -f "$F" || continue
 		info$NS "Sourcing snippet '$F'"
 		true
 		. "$F"
-		ST="$?"
-		F="$F_65khet0pxstjidx3e59ig8j3j"
+		ST=$?
+		F=$F_65khet0pxstjidx3e59ig8j3j
 		NS=_65khet0pxstjidx3e59ig8j3j
-		if [ "$ST" -eq 0 ]; then
+		if test "$ST" -eq 0
+		then
 			info$NS "Snippet '$F' succeeded."
 		else
 			warn$NS "Snippet '$F' returned status $ST!"

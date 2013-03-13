@@ -1,10 +1,6 @@
-#!/bin/sh
-#
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/xworld/get-system-key $
-# $Author: root(xvaio) $
-# $Date: 2006-08-27T11:02:50.623454Z $
-# $Revision: 254 $
+#! /bin/sh
 
 
-. "/usr/local/bin/xworld/functions/lookup.sh" --version 1 SKEY --from system-key
+set -- --version 2 SKEY --from system-key
+. /usr/local/bin/xworld/functions/lookup.sh
 echo "$SKEY"
