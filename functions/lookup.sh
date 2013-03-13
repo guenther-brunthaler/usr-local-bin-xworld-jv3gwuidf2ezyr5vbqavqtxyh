@@ -4,71 +4,89 @@
 # It will set up the specified environment variables
 # associated with the specified keywords.
 #
-# The --key and --namespace options are used
-# to further distinguish the lookup.
+# Note that passing arguments to the "." command is not*
+# *portable!
+#
+# Use the "set" command to set the arguments for sourcing
+# this script, use the --stop option to save old arguments
+# after it.
+#
+# The --key and --namespace options are used to further
+# distinguish the lookup.
+#
+# Global options (must precede all other arguments):
 #
 # --version <integer>
-#  *** Mandatory! *** Minimum required version number
-#  to be used for the lookup.sh interface. The example
-#  invocation above represents the current version number
-#  of this script.
+#   *** Mandatory! *** Minimum required version number to
+#   be used for the lookup.sh interface. The example
+#   invocation above represents the current version number
+#   of this script.
 # --key defaults to the name of the host, which will not
-# be retrieved by using any of the system functions, but
-# rather as the contents of the 'system-key' file
-# in the configuration script directory (which is the only
-# file *not* to be shared among hosts).
+#   be retrieved by using any of the system functions, but
+#   rather as the contents of the 'system-key' file in the
+#   configuration script directory (which is the only file
+#   *not* to be shared among hosts).
 # --namespace defaults to the absolute path name of the
-# invoking script, with '/' replaced by '_'.
+#   invoking script, with '/' replaced by '_'.
 # --script <scriptname> can be used to specify a different
-# script than the caller's own script name.
+#   script than the caller's own script name.
 #
-# In order for the --namespace default to be effective,
-# the script must be sourced before changing the
-# current directory, or otherwise the absolute
-# path name may not correctly be deduced if the
-# parent script was invoked using a relative pathname.
+# In order for the --namespace default to be effective, the
+# script must be sourced before changing the current
+# directory, or otherwise the absolute path name may not
+# correctly be deduced if the parent script was invoked
+# using a relative pathname.
 #
 # Example:
-# . /usr/local/bin/xworld/functions/lookup.sh --version 1 \
-#	SIZE --into GB LOGNAME
+# set -- --version 2 SIZE --into GB LOGNAME --stop "$@"
+# . /usr/local/bin/xworld/functions/lookup.sh
 #
-# will use the key and pathname of the parent script
-# to construct a combined namespace, then retrieve
-# the value of the key name "SIZE" and assign it to $GB;
-# and retrieve value for key "LOGNAME" and assign it to
-# $LOGNAME.
+# will use the key and pathname of the parent script to
+# construct a combined namespace, then retrieve the value
+# of the key name "SIZE" and assign it to $GB; and retrieve
+# value for key "LOGNAME" and assign it to $LOGNAME.
 #
 # By default, the name of the specified key will be the
-# same as the name of the environment variable, unless
-# the --into option is used after the key in order to
-# specify the retrieved value to a different variable.
+# same as the name of the environment variable, unless the
+# --into option is used after the key in order to specify
+# the retrieved value to a different variable.
 #
-# Options:
+# Key specific Options (precede individual keys):
+#
 # --into <varname>
-#  Without --into, the specified key will also be used as
-#  the name of the variable to obtain the requested value.
+#   Without --into, the specified key will also be used as
+#   the name of the variable to obtain the requested value.
 # --default <value>
-#  will provide a default value to
-#  be used if the settings file is not found instead
-#  of giving an error.
+#   will provide a default value to be used if the settings
+#   file is not found instead of giving an error.
 # --multiline
-#  returns the contents of all lines of the settings file
-#  instead of just the first line.
-#  With multiline, all lines will be terminated with newline
-#  characters. Without --multiline, the first newline character
-#  terminates the value and will not be part of the value.
+#   returns the contents of all lines of the settings file
+#   instead of just the first line. With multiline, all
+#   lines will be terminated with newline characters.
+#   Without --multiline, the first newline character
+#   terminates the value and will not be part of the value.
 # --from "filename"
-#  Does not read or write the specified setting, but rather
-#  assign the pathname of the resulting settings file
-#  to the specified variable.
+#   Does not read or write the specified setting, but
+#   rather assign the pathname of the resulting settings
+#   file to the specified variable.
 # --from "system-key"
-#  Does not read or write any setting, but rather
-#  assign the system key of the local host to the specified
-#  variable. This system key will typically be the hostname,
-#  but can in fact be anything the administrator has set up to
-#  be for the local system.
-#  However, the key will always disambiguate the current system
-#  from any other systems.
+#   Does not read or write any setting, but rather assign
+#   the system key of the local host to the specified
+#   variable. This system key will typically be the
+#   hostname, but can in fact be anything the administrator
+#   has set up to be for the local system. However, the key
+#   will always disambiguate the current system from any
+#   other systems.
+#
+# Options only valid after any keys or key-specific
+# options:
+#
+# --stop
+#   Stops argument processing, leaving the remaining
+#   arguments set as $1 and onward. This is needed if it is
+#   required to "save" previous arguments after the --stop,
+#   which will become the current arguments again after
+#   sourcing this script. Typically used as '--stop "$@"'.
 
 
 die_pm7csrzj8zcp2p5kh63vcrxia() {
@@ -125,7 +143,8 @@ get_absname_pm7csrzj8zcp2p5kh63vcrxia() {
 		esac
 	done
 	# URL-encode problematic characters.
-	for D in %25 ' 20' /2F @40 '$24' :3A; do
+	for D in %25 ' 20' /2F @40 '$24' :3A
+	do
 		FROM=${D%??}
 		INTO=%${D#$FROM}
 		ORIG=$NS
@@ -183,15 +202,15 @@ get_from_pm7csrzj8zcp2p5kh63vcrxia() {
 process_pm7csrzj8zcp2p5kh63vcrxia() {
 	local NAMESPACE_PREFIX NAMESPACE_SUFFIX NS SKEY SCRIPT
 	local KEY VNAME VALUE DEFAULT HAVE_DFL SF ML LINE NL OP
-	local NAMESPACE_BASE HNF REQUIRE IFACE EVAL
+	local NAMESPACE_BASE HNF REQUIRE MIN_IFACE MAX_IFACE EVAL
 	# Change the following line to customize the
 	# association settings database location.
 	NAMESPACE_BASE="/usr/local/etc/config"
-	# The following line will set the version
-	# of the current interface.
-	# Always keep in sync with the example
-	# in the initial comments!
-	IFACE=1
+	# The following line will set the version of the
+	# current interface. Always keep in sync with the
+	# example in the initial comments!
+	MIN_IFACE=2
+	MAX_IFACE=2
 	#
 	SCRIPT=$0
 	while :
@@ -213,19 +232,26 @@ process_pm7csrzj8zcp2p5kh63vcrxia() {
 	then
 		die_pm7csrzj8zcp2p5kh63vcrxia \
 			"No interface version has been specified!"
-	elif test "$REQUIRE" -gt "$IFACE"
+	elif test "$REQUIRE" -gt "$MAX_IFACE"
 	then
 		die_pm7csrzj8zcp2p5kh63vcrxia \
 			"The installed lookup.sh provides interface" \
-			"version $IFACE, but '$0' requested" \
+			"version $MAX_IFACE, but '$0' requested" \
 			"a newer version $REQUIRE!"
+	elif test "$REQUIRE" -lt "$MIN_IFACE"
+	then
+		die_pm7csrzj8zcp2p5kh63vcrxia \
+			"The installed lookup.sh provides interface" \
+			"version $MAX_IFACE, but '$0' requested" \
+			"a version $REQUIRE which is older than the" \
+			"oldest supported version $MIN_IFACE!"
 	fi
-	if test "$REQUIRE" -ne "$IFACE"
+	if test "$REQUIRE" -ne "$MAX_IFACE"
 	then
 		VALUE=
 		for LINE in \
 			"The installed lookup.sh provides interface" \
-			"version $IFACE, but '$0' requested the older" \
+			"version $MAX_IFACE, but '$0' requested the older" \
 			"version $REQUIRE! Update the script a.s.a.p."
 		do VALUE=$VALUE$LINE$'\n'
 		done
@@ -246,7 +272,8 @@ process_pm7csrzj8zcp2p5kh63vcrxia() {
 	NAMESPACE_PREFIX="$NAMESPACE_BASE/$NS:"
 	NAMESPACE_SUFFIX="@$SKEY"
 	NL="$'\n'"
-	while [ -n "$1" ]; do
+	while test -n "$1"
+	do
 		# The key name always comes *first*!
 		KEY="$1"; shift
 		# It is also the default for the destination variable name.
@@ -254,16 +281,17 @@ process_pm7csrzj8zcp2p5kh63vcrxia() {
 		HAVE_DFL=
 		ML=
 		OP=
-		while true; do
-			case "$1" in
+		while :
+		do
+			case $1 in
 				--into)
 					# Option "--into <varname>".
-					VNAME="$2"
+					VNAME=$2
 					shift
 				;;
 				--default)
 					# Option "--default <default_value>".
-					DEFAULT="$2"
+					DEFAULT=$2
 					HAVE_DFL=1
 					shift
 				;;
@@ -273,6 +301,7 @@ process_pm7csrzj8zcp2p5kh63vcrxia() {
 						"$2"
 					shift
 				;;
+				--stop) break;;
 				-*)
 					die_pm7csrzj8zcp2p5kh63vcrxia \
 						"Unknown option '$1'!"
@@ -282,11 +311,12 @@ process_pm7csrzj8zcp2p5kh63vcrxia() {
 			shift
 		done
 		SF="$NAMESPACE_PREFIX$KEY$NAMESPACE_SUFFIX"
-		while true; do
-			case "$OP" in
-				filename) VALUE="$SF";;
-				system-key) VALUE="$SKEY";;
-				*) getval_pm7csrzj8zcp2p5kh63vcrxia;;
+		while :
+		do
+			case $OP in
+				filename) VALUE=$SF;;
+				system-key) VALUE=$SKEY;;
+				*) getval_pm7csrzj8zcp2p5kh63vcrxia
 			esac
 			break
 		done
@@ -295,10 +325,10 @@ process_pm7csrzj8zcp2p5kh63vcrxia() {
 		# We cannot eval yet: The requested target
 		# variables may have the same name as our
 		# own local work variables.
-		EVAL="$EVAL${EVAL:+;}$VNAME=\"$VALUE\""
+		EVAL=$EVAL${EVAL:+;}$VNAME=\"$VALUE\"
 	done
 	# Assign evaluation list to safe return variable.
-	eval_pm7csrzj8zcp2p5kh63vcrxia="$EVAL"
+	eval_pm7csrzj8zcp2p5kh63vcrxia=$EVAL
 }
 
 
@@ -321,6 +351,14 @@ cleanup_namespace_pm7csrzj8zcp2p5kh63vcrxia() {
 # Tag all such temporary global names with UUIDs in
 # order to minimize possible name clashes.
 process_pm7csrzj8zcp2p5kh63vcrxia "$@"
+while test $# != 0
+do
+	if test x"$1" = x"--stop"
+	then
+		shift; break
+	fi
+	shift
+done
 # Perform assignments.
 eval "$eval_pm7csrzj8zcp2p5kh63vcrxia" || {
 	die_pm7csrzj8zcp2p5kh63vcrxia \
