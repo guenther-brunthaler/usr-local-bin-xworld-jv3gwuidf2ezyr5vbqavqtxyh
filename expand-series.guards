@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 12.288
-	(c) 2008 - 2012 by Guenther Brunthaler.
+	$APP Version 13.72
+	(c) 2008 - 2013 by Guenther Brunthaler.
 
 	This script is free software.
 	Distribution is allowed under the terms of the GPLv3.
@@ -27,6 +27,9 @@ show_help() {
 	Override the fully qualified default domain name of the current host
 	machine, using the specified instead. Useful for testing expansion of
 	the "$SERIES_GUARDS" file for a different machine.
+
+	--CHOST <chost>: Override the host triple specifying the current
+	machine platform. This is a string like "x86_64-pc-linux-gnu".
 
 	--check, -c: Check the validity of the "$SERIES_GUARDS" file instead
 	of expanding the "$SERIES" file from it. Will typically detect files
@@ -98,11 +101,6 @@ show_help() {
 }
 
 
-. /usr/local/bin/xworld/functions/lookup.sh --version 1 \
-	--namespace default_fqdn_7j3gzlr5fqubs0u8t1epwdkkh \
-	FQDN
-
-
 die() {
 	echo "ERROR: $*" >& 2
 	false; exit
@@ -125,34 +123,75 @@ system() {
 wr() {
 	local S
 	S=
-	if test x"$1" = x"."; then
+	if test x"$1" = x"."
+	then
 		S=-s; shift
 	fi
-	if test $# -gt 0; then
+	if test $# -gt 0
+	then
 		run printf '%s\n' "$*" | wr
 	else
 		run fmt $S -w $LINEWIDTH
 	fi
 }
+LINEWIDTH=; REPLY=; tty -s <& 1 && system tput cols; LINEWIDTH=${REPLY:-70}
 
 
 enum_tokens() {
 	local CALLBACK FQ SUPER CHOST
 	CALLBACK=$1
+	if test -z "$FQDN"
+	then
+		set -- --version 2 \
+			--namespace default_fqdn_7j3gzlr5fqubs0u8t1epwdkkh \
+			FQDN
+		. /usr/local/bin/xworld/functions/lookup.sh
+	fi
 	FQ=$FQDN
 	set --
-	while test -n "$FQ"; do
+	while test -n "$FQ"
+	do
 		set -- "$@" "$FQ"
 		SUPER=${FQ#*.}
-		if test "$SUPER" = "$FQ"; then
+		if test "$SUPER" = "$FQ"
+		then
 			FQ=
 		else
 			FQ=$SUPER
 		fi
 	done
-	CHOST=${PORTAGE_CONFIGROOT%%/}
-	CHOST="`. "$CHOST/etc/portage/make.conf" && printf '%s\n' "$CHOST"`"
-	test -n "$CHOST" || die 'Could not determine $CHOST!'
+	if test -z "$CHOST"
+	then
+		CHOST=${PORTAGE_CONFIGROOT%%/}
+		CHOST=$CHOST/etc/portage/make.conf
+		if
+			test -f "$CHOST" \
+			&& CHOST=`
+				. "$CHOST" \
+				&& printf '%s\n' "$CHOST"
+			` \
+			&& test -n "$CHOST"
+		then
+			:
+		elif which libtoolize > /dev/null 2>& 1
+		then
+			CHOST=`
+				s='[[:space:]]*'
+				LC_ALL=C libtoolize --help \
+				| LC_ALL=C sed -e "
+					s,^${s}host-triplet:$s,,
+					t
+					d
+				"
+			`
+		else
+			set -- --version 2 \
+				--namespace chost_hmtazpqmcf8kstyaqzw93nchg \
+				CHOST --stop "$@"
+			. /usr/local/bin/xworld/functions/lookup.sh
+		fi
+		test -n "$CHOST" || die 'Could not determine $CHOST!'
+	fi
 	set -- "$@" "$CHOST" "${CHOST%%-*}"
 	$CALLBACK "$@"
 }
@@ -160,7 +199,8 @@ enum_tokens() {
 
 display_tokens() {
 	local TOKEN
-	for TOKEN; do
+	for TOKEN
+	do
 		wr . "* $TOKEN"
 	done
 }
@@ -168,7 +208,8 @@ display_tokens() {
 
 main() {
 	run test -f "$SERIES_GUARDS"
-	if test -n "$CHECK"; then
+	if test -n "$CHECK"
+	then
 		set -- --check "$@"
 	else
 		exec > "$SERIES"
@@ -178,47 +219,47 @@ main() {
 
 
 APP=${0##*/}
-# Determine output line width.
-LINEWIDTH=
-REPLY=
-tty -s <& 1 && system tput cols
-LINEWIDTH=${REPLY:-70}
 # Start of command line processing.
 # Define presets.
+FQDN=
+CHOST=
 CHECK=
 SERIES=series
 SERIES_GUARDS=$SERIES.guards
 #
 COPTS=
 while true; do
-	if [ -z "$COPTS" ]; then
-		case "$1" in
-			-?*) COPTS="$1"; shift;;
-			*) break;;
+	if test -z "$COPTS"
+	then
+		case $1 in
+			-?*) COPTS=$1; shift;;
+			*) break
 		esac
 	fi
-	if [ "${COPTS#--}" = "$COPTS" ]; then
-		TAIL="${COPTS#-?}"; # Switch clustering.
-		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+	if test x"${COPTS#--}" = x"$COPTS"
+	then
+		TAIL=${COPTS#-?}; # Switch clustering.
+		COPT=${COPTS%$TAIL}; COPTS=${TAIL:+-}$TAIL
 	else
-		COPT="$COPTS"; COPTS=
+		COPT=$COPTS; COPTS=
 	fi
 	# Any arguments are at $1 and onwards; must be shifted off.
-	case "$COPT" in
+	case $COPT in
 		--) break;; # Must be first!
 		--help | -h) show_help | less --quit-if-one-screen; exit;;
 		--host | --override-host | --machine | -m)
-			FQDN="$1"; shift
+			FQDN=$1; shift
 			;;
+		--CHOST) CHOST=$1; shift;;
 		--version) show_version; exit;;
 		--check | -c) CHECK=1;;
-		--series-file | -s) SERIES="$1"; shift;;
-		--series-guards-file | -g) SERIES_GUARDS="$1"; shift;;
-		*) die "Unknown option '$COPT'!";; # Must be last!
+		--series-file | -s) SERIES=$1; shift;;
+		--series-guards-file | -g) SERIES_GUARDS=$1; shift;;
+		*) die "Unknown option '$COPT'!" # Must be last!
 	esac
 done
 # Shift off ordinal arguments.
-test $# -ge 1 && { WORKDIR="$1"; shift; }
+test $# -ge 1 && { WORKDIR=$1; shift; }
 #test $# -ge 1 || die "Missing argument - limit for accumulated sum!"
 #LIMIT="$1"; shift
 # Check for excess arguments.
