@@ -1,0 +1,18 @@
+#! /bin/sh
+set -e
+trap "echo 'Failed!' >& 2" 0
+APP=${0##*/}; LOCAL_IF=${APP##*_to_}
+LOCAL_PORT=${LOCAL_IF##*_port_}; LOCAL_IF=${LOCAL_IF%%_port_*}
+LOCAL_IP=`
+	LC_ALL=C /sbin/ifconfig "$LOCAL_IF" | sed -e '
+		s/.*[^a-z]inet addr:\([0-9.]*\) .*/\1/;	t; d
+	'
+`
+test -e "$1" || {
+	echo "Usage: $APP <files_and_or_directories> ..." >& 2
+	false
+}
+tar -cv "$@" | socat -u \
+	STDIN \
+	TCP4-LISTEN:"$LOCAL_PORT",bind="$LOCAL_IP",reuseaddr
+trap - 0

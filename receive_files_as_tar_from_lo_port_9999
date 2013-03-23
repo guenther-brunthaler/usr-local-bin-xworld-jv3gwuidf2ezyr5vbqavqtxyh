@@ -1,0 +1,20 @@
+#! /bin/sh
+set -e
+trap "echo 'Failed!' >& 2" 0
+APP=${0##*/}; LOCAL_IF=${APP##*_from_}
+PORT=${LOCAL_IF##*_port_}; LOCAL_IF=${LOCAL_IF%%_port_*}
+LOCAL_IP=`
+	LC_ALL=C /sbin/ifconfig "$LOCAL_IF" | sed -e '
+		s/.*[^a-z]inet addr:\([0-9.]*\) .*/\1/;	t; d
+	'
+`
+host=$1
+if test -n "$host"
+then
+	src=TCP4:$host:$PORT # Fetch from remote host.
+else
+	src=TCP4-LISTEN:$PORT,reuseaddr # From i/f on local host.
+fi
+src=$src,bind="$LOCAL_IP"
+socat -u "$src" STDOUT | tar -xv
+trap - 0
