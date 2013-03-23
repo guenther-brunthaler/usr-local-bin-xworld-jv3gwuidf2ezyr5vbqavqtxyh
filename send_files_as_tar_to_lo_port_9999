@@ -37,6 +37,8 @@ IMPORTANT: The interface and port where to actually listen are extracted only
 from the script name. So one can easily set up symlinks to the script in order
 to "hard-wire" different interface/port combinations.
 
+$APP version 13.82
+
 (c) 2013 by Günther Brunthaler.
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
