@@ -47,7 +47,7 @@ to "hard-wire" different interface/port combinations. It is also possible to
 add an initial argument --override-script-name=<name> which will then be used
 as the script name instead of "$APP".
 
-$APP version 13.82.1
+$APP version 13.82.2
 
 (c) 2013 by Günther Brunthaler.
 This script is free software.
