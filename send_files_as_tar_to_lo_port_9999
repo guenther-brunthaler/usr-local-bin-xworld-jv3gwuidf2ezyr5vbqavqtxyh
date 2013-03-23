@@ -8,10 +8,41 @@ LOCAL_IP=`
 		s/.*[^a-z]inet addr:\([0-9.]*\) .*/\1/;	t; d
 	'
 `
-test -e "$1" || {
-	echo "Usage: $APP <files_and_or_directories> ..." >& 2
-	false
-}
+: ${LOCAL_IP:="<unknown>"} ${LOCAL_IF:="<unspecified>"}
+: ${LOCAL_PORT:="<unknown>"}
+test $# = 1 && test -e "$1" || set -- --usage
+case $1 in
+	--help | -h | --usage) cat << EOF; trap - 0; exit
+$APP - send files/directories as a tar archive via raw TCP
+
+Usage: $APP <files_and_or_directories>
+
+Listens at local port $LOCAL_PORT on interface '$LOCAL_IF' and sends a set of
+files/directories as a tar archive (created on the fly) over raw TCP to any
+client which connects to this port. (Actually, listens on IP $LOCAL_IP rather
+than directly on interface '$LOCAL_IF' because binding to specific interfaces
+requires special privileges. But the effect is just the same.)
+
+The specified arguments are directly passed to tar as the files/directories to
+be included within the archive.
+
+Use a single argument "*" to recursively send what "ls" would display in the
+current directory. (This will omit hidden files in the current directory.)
+
+Use a single argument "." for sending the whole contents of the current
+directory (including the directory's own permissions and timestamp, but also
+including any hidden files).
+
+IMPORTANT: The interface and port where to actually listen are extracted only
+from the script name. So one can easily set up symlinks to the script in order
+to "hard-wire" different interface/port combinations.
+
+(c) 2013 by Günther Brunthaler.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+EOF
+esac
+
 tar -cv "$@" | socat -u \
 	STDIN \
 	TCP4-LISTEN:"$LOCAL_PORT",bind="$LOCAL_IP",reuseaddr
