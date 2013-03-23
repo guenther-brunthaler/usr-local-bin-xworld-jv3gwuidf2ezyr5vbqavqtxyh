@@ -1,0 +1,53 @@
+#! /bin/sh
+set -e
+trap "echo 'Failed!' >& 2" 0
+APP=${0##*/}; LOCAL_IF=${APP##*_from_}
+PORT=${LOCAL_IF##*_port_}; LOCAL_IF=${LOCAL_IF%%_port_*}
+LOCAL_IP=`
+	LC_ALL=C /sbin/ifconfig "$LOCAL_IF" | sed -e '
+		s/.*[^a-z]inet addr:\([0-9.]*\) .*/\1/;	t; d
+	'
+`
+: ${LOCAL_IP:="<unknown>"} ${LOCAL_IF:="<unspecified>"} ${PORT:="<unknown>"}
+case $1 in
+	--help | -h | --usage) cat << EOF; trap - 0; exit
+$APP - extract contents of a tar archive received via raw TCP
+
+Usage: $APP
+       $APP <listening_sender>
+
+Receives files from a tar archive sent over raw TCP from a different host.
+
+If an argument is provided, assumes this is a hostname or IP address where a
+process listens at port $PORT for connections and sends back a tar archive.
+
+Otherwise, listens on the local port $PORT and waits for a remote host to
+connect to that port and send a tar archive.
+
+In both cases, the incoming or outgoing connection only binds to interface
+'$LOCAL_IF', thus avoiding attackers which try to connect via different (e.g.
+WAN) interfaces. (Actually, the connections are bound to IP $LOCAL_IP rather
+than directly to interface '$LOCAL_IF' because binding to specific interfaces
+requires special privileges. But the effect is just the same.)
+
+IMPORTANT: The interface and port where to actually listen or receive from are
+extracted only from the script name. So one can easily set up symlinks to the
+script in order to "hard-wire" different interface/port combinations.
+
+$APP version 13.82
+
+(c) 2013 by Günther Brunthaler.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+EOF
+esac
+host=$1
+if test -n "$host"
+then
+	src=TCP4:$host:$PORT # Fetch from remote host.
+else
+	src=TCP4-LISTEN:$PORT,reuseaddr # From i/f on local host.
+fi
+src=$src,bind="$LOCAL_IP"
+socat -u "$src" STDOUT | tar -xv
+trap - 0
