@@ -1,10 +1,14 @@
 #! /bin/sh
 set -e
 trap "echo 'Failed!' >& 2" 0
-case $1 in
-	--override-script-name=*) APP=${1#*=}; shift;;
-	*) APP=$0
-esac
+APP=$0
+while :
+do
+	case $1 in
+		--override-script-name=*) APP=${1#*=}; shift;;
+		*) break
+	esac
+done
 APP=${APP##*/}; LOCAL_IF=${APP##*_to_}
 LOCAL_PORT=${LOCAL_IF##*_port_}; LOCAL_IF=${LOCAL_IF%%_port_*}
 LOCAL_IP=`
