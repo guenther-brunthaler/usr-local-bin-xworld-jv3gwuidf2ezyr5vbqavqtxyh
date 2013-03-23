@@ -1,7 +1,11 @@
 #! /bin/sh
 set -e
 trap "echo 'Failed!' >& 2" 0
-APP=${0##*/}; LOCAL_IF=${APP##*_to_}
+case $1 in
+	--override-script-name=*) APP=${1#*=}; shift;;
+	*) APP=$0
+esac
+APP=${APP##*/}; LOCAL_IF=${APP##*_to_}
 LOCAL_PORT=${LOCAL_IF##*_port_}; LOCAL_IF=${LOCAL_IF%%_port_*}
 LOCAL_IP=`
 	LC_ALL=C /sbin/ifconfig "$LOCAL_IF" | sed -e '
@@ -35,9 +39,11 @@ including any hidden files).
 
 IMPORTANT: The interface and port where to actually listen are extracted only
 from the script name. So one can easily set up symlinks to the script in order
-to "hard-wire" different interface/port combinations.
+to "hard-wire" different interface/port combinations. It is also possible to
+add an initial argument --override-script-name=<name> which will then be used
+as the script name instead of "$APP".
 
-$APP version 13.82
+$APP version 13.82.1
 
 (c) 2013 by Günther Brunthaler.
 This script is free software.
