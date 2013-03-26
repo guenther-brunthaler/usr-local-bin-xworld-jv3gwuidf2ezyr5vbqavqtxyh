@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	cat <<- .
-	$APP version 13.85.2
+	$APP version 13.85.4
 
 	(c) 2010 - 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -18,6 +18,7 @@ show_help() {
 	       $APP [ options ] <lastrevision>
 	       $APP -f
 	       $APP -f <lastrevinfofile>
+	       $APP -F <templatefilename>
 
 	$APP is a tool for generating revision ("version") numbers.
 		
@@ -25,7 +26,7 @@ show_help() {
 	generate revision numbers from date and time, or combine both methods.
 
 	When called without an argument (besides options) and neither with
-	option -f, $APP just prints a revision number based on date/time as
+	option -f/-F, $APP just prints a revision number based on date/time as
 	follows:
 	
 	The current UTC date/time is used as a "version number", i. e. as a
@@ -41,29 +42,64 @@ show_help() {
 	revision numbers that can be globally compared without being affected
 	by the local time zone setting.
 
-	If an argument (besides) options is provided, or if the -f option is
-	used, $APP switches to a different mode where it tries to update an
+	If an argument (besides) options is provided, or if the -f/-F option
+	is used, $APP switches to a different mode where it tries to update an
 	existing version number.
 
-	If -f has been specified, the old revision number will be read from a
-	file, and the new revision number will be written back to the same
-	file in addition of printing it. In this case, if there is an
-	argument, it will be used as the file name where to read the old
-	revision number from and replace it with the new revision number.
+	If -f/-F has been specified, the old revision number will be read from
+	a file, and the new revision number will be written back to the same
+	file in addition of printing it.
 	
-	If no argument is present when -f us used, the filename '$INFOFILE'
+	When using option -f, if there is an argument, it will be used as the
+	file name where to read the old revision number from and replace it
+	with the new revision number.
+	
+	When using option -F, and only if there is an argument, the argument
+	fill be transformed into the actual file name to be used (like in -f)
+	as follows: First, any filename extension will be stripped. Then the
+	string "$extF" will be appended. The result will be used as the
+	filename for storing the revision number.
+	
+	Option -F is useful in a Makefile where pseudo-variable "\$@" can be
+	used as the filename argument for -F in a rule, which will
+	automatically synthesize filename for storing the revision number from
+	the name of the rule target.
+	
+	As an example, here is a "Makefile" which can be used to run the
+	"asciidoc" documentation generator on two files "file1.txt" and
+	"file2.txt", using different revision numbers for both files (kept in
+	files "file1_revnum.txt" and "file2_revnum.txt") which are only
+	updated if "make" needs to update one of the generated .html files:
+
+	all: file1.html file2.html
+	.PHONY: all
+	.SUFFIXES: .txt .html
+	.txt.html:
+		asciidoc -a revno=`revisiontime -F "$@"` -o "$@" "$<"
+		
+	Obviously it is very dangerous to accidentally use -f instead of -F in
+	such a "Makefile", because -f would overwrite the specified target file
+	instead of deriving the file name to use from it.
+	
+	Therefore a safeguard has been built into -f/-F: If the provided
+	filename refers to an existing file, its size is checked, and if the
+	size exceeds a limit, the -f/-F option and the filename are ignored
+	completely. The allowed maximum file size used in the check defaults
+	to $MAX_INFOSIZE bytes and can be changed with the -S option.
+        	
+	If no argument is present when -f/-F us used, the filename '$INFOFILE'
 	(in the current directory) is used.
 	
 	It is not a problem if this file is actually missing; this will then
 	work as if no old revision has been specified, but will still write
 	the new revision to the file, thus creating it. (All this is only done
-	if the -f option is used!)
+	if the -f/-F option is used!)
 	
-	If no -f is used and there is a single argument which is "-", $APP
+	If no -f/-F is used and there is a single argument which is "-", $APP
 	reads the previous revision number from standard input.
 	
-	Otherwise, if no -f if used the argument itself is assumed to be the
-	previous revision number.
+	Otherwise, if no -f/-F if used the argument itself is assumed to be
+	the previous revision number.
 	
 	How $APP tries to update the old revision number depends on whether
 	or not option "-s" has also been specified:
@@ -123,6 +159,25 @@ show_help() {
 	    used as the file name where the latest version number should be
 	    stored. If no command line argument is given, the name of the file
 	    defaults to "$INFOFILE".
+	    
+	-F: This does the same as -f, except that a filename which is actually
+	    specified on the command line is interpreted differently. In this
+	    case, and only in this case, the specified filename is interpreted
+	    as a template which needs to be transformed into the real file
+	    name to use rather than using it directly. The following
+	    transformation will then be applied in this case on the name:
+	    First, if the file has a filename extension, it will be stripped.
+	    Then the string "$extF" will be appended. The result is the
+	    filename which will actually be used for storing the revision
+	    number.
+
+	-S <maxsize>: In order to avoid overwriting an important file when the
+	    wrong file name was accidentally used as an argument to -f or -F,
+	    a sanity check is performed on the revision number save file if it
+	    already exists: It must not be larger than the limit which can be
+	    set with the -S option, which defaults to $MAX_INFOSIZE bytes.
+	    Otherwise, the -f/-F option as well as the file name fill be
+	    ignored, and nothing will be read or written at all.
 
 	-h: Show this help.
 
@@ -265,11 +320,15 @@ MODE=l
 NL=
 OPT_F=
 INFOFILE=current-revision.txt
-while getopts 3sfnhV OPT
+MAX_INFOSIZE=25
+extF=_revnum.txt
+while getopts 3sfFS:nhV OPT
 do
 	case $OPT in
 		3 | s) MODE=$OPT;;
 		f) OPT_F=Y;;
+		F) OPT_F=template;;
+		S) MAX_INFOSIZE=$OPTARG;;
 		n) NL='\n';;
 		h) show_help; exit;;
 		V) show_version; exit;;
@@ -282,11 +341,23 @@ then
 	if test -n "$1"
 	then
 		INFOFILE=$1
-		shift
+		set --
+		if test x"$OPT_F" = x"template"
+		then
+			INFOFILE=${INFOFILE%.*}$extF
+		fi
 	fi
 	if test -f "$INFOFILE"
 	then
-		set -- `cat "$INFOFILE"`
+		sz=`LC_ALL=C stat -c '%s' "$INFOFILE"`
+		if test $sz -le $MAX_INFOSIZE
+		then
+			set -- `cat "$INFOFILE"`
+		else
+			echo "WARNING: '$INFOFILE' is too large -" \
+				"ignoring it!" >& 2
+			INFOFILE=
+		fi
 	fi
 else
 	INFOFILE=
