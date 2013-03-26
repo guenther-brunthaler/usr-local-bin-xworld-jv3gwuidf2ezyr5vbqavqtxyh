@@ -86,6 +86,17 @@ show_help() {
 	size exceeds a limit, the -f/-F option and the filename are ignored
 	completely. The allowed maximum file size used in the check defaults
 	to $MAX_INFOSIZE bytes and can be changed with the -S option.
+	
+	But there is another problem: The Makefile will run revisiontime -f
+	not only when the source file has changed, but also when the target
+	file is missing. We do not want to increment the revision number in
+	this case!
+	
+	Therefore, -F performs an additional check: It the specified filename
+	(before transformation!) refers to a file which does not exist and
+	the revision number save file does exist, then -F reads the revision
+	number from the save file, but does not try to update it. Instead, it
+	just prints the old revision and exits.
         	
 	If no argument is present when -f/-F us used, the filename '$INFOFILE'
 	(in the current directory) is used.
@@ -338,13 +349,15 @@ done
 shift `expr $OPTIND - 1`
 if test -n "$OPT_F"
 then
+	chk_exist=
 	if test -n "$1"
 	then
 		INFOFILE=$1
 		set --
 		if test x"$OPT_F" = x"template"
 		then
-			INFOFILE=${INFOFILE%.*}$extF
+			chk_exist=$INFOFILE
+			INFOFILE=${chk_exist%.*}$extF
 		fi
 	fi
 	if test -f "$INFOFILE"
@@ -358,6 +371,12 @@ then
 				"ignoring it!" >& 2
 			INFOFILE=
 		fi
+	fi
+	if
+		test -n "$INFOFILE" && test -n "$1" \
+		&& test -n "$chk_exist" && test ! -e "$chk_exist"
+	then
+		exec printf "%s$NL" "$1"
 	fi
 else
 	INFOFILE=
