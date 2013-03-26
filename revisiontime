@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	cat <<- .
-	$APP version 13.85.1
+	$APP version 13.85.2
 
 	(c) 2010 - 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
