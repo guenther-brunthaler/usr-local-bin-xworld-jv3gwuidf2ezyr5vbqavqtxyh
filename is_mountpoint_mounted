@@ -1,10 +1,12 @@
-#!/bin/sh
+#! /bin/sh
 # Returns 0 if $1 is a mount point
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/is_mountpoint_mounted $
-# $Author: root(xvaio) $
-# $Date: 2006-08-27T11:02:50.623454Z $
-# $Revision: 254 $
+# Version 13.85
+#
+# (c) 2013 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
 
-/bin/cat /proc/mounts | /usr/bin/cut -d' ' -f 2 | /bin/grep -x $1 > /dev/null
+/bin/cat /proc/mounts | /usr/bin/cut -d' ' -f 2 \
+| /bin/grep -x "`readlink -f \"$1\"`" > /dev/null
