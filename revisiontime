@@ -253,7 +253,7 @@ then
 else
 	OREV=$1
 	NL=Y
-	test -z "$1" && test x"$MODE" != x"s" && MODE=
+	test -z "$1" && test x"$MODE" = x"l" && MODE=
 fi
 set -- awk; test -z "$NL" && set -- "$@" -v ORS=
 echo "`date -u '+%Y %j %H %M %S'` $MODE $OREV" | "$@" '{
