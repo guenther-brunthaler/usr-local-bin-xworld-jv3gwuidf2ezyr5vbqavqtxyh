@@ -75,7 +75,7 @@ show_help() {
 	2: .PHONY: all
 	3: .SUFFIXES: .txt .html
 	4: .txt.html:
-	5:	asciidoc -a revno=`revisiontime -F "$@"` -o "$@" "$<"
+	5:	asciidoc -a revnumber=`revisiontime -F "$@"` -o "$@" "$<"
 		
 	Obviously it is very dangerous to accidentally use -f instead of -F in
 	such a "Makefile", because -f would overwrite the specified target file
