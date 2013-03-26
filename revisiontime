@@ -87,16 +87,22 @@ show_help() {
 	completely. The allowed maximum file size used in the check defaults
 	to $MAX_INFOSIZE bytes and can be changed with the -S option.
 	
-	But there is another problem: The Makefile will run revisiontime -f
+	But there is another problem: The Makefile will run revisiontime -F
 	not only when the source file has changed, but also when the target
 	file is missing. We do not want to increment the revision number in
 	this case!
 	
-	Therefore, -F performs an additional check: It the specified filename
-	(before transformation!) refers to a file which does not exist and
-	the revision number save file does exist, then -F reads the revision
+	Therefore, -F performs an additional checks: It the specified filename
+	(before transformation!) refers to a file which does not exist and the
+	revision number save file does exist, then -F reads the revision
 	number from the save file, but does not try to update it. Instead, it
-	just prints the old revision and exits.
+	just prints the old revision and exits. This is also done if the
+	revision number save file exists and is newer than the target file.
+	This check avoids bumping the revision more than once if the target
+	fails to be built for some reason at the first attempt.
+	
+	Note that only -F can perform this additional check, because -f has no
+	idea what the name of the target file could be.
         	
 	If no argument is present when -f/-F us used, the filename '$INFOFILE'
 	(in the current directory) is used.
@@ -180,7 +186,18 @@ show_help() {
 	    First, if the file has a filename extension, it will be stripped.
 	    Then the string "$extF" will be appended. The result is the
 	    filename which will actually be used for storing the revision
-	    number.
+	    number. -F is intended for use in Makefiles. It assumes that the
+	    specified name (before the transformation) refers to the (single)
+	    target of the Makefile rule. It also checks whether the target
+	    exists, and avoids bumping the revision number read from the file
+	    with the transformed name if the target did not exist. In that
+	    case, it just reads and returns the last revision number
+	    unchanged. This means that building a non-existing target will not
+	    bump the revision number; only updating an outdated target file
+	    will (assuming the source file must have been updated). Also, a
+	    failed attempt to update the target file will neither bump the
+	    revision: If the revision number save file is newer than the
+	    target file, a revision bump is also suppressed.
 
 	-S <maxsize>: In order to avoid overwriting an important file when the
 	    wrong file name was accidentally used as an argument to -f or -F,
@@ -349,15 +366,15 @@ done
 shift `expr $OPTIND - 1`
 if test -n "$OPT_F"
 then
-	chk_exist=
+	target=
 	if test -n "$1"
 	then
 		INFOFILE=$1
 		set --
 		if test x"$OPT_F" = x"template"
 		then
-			chk_exist=$INFOFILE
-			INFOFILE=${chk_exist%.*}$extF
+			target=$INFOFILE
+			INFOFILE=${target%.*}$extF
 		fi
 	fi
 	if test -f "$INFOFILE"
@@ -374,7 +391,13 @@ then
 	fi
 	if
 		test -n "$INFOFILE" && test -n "$1" \
-		&& test -n "$chk_exist" && test ! -e "$chk_exist"
+		&& test -n "$target" && {
+			test ! -e "$target" || {
+				vmtime=`stat -c '%Y' "$INFOFILE"`
+				tmtime=`stat -c '%Y' "$target"`
+				test ${vmtime:-0} -gt ${tmtime:-0}
+			}
+		}
 	then
 		exec printf "%s$NL" "$1"
 	fi
