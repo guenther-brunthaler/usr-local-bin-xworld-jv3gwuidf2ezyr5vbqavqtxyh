@@ -71,11 +71,11 @@ show_help() {
 	files "file1_revnum.txt" and "file2_revnum.txt") which are only
 	updated if "make" needs to update one of the generated .html files:
 
-	all: file1.html file2.html
-	.PHONY: all
-	.SUFFIXES: .txt .html
-	.txt.html:
-		asciidoc -a revno=`revisiontime -F "$@"` -o "$@" "$<"
+	1: all: file1.html file2.html
+	2: .PHONY: all
+	3: .SUFFIXES: .txt .html
+	4: .txt.html:
+	5:	asciidoc -a revno=`revisiontime -F "$@"` -o "$@" "$<"
 		
 	Obviously it is very dangerous to accidentally use -f instead of -F in
 	such a "Makefile", because -f would overwrite the specified target file
