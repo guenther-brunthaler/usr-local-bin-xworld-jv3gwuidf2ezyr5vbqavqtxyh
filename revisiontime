@@ -16,14 +16,17 @@ show_help() {
 	Usage: $APP [ options ]
 	       $APP [ options ] -
 	       $APP [ options ] <lastrevision>
+	       $APP -f
+	       $APP -f <lastrevinfofile>
 
 	$APP is a tool for generating revision ("version") numbers.
 		
 	$APP can either be used to increment existing revision numbers,
 	generate revision numbers from date and time, or combine both methods.
 
-	When called without an argument (besides options), $APP just prints a
-	revision number based on date/time as follows:
+	When called without an argument (besides options) and neither with
+	option -f, $APP just prints a revision number based on date/time as
+	follows:
 	
 	The current UTC date/time is used as a "version number", i. e. as a
 	sequence of integer number components separated by dots (".").
@@ -38,14 +41,29 @@ show_help() {
 	revision numbers that can be globally compared without being affected
 	by the local time zone setting.
 
-	If an argument (besides) options is provided, $APP switches to a
-	different mode where it tries to update an existing version number.
+	If an argument (besides) options is provided, or if the -f option is
+	used, $APP switches to a different mode where it tries to update an
+	existing version number.
+
+	If -f has been specified, the old revision number will be read from a
+	file, and the new revision number will be written back to the same
+	file in addition of printing it. In this case, if there is an
+	argument, it will be used as the file name where to read the old
+	revision number from and replace it with the new revision number.
 	
-	If the one argument is "-", $APP reads the previous revision number
-	from standard input.
+	If no argument is present when -f us used, the filename '$INFOFILE'
+	(in the current directory) is used.
 	
-	Otherwise, the argument itself is assumed to be the previous revision
-	number.
+	It is not a problem if this file is actually missing; this will then
+	work as if no old revision has been specified, but will still write
+	the new revision to the file, thus creating it. (All this is only done
+	if the -f option is used!)
+	
+	If no -f is used and there is a single argument which is "-", $APP
+	reads the previous revision number from standard input.
+	
+	Otherwise, if no -f if used the argument itself is assumed to be the
+	previous revision number.
 	
 	How $APP tries to update the old revision number depends on whether
 	or not option "-s" has also been specified:
@@ -96,6 +114,15 @@ show_help() {
 	    character after writing the new revision number would normally be
 	    suppressed. This option disables this suppression, so the newline
 	    will be written even in this case.
+
+	-f: Instead of trying to read the previous revision number from
+	    standard input or use the command line argument as the previous
+	    revision, the previous revision number is read from and the new
+	    revision number will be written to a file (in addition to printing
+	    it). If -f us used and a command line argument is present, it is
+	    used as the file name where the latest version number should be
+	    stored. If no command line argument is given, the name of the file
+	    defaults to "$INFOFILE".
 
 	-h: Show this help.
 
@@ -236,46 +263,67 @@ APP=${0##*/}
 OREV=
 MODE=l
 NL=
-while getopts 3snhV OPT
+OPT_F=
+INFOFILE=current-revision.txt
+while getopts 3sfnhV OPT
 do
 	case $OPT in
 		3 | s) MODE=$OPT;;
-		n) NL=Y;;
+		f) OPT_F=Y;;
+		n) NL='\n';;
 		h) show_help; exit;;
 		V) show_version; exit;;
 		*) false; exit;;
 	esac
 done
 shift `expr $OPTIND - 1`
-if test x"$1" = x"-"
+if test -n "$OPT_F"
+then
+	if test -n "$1"
+	then
+		INFOFILE=$1
+		shift
+	fi
+	if test -f "$INFOFILE"
+	then
+		set -- `cat "$INFOFILE"`
+	fi
+else
+	INFOFILE=
+fi
+if test x"$1" = x"-" && test -z "$INFOFILE"
 then
 	read OREV
 else
 	OREV=$1
-	NL=Y
+	NL='\n'
 	test -z "$1" && test x"$MODE" = x"l" && MODE=
 fi
-set -- awk; test -z "$NL" && set -- "$@" -v ORS=
-echo "`date -u '+%Y %j %H %M %S'` $MODE $OREV" | "$@" '{
-	three= ""; r= $1 - 2000 "." $2 + 0
-	if ($6 == "3") {
-		three= "." int( \
-			(($3 * 60 + $4) * 62 + $5) * (1000 - 1) \
-			/ (24 * 60 * 62) \
-			+ 1 \
-		)
-	} else if ($6 == "l" && index($7, r) == 1) {
-		if ("x" r == "x" $7) three= ".1"
-		else $6= "s"
-	}
-	if ($6 == "s") {
-		if (match($7, "[0-9]+$")) {
-			r= substr($7, 1, RSTART - 1)
-			three= substr($7, RSTART) + 1
-		} else {
-			r= $7
-			three= r == "" ? 1 : -1
+r=`
+	LC_ALL=C; export LC_ALL
+	echo "\`date -u '+%Y %j %H %M %S'\` $MODE $OREV" | awk '{
+		three= ""; r= $1 - 2000 "." $2 + 0
+		if ($6 == "3") {
+			three= "." int( \
+				(($3 * 60 + $4) * 62 + $5) * (1000 - 1) \
+				/ (24 * 60 * 62) \
+				+ 1 \
+			)
+		} else if ($6 == "l" && index($7, r) == 1) {
+			if ("x" r == "x" $7) three= ".1"
+			else $6= "s"
 		}
-	}
-	print r three
-}'
+		if ($6 == "s") {
+			if (match($7, "[0-9]+$")) {
+				r= substr($7, 1, RSTART - 1)
+				three= substr($7, RSTART) + 1
+			} else {
+				r= $7
+				three= r == "" ? 1 : -1
+			}
+		}
+		print r three
+	}'
+`
+test -n "$INFOFILE" && printf '%s\n' "$r" > "$INFOFILE"
+exec printf "%s$NL" "$r"
