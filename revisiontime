@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	cat <<- .
-	$APP version 13.85
+	$APP version 13.85.1
 
 	(c) 2010 - 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -14,73 +14,133 @@ show_help() {
 	$APP - synthesize a version number from the current date/time
 	
 	Usage: $APP [ options ]
+	       $APP [ options ] -
+	       $APP [ options ] <lastrevision>
+
+	$APP is a tool for generating revision ("version") numbers.
+		
+	$APP can either be used to increment existing revision numbers,
+	generate revision numbers from date and time, or combine both methods.
+
+	When called without an argument (besides options), $APP just prints a
+	revision number based on date/time as follows:
 	
-	$APP displays the current date/time as a "version number", i. e.
-	as a sequence of integer number components separated by dots (".").
+	The current UTC date/time is used as a "version number", i. e. as a
+	sequence of integer number components separated by dots (".").
 
 	First component: 4-digit year minus 2000.
 	
 	Second component: Day within year ("cal -j").
 	
-	Third component (with option '-3'): Time of day 1 - 999.
-	
-	Third component (with option '-l'): Missing or integer sequence
-	number starting with 1.
+	Third component (only with option '-3'): Time of day 1 - 999.
 
-	Last component (with option '-s'): Integer sequence number starting
-	with 1.
+	Date / time is always interpreted as UTC only! This will create
+	revision numbers that can be globally compared without being affected
+	by the local time zone setting.
+
+	If an argument (besides) options is provided, $APP switches to a
+	different mode where it tries to update an existing version number.
 	
-	Date / time is always interpreted as UTC only!
-	This will create revision numbers that can be globally compared
-	without being affected by the local time zone setting.
+	If the one argument is "-", $APP reads the previous revision number
+	from standard input.
+	
+	Otherwise, the argument itself is assumed to be the previous revision
+	number.
+	
+	How $APP tries to update the old revision number depends on whether
+	or not option "-s" has also been specified:
+	
+	* Without -s, $APP assumes the old revision number is date/time based
+	  and will also generate a date/time-based new number. If the same
+	  date/time is already part of the old number, however, it switches to
+	  "sequential mode" and uses a third component which is an increasing
+	  integer.
+	
+	* With -s, $APP does not care about date/time and just tries to
+	  increment the last component of the old revision number. In other
+	  words, it uses thee "classic" way to increment the old revision
+	  number.
+	
+	There is a subtle difference between using "-" and providing the old
+	version number directly on the command line: In the former case, the
+	trailing newline after printing the new revision number will be
+	suppressed.
+	
+	This allows $APP to be used as a filter from within your editor: Just
+	select the old version number inside its line as a block, pipe the
+	contents of the selected block through the command "$APP -", and
+	replace the selected block by the output of the command.
+	
+	On the other hand, if the trailing newline at the output is desired
+	nevertheless, the "-n" option can be specified to enforce it.
+
 
 	Options:
 
 	-3: Display a three-component number rather than a two-component one.
-	-l <lastrev>: Display a two-compoment unless it would be the same as
-	    <lastrev>. In this case, outputs a 3-component number where the
-	    last component is the 3rd component of <lastrev> incremented by 1.
-	    If <lastrev> does not have a 3rd component, assumes it to be 0.
-	-s <seqpred>: Re-use an existing version number <seqpred> and only
-	    increment its last component if it is an integer. Otherwise, just
-	    append "-1" to <seqpred> if it was not an empty string, or use "1"
-	    as the new revision number if it was an empty string.
+	    This increases the granularity of purely date/time-based revision
+	    numbers from 1 day to about 1.5 minutes. Note that it might be a
+	    better idea to not use this option and specify the previous
+	    revision number as an argument instead, which will just use a
+	    simple counter as a third component if necessary.
+
+	-s: Produce "classic" sequential version numbers rather than the
+	    default date/time based ones. Without this option, a hybrid mode
+	    is used: The first revision on a day will be a 2-component
+	    revision number only based on the date. Further revisions on the
+	    same day will use a third component as a counter. Therfore, using
+	    -s is not necessary to create a counter as a third component. Use
+	    it only if you never ever want to use date-based version numbers.
+	    
+	-n: When "-" is specified as an argument, output of a newline
+	    character after writing the new revision number would normally be
+	    suppressed. This option disables this suppression, so the newline
+	    will be written even in this case.
+
 	-h: Show this help.
+
 	-V: Show only the version information.
 
-	The revision numbers calculated by $APP will only have day granularity
-	if neither -3 nor -l nor -s options are specified. This should be
-	enough if updates of the versioned entity are not too frequent.
+	The revision numbers produced by $APP will only have day granularity
+	if neither the -3 option nor the previous revision number was
+	specified. This should be enough if updates of the versioned entity
+	are not too frequent.
 	
-	For allowing sub-day granularity, the -l, -s and -3 options can be
-	used in the following scenarios:
+	For allowing sub-day granularity, the -3 option or the previous
+	revision number can be specified for the following scenarios:
 	
-	"-l" allows to generate 2-component date-based revision numbers by
-	default. But if more than 1 revision is generated for the same day, a
-	third component is appended which is a simple integer counter.
+	* Specifying the previous allows to generate 2-component date-based
+	  revision numbers by default. But if more than 1 revision is
+	  generated for the same day, a third component is appended which is a
+	  simple integer counter.
 
-	"-s" generates "classical" sequential revision numbers. It only cares
-	about the last component of an existing revision number and increments
-	it by 1.
+	* "-s" generates "classical" sequential revision numbers. It only
+	  cares about the last component of the previous revision number and
+	  increments it by 1.
 	
-	"-3" generates a third component only from the time of day. No
-	knowledge of the last generated revision number is required.
+	* "-3" generates a third component only from the time of day. No
+	  knowledge of the previous revision number is required or honored.
 
-	The options -l and -s can only be used if the last emitted revision
-	number is known. Those options are therefore restricted to scenarios
-	where a central authority issues the revision numbers, or where there
-	is at least some protocol in place which allows the team members to
-	co-ordinate emission of new revision numbers. Both options are
-	therefore not well suited for truly distributed development.
+	The usage variants where the previous revision number is specified can
+	only be used if the last emitted revision number is known. Those
+	variants are therefore restricted to scenarios where a central
+	authority issues the revision numbers, or where there is at least some
+	protocol in place which allows the team members to co-ordinate
+	emission of new revision numbers. Both options are therefore not well
+	suited for truly distributed development.
 	
-	The -3 option is the choice for distributed teams where team
-	members can release new versions at any time, and does not require
-	any co-ordination between team members.
+	The -3 option is the choice for distributed teams where different team
+	members can release new versions at any time, and does not require any
+	co-ordination between team members.
 	
-	I recommend using option -l where possible.
+	However, I recommend using the default variant where possible: Use a
+	date-based revision number for the first revision, then always use the
+	default mode to generate new date-based revision numbers for new
+	revision or append a counter for additional revisions created on the
+	same day.
 	
-	It has the advantage that the version number is basically a date as
-	for the 2-component version numbers generated by $APP by default.
+	This has the advantage that the new revision number is first and
+	foremost a date.
 	
 	But it still allows sub-day granularity by adding an integer counter
 	as a third component, where "<year>-<day>" is interpreted the same as
@@ -89,15 +149,14 @@ show_help() {
 	"13.37.1". $APP would therefore generate the following sequence of
 	revision numbers for that day: "13.37", "13.37.1", "13.37.2" etc.
 
-	Actually, how "-l" really works is as follows: It first generates a
-	2-component date-bases revision number. Then it compares this number
-	to the provided last revision number. If the specified last revision
-	number has different leading component numbers than the newly
-	generated revision number, then a new day has come and the new
+	Actually, how the default mode really works is as follows: It first
+	generates a 2-component date-based revision number. Then it compares
+	this number to the provided last revision number. If the specified
+	last revision number has different leading component numbers than the
+	newly generated revision number, then a new day has come and the new
 	2-component number is used directly. Otherwise, another revision for
-	the current day shall be generated, and "-l" adds a third compontent
-	".1", or increments an existing third component if one is already
-	present.
+	the current day shall be generated, and a third compontent ".1" is
+	added, or an already existing third component is incremented.
 
 	The "-s" option is used	to generate "classical" revision numbers: It
 	checks wheter the end of the specified old revision number looks like
@@ -160,7 +219,7 @@ show_help() {
 	First, the current UTC time is broken down into hours, minutes and
 	seconds. Then this is converted into the number of seconds since
 	midnight. In this calculation, it is assumed that a minute can have 62
-	seconds (60 normal seconds plus up to 2 leap seconds).
+	seconds (60 normal seconds plus up to 2 leap seconds just to be sure).
 	
 	The resulting number is then mapped linearly into the range 1 to 999.
 	(This means the third component will always be within the bounds of
@@ -175,18 +234,29 @@ show_help() {
 
 APP=${0##*/}
 OREV=
-THREE=
-while getopts l:s:3hV OPT
+MODE=l
+NL=
+while getopts 3snhV OPT
 do
 	case $OPT in
-		3) THREE=$OPT;;
-		l | s) THREE=$OPT; OREV=$OPTARG;;
+		3 | s) MODE=$OPT;;
+		n) NL=Y;;
 		h) show_help; exit;;
 		V) show_version; exit;;
 		*) false; exit;;
 	esac
 done
-date -u '+%Y %j %H %M %S '$THREE' '$OREV | awk '{
+shift `expr $OPTIND - 1`
+if test x"$1" = x"-"
+then
+	read OREV
+else
+	OREV=$1
+	NL=Y
+	test -z "$1" && test x"$MODE" != x"s" && MODE=
+fi
+set -- awk; test -z "$NL" && set -- "$@" -v ORS=
+echo "`date -u '+%Y %j %H %M %S'` $MODE $OREV" | "$@" '{
 	three= ""; r= $1 - 2000 "." $2 + 0
 	if ($6 == "3") {
 		three= "." int( \
