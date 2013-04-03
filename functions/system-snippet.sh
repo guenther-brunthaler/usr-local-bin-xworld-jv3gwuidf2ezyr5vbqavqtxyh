@@ -1,6 +1,15 @@
 #! /bin/false
-# Call this snippet with a single argument: A path
+# Source this file from within your script file.
+#
+# This snippet requires a single argument $1: A path
 # including a filename prefix.
+#
+# Note that passing arguments to the "." command is not*
+# *portable!
+#
+# Use the "set" command to set the arguments for sourcing
+# this script, use the --stop option to save old arguments
+# after it.
 #
 # All files matching the current system will then be
 # executed as snippets in the current shell context.
@@ -17,6 +26,15 @@
 # "NN": A 2-digit integer used for sorting, i. e. "50".
 # "xxx": Optional arbitrary text, to describe the item.
 # "SYSKEY": The string returned by 'get-system-key'.
+#
+# Options only valid after the single required argument:
+#
+# --stop
+#   Stops argument processing, leaving the remaining
+#   arguments set as $1 and onward. This is needed if it is
+#   required to "save" previous arguments after the --stop,
+#   which will become the current arguments again after
+#   sourcing this script. Typically used as '--stop "$@"'.
 
 
 log_65khet0pxstjidx3e59ig8j3j() {
@@ -79,4 +97,12 @@ call_65khet0pxstjidx3e59ig8j3j() {
 
 
 call_65khet0pxstjidx3e59ig8j3j "$@"
+while test $# != 0
+do
+	if test x"$1" = x"--stop"
+	then
+		shift; break
+	fi
+	shift
+done
 unset -f call_65khet0pxstjidx3e59ig8j3j

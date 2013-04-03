@@ -2,11 +2,6 @@
 # Keep the accumulated byte sizes of log files within some directory
 # within specified bounds by removing as many of the oldest files
 # as necessary.
-#
-# $HeadURL: /caches/xsvn/trunk/usr/local/bin/configsync $
-# $Author: root $
-# $Date: 2006-08-27T09:44:37.131062Z $
-# $Revision: 289 $
 
 
 use strict;
@@ -20,11 +15,7 @@ my($dir, $maxsize);
 
 
 sub VERSION_MESSAGE {
-   foreach ('$Revision: 1.18 $', '$Date: 2006/05/18 23:43:50 $') {
-      my $v= $_;
-      $v =~s/\s*\$\s*//g;
-      print "$v\n";
-   }
+   print "$app version 13.91\n";
    print "Author: Guenther Brunthaler\n";
 }
 
@@ -180,11 +171,17 @@ $app= $0;
 $app =~ s!^.*[\\/:]!!;
 $opt_d= 0;
 $Getopt::Std::STANDARD_HELP_VERSION= 1;
-unless (getopts 'Davf:d:') {
-   usage:
-   print STDERR "Run with --help as argument for help.\n";
-   exit 1;
-}
+goto usage unless getopts 'Davf:d:';
+# Kludge to fix idiotic new Perl warning
+# 'Use of "goto" to jump into a construct is deprecated'
+# Just because the "usage:" below was inside the "unless" from above.
+# Perl mainainers prefer Spaghetti code? Well, it's hereby served.
+# I know why I don't use Perl any more for new scripts!
+goto spaghetti;
+usage:
+print STDERR "Run with --help as argument for help.\n";
+exit 1;
+spaghetti:
 $dir= shift;
 $maxsize= shift;
 foreach ($opt_d) {
