@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr -s <<- .
-	$APP version 13.100.2
+	$APP version 13.100.3
 
 	(c) 2010 - 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -79,7 +79,7 @@ show_help() {
 	|all: file1.html file2.html
 	|.PHONY: all
 	|.SUFFIXES: .asciidoc .html
-	|.txt.html:
+	|.asciidoc.html:
 	|	asciidoc -a revnumber=\`revisiontime -F "\$@"\` -o "\$@" "\$<"
 .
 	wr <<- .
