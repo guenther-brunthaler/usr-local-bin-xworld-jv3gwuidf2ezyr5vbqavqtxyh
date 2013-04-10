@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
-	cat <<- .
-	$APP version 13.85.4
+	wr -s <<- .
+	$APP version 13.100
 
 	(c) 2010 - 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -10,15 +10,17 @@ show_version() {
 
 
 show_help() {
-	cat <<- .
+	wr -s <<- .
 	$APP - synthesize a version number from the current date/time
-	
+
 	Usage: $APP [ options ]
 	       $APP [ options ] -
 	       $APP [ options ] <lastrevision>
 	       $APP -f
 	       $APP -f <lastrevinfofile>
 	       $APP -F <templatefilename>
+.
+	wr <<- .
 
 	$APP is a tool for generating revision ("version") numbers.
 		
@@ -66,17 +68,22 @@ show_help() {
 	the name of the rule target.
 	
 	As an example, here is a "Makefile" which can be used to run the
-	"asciidoc" documentation generator on two files "file1.txt" and
-	"file2.txt", using different revision numbers for both files (kept in
-	files "file1_revnum.txt" and "file2_revnum.txt") which are only
-	updated if "make" needs to update one of the generated .html files:
+	"asciidoc" documentation generator on two files "file1.asciidoc" and
+	"file2.asciidoc", using different revision numbers for both files
+	(kept in files "file1_revnum.txt" and "file2_revnum.txt") which are
+	only updated if "make" needs to update one of the generated .html
+	files:
 
-	1: all: file1.html file2.html
-	2: .PHONY: all
-	3: .SUFFIXES: .txt .html
-	4: .txt.html:
-	5:	asciidoc -a revnumber=\`revisiontime -F "\$@"\` -o "\$@" "\$<"
-		
+.
+	cat <<- . | cut -c2-
+	|all: file1.html file2.html
+	|.PHONY: all
+	|.SUFFIXES: .asciidoc .html
+	|.txt.html:
+	|	asciidoc -a revnumber=\`revisiontime -F "\$@"\` -o "\$@" "\$<"
+.
+	wr <<- .
+
 	Obviously it is very dangerous to accidentally use -f instead of -F in
 	such a "Makefile", because -f would overwrite the specified target file
 	instead of deriving the file name to use from it.
@@ -340,6 +347,11 @@ show_help() {
 }
 
 
+wr() {
+	test -z "$*" && set -- -c
+	fmt -w "$LINEWIDTH" "$@"
+}
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
 
 
 APP=${0##*/}
