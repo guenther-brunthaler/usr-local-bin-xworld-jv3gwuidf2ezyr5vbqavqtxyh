@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr -s <<- .
-	$APP version 13.100
+	$APP version 13.100.2
 
 	(c) 2010 - 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -84,9 +84,14 @@ show_help() {
 .
 	wr <<- .
 
+	Hint: You can copy the above example into a real Makefile with the
+	following command:
+	
+	\$ $APP -h | sed -e '/^all:/,/^$/p; d' | head -n -1 > Makefile
+
 	Obviously it is very dangerous to accidentally use -f instead of -F in
-	such a "Makefile", because -f would overwrite the specified target file
-	instead of deriving the file name to use from it.
+	such a "Makefile", because -f would overwrite the specified target
+	file instead of deriving the file name to use from it.
 	
 	Therefore a safeguard has been built into -f/-F: If the provided
 	filename refers to an existing file, its size is checked, and if the
