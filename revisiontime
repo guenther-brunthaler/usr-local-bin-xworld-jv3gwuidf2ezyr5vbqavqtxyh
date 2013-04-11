@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr -s <<- .
-	$APP version 13.100.7
+	$APP version 13.100.8
 
 	(c) 2010 - 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -93,7 +93,7 @@ show_help() {
 	|	asciidoc -a revnumber=\`$APP -F "\$@"\` -o "\$@" "\$<"
 	|
 	|clean:
-	|	rm \$(HTMLS)
+	|	-rm \$(HTMLS)
 	|$sep end example $sep
 .
 	local ex1 ex2; ex1="\$ $APP -h | sed -e '0,/example: "
@@ -129,7 +129,7 @@ show_help() {
 	|	asciidoc -a revnumber=\`$APP -F "\$@"\` -o "\$@" "\$<"
 	|
 	|clean:
-	|	rm \$(HTMLS)
+	|	-rm \$(HTMLS)
 	|$sep end example $sep
 .
 	wr <<- .
