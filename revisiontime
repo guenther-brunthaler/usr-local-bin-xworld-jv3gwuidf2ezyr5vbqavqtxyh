@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr -s <<- .
-	$APP version 13.100.5
+	$APP version 13.100.6
 
 	(c) 2010 - 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -59,8 +59,9 @@ show_help() {
 	When using option -F, and only if there is an argument, the argument
 	fill be transformed into the actual file name to be used (like in -f)
 	as follows: First, any filename extension will be stripped. Then the
-	string "$extF" will be appended. The result will be used as the
-	filename for storing the revision number.
+	string "$extFs" (if the stripped filename contains a space character)
+	or "$extFu" (does not contain a space character) will be appended. The
+	result will be used as the filename for storing the revision number.
 	
 	Option -F is useful in a Makefile where pseudo-variable "\$@" can be
 	used as the filename argument for -F in a rule, which will
@@ -72,16 +73,15 @@ show_help() {
 
 	As an example, here is a "$exf" which can be used to run the
 	"asciidoc" documentation generator on two files "file 1.asciidoc" and
-	"file 2.asciidoc", using different revision numbers for both files
-	(kept in files "file 1_revnum.txt" and "file 2_revnum.txt") which are
-	only updated if "make" needs to update one of the generated .html
-	files:
+	"file_2.asciidoc", using different revision numbers for both files
+	(kept in files "file 1$extFs" and "file_2$extFu") which are only
+	updated if "make" needs to update one of the generated .html files:
 .
 	local sep; sep=-----
 	cat <<- . | cut -c2-
 	|
 	|$sep begin example: $exf $sep
-	|HTMLS = file\ 1.html file\ 2.html
+	|HTMLS = file\ 1.html file_2.html
 	|
 	|all: \$(HTMLS)
 	|
@@ -245,20 +245,22 @@ show_help() {
 	    name to use rather than using it directly. The following
 	    transformation will then be applied in this case on the name:
 	    First, if the file has a filename extension, it will be stripped.
-	    Then the string "$extF" will be appended. The result is the
-	    filename which will actually be used for storing the revision
-	    number. -F is intended for use in Makefiles. It assumes that the
-	    specified name (before the transformation) refers to the (single)
-	    target of the Makefile rule. It also checks whether the target
-	    exists, and avoids bumping the revision number read from the file
-	    with the transformed name if the target did not exist. In that
-	    case, it just reads and returns the last revision number
-	    unchanged. This means that building a non-existing target will not
-	    bump the revision number; only updating an outdated target file
-	    will (assuming the source file must have been updated). Also, a
-	    failed attempt to update the target file will neither bump the
-	    revision: If the revision number save file is newer than the
-	    target file, a revision bump is also suppressed.
+	    Then the string "$extFs" (if the stripped filename contains a
+	    space character) or "$extFu" (does not contain a space character)
+	    will be appended. The result is the filename which will actually
+	    be used for storing the revision number. -F is intended for use in
+	    Makefiles. It assumes that the specified name (before the
+	    transformation) refers to the (single) target of the Makefile
+	    rule. It also checks whether the target exists, and avoids bumping
+	    the revision number read from the file with the transformed name
+	    if the target did not exist. In that case, it just reads and
+	    returns the last revision number unchanged. This means that
+	    building a non-existing target will not bump the revision number;
+	    only updating an outdated target file will (assuming the source
+	    file must have been updated). Also, a failed attempt to update the
+	    target file will neither bump the revision: If the revision number
+	    save file is newer than the target file, a revision bump is also
+	    suppressed.
 
 	-S <maxsize>: In order to avoid overwriting an important file when the
 	    wrong file name was accidentally used as an argument to -f or -F,
@@ -415,7 +417,8 @@ NL=
 OPT_F=
 INFOFILE=current-revision.txt
 MAX_INFOSIZE=25
-extF=_revnum.txt
+extFs=' - revnum.txt'
+extFu=_revnum.txt
 while getopts 3sfFS:nhV OPT
 do
 	case $OPT in
@@ -440,7 +443,11 @@ then
 		if test x"$OPT_F" = x"template"
 		then
 			target=$INFOFILE
-			INFOFILE=${target%.*}$extF
+			INFOFILE=${target%.*}
+			case $INFOFILE in
+				*" "*) INFOFILE=$INFOFILE$extFs;;
+				*) INFOFILE=$INFOFILE$extFu
+			esac
 		fi
 	fi
 	if test -f "$INFOFILE"
