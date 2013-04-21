@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr -s <<- .
-	$APP Version 13.111
+	$APP Version 13.111.1
 
 	(c) 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -102,21 +102,16 @@ do
 	nlinks=`stat -c %h "$dir"`
 	if test $nlinks -le 2
 	then
-		printf '%d %s\n' 0 "$dir"
+		printf '%s %s\n' 0 "$dir"
 	else
-		echo "RAPING $dir" >& 3
-		for e in "$dir"/*
-		do
-			echo "examine '$e' " >& 3
-			du -Hs -- "$e"
-			echo "done '$e' " >& 3
-		done
+		du -Hs -- "$dir"/*
 	fi
-done 3>& 2 2> /dev/null | while read -r blocks obj
+done 3>& 2 2> /dev/null | while read blocks obj
 do
-	bytes=`expr "$blocks" "*" 512`
+	bytes=`expr "$blocks" "*" 512 || :`
 	test "$bytes" -lt "$minsize" && continue
-	printf '%-20d %s\n' $bytes "$obj"
+	# Up to 20 digits in an (unsigned) 64 bit bytecount.
+	printf '%-20s %s\n' $bytes "$obj"
 done | {
 	case $mode in
 		largest) sk="-r";;
