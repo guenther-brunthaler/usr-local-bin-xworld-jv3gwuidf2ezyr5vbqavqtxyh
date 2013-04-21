@@ -1,0 +1,63 @@
+#! /bin/sh
+# Display the entries
+#
+# Arguments: directory-trees to include, defaults to current directory.
+#
+# Version 13.111
+# (c) 2013 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+set -e
+LIMIT_MAXENTRIES=25
+#
+case $0 in
+	*-oldest) mode=${0##*-};;
+	*) mode=newest
+esac
+#
+restrict=
+while getopts rano OPT
+do
+	case $OPT in
+		n) mode=newest;;
+		o) mode=oldest;;
+		r) restrict='.bzr .git .hg CVS RCS';;
+		a) LIMIT_MAXENTRIES=;;
+		*) false
+	esac
+done
+shift `expr $OPTIND - 1`
+if test -n "$LIMIT_MAXENTRIES"
+then
+	eval "fout() { head -n '$LIMIT_MAXENTRIES'; }"
+else
+	fout() { cat; }
+fi
+for dir
+do
+	test -d "$dir" && continue
+	echo "'$dir' is not a directory!" >& 2; false
+done
+set -- find "$@"
+if test -n "$restrict"
+then
+	set -- "$@" '('; first=Y
+	for r in $restrict
+	do
+		if test -n "$first"
+		then
+			first=
+		else
+			set -- "$@" -o
+		fi
+		set -- "$@" -name "$r"
+	done
+	set -- "$@" ')' -prune -o
+fi
+set -- "$@" -type f -printf
+case $mode in
+	newest)	set -- "$@" "%TY-%Tm-%Td %TXZ %p\n"; sk="-r";;
+	oldest) set -- "$@" "%TY-%Tm-%Td %TXZ %p\n"; sk=;;
+	*) false
+esac
+TZ=UTC0 "$@" | LC_ALL=C sort $sk | fout
