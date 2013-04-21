@@ -1,28 +1,82 @@
 #! /bin/sh
-# Display the entries
-#
-# Arguments: directory-trees to include, defaults to current directory.
-#
-# Version 13.111
-# (c) 2013 by Guenther Brunthaler.
-# This script is free software.
-# Distribution is permitted under the terms of the GPLv3.
-set -e
+show_version() {
+	wr -s <<- .
+	$APP Version 13.111.1
+
+	(c) 2013 by Guenther Brunthaler.
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+
+show_help() {
+	wr -s <<- .
+	$APP - show top newest/oldest files of directory trees
+
+	Usage: $APP [ options ] [ <directory> ... ]
+.
+	wr <<- .
+
+	$APP can display the top $LIMIT_MAXENTRIES (or optionally all) newest,
+	oldest or most recently accessed files of one or more directory trees,
+	sorted by age.
+
+	Arguments are a list of directory trees to be searched and defaults to
+	the current directory.
+	
+	Options:
+
+	-n: Sort in a way that newest (most recently modified) files come
+	    first.
+
+	-o: Sort in a way that oldest (least recently modified) files come
+	    first.
+
+	-m: Sort in a way that most-recently accessed (read or written) files
+	    come first.
+
+	-r: Restrict the output to "useful" subdirectories, i. e. exclude a
+	    predefined set of subdirectories from the output. The list of
+	    directories to exclude is hard-coded and currently contains the
+	    following directory names: "$DEFAULT_EXCLUSIONS".
+
+	-a: Show all entries sorted by age, not just the top $LIMIT_MAXENTRIES
+	    entries.
+
+	-h: Show this help.
+
+	-V: Show version information.
+
+.
+	show_version
+}
+
+wr() {
+	test -z "$*" && set -- -c
+	fmt -w "$LINEWIDTH" "$@"
+}
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
 LIMIT_MAXENTRIES=25
+DEFAULT_EXCLUSIONS=".bzr .git .hg CVS RCS"
 #
+set -e
+APP=${0##*/}
 case $0 in
-	*-oldest) mode=${0##*-};;
+	*-oldest | *-most-recent) mode=${0##*-};;
 	*) mode=newest
 esac
 #
 restrict=
-while getopts rano OPT
+while getopts ranlomVh OPT
 do
 	case $OPT in
 		n) mode=newest;;
 		o) mode=oldest;;
-		r) restrict='.bzr .git .hg CVS RCS';;
+		m) mode=recent;;
+		r) restrict=$DEFAULT_EXCLUSIONS;;
 		a) LIMIT_MAXENTRIES=;;
+		h) show_help; exit;;
+		V) show_version; exit;;
 		*) false
 	esac
 done
@@ -58,6 +112,7 @@ set -- "$@" -type f -printf
 case $mode in
 	newest)	set -- "$@" "%TY-%Tm-%Td %TXZ %p\n"; sk="-r";;
 	oldest) set -- "$@" "%TY-%Tm-%Td %TXZ %p\n"; sk=;;
+	recent) set -- "$@" "%AY-%Am-%Ad %AXZ %p\n"; sk="-r";;
 	*) false
 esac
 TZ=UTC0 "$@" | LC_ALL=C sort $sk | fout
