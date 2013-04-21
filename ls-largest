@@ -1,0 +1,135 @@
+#! /bin/sh
+show_version() {
+	wr -s <<- .
+	$APP Version 13.111
+
+	(c) 2013 by Guenther Brunthaler.
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+
+show_help() {
+	wr <<- .
+	$APP - show top largest/smallest files or subdirectories of a set of
+	directories.
+
+	Usage: $APP [ options ] [ <directory> ... ]
+
+	$APP can display the top $LIMIT_MAXENTRIES (or optionally all) largest
+	or smallest files or accumulated sized of subdirectories to be found
+	in one or more directories.
+	
+	All sizes are reported in bytes, but will always be multiple of 512
+	bytes.
+	
+	This is a restriction is dictated by the POSIX.2008 standard which
+	does not provide a finer granularity than 512 byte blocks for the "du"
+	command. And $APP is just a wrapper around the POSIX "du" command.
+	(Care has been taken that the POSIX semantics of "du" are honored on
+	GNU systems as well.)
+
+	Arguments are a list of directories and defaults to the current
+	directory.
+	
+	Options:
+
+	-l: Sort in a way that largest files or subdirectories (total size of
+	    its contents) come first.
+	-s: Sort in a way that smallest files or subdirectories (total size of
+	    its contents) come first.
+	-m <bytes>: Define minimum size to be displayed. Files smaller than
+	            this value will be omitted from output. By default, there
+	            is no output restriction (i. e. -m0). Note that all sizes
+	            will be multiple of 512 bytes due to a restriction of the
+	            POSIX "du" utility, and a limit of 0 bytes has therefore
+	            the same effect as a limit of 511 bytes.
+	-a: Show all entries sorted by size, not just the top
+	    $LIMIT_MAXENTRIES entries.
+	-h: Show this help.
+	-V: Show version information.
+
+.
+	show_version
+}
+
+wr() {
+	test -z "$*" && set -- -c
+	fmt -w "$LINEWIDTH" "$@"
+}
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
+leave() {
+	trap - 0
+	exit
+}
+
+LIMIT_MAXENTRIES=25
+#
+set -e
+trap 'echo "Failed!" >& 2' 0
+APP=${0##*/}
+case $0 in
+	*-largest | *-smallest) mode=${0##*-};;
+	*) mode=largest
+esac
+#
+minsize=0
+while getopts ralsm:Vh OPT
+do
+	case $OPT in
+		l) mode=largest;;
+		s) mode=smallest;;
+		m) minsize=$OPTARG;;
+		a) LIMIT_MAXENTRIES=;;
+		h) show_help; leave;;
+		V) show_version; leave;;
+		*) false
+	esac
+done
+shift `expr $OPTIND - 1`
+test $# = 0 && set .
+# Ensure POSIX compatibility even on GNU systems.
+unset DF_BLOCK_SIZE BLOCK_SIZE BLOCKSIZE
+POSIXLY_CORRECT=1
+export POSIXLY_CORRECT
+#
+for dir
+do
+	if test ! -d "$dir"
+	then
+		echo "'$dir' is not a directory!" >& 3; false
+	fi
+	nlinks=`stat -c %h "$dir"`
+	if test $nlinks -le 2
+	then
+		printf '%d %s\n' 0 "$dir"
+	else
+		echo "RAPING $dir" >& 3
+		for e in "$dir"/*
+		do
+			echo "examine '$e' " >& 3
+			du -Hs -- "$e"
+			echo "done '$e' " >& 3
+		done
+	fi
+done 3>& 2 2> /dev/null | while read -r blocks obj
+do
+	bytes=`expr "$blocks" "*" 512`
+	test "$bytes" -lt "$minsize" && continue
+	printf '%-20d %s\n' $bytes "$obj"
+done | {
+	case $mode in
+		largest) sk="-r";;
+		smallest) sk=;;
+		*) false
+	esac
+	sort -n $sk
+} | {
+	if test -n "$LIMIT_MAXENTRIES"
+	then
+		head -n "$LIMIT_MAXENTRIES"
+	else
+		cat
+	fi
+}
+leave
