@@ -1,0 +1,216 @@
+#! /bin/sh
+exit_version() {
+	wr -s <<- .; exit
+	$APP Version 13.112
+
+	(c) 2013 by Guenther Brunthaler.
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+
+
+exit_help() {
+	wr <<- .
+	$APP - run cscope and automatically maintain its database
+
+	Usage: $APP [ options ] [ <directory> ... ]
+
+	cscope is a console-GUI-based source-code browser and cross-referencer
+	for C source files.
+	
+	Unfortunately, cscope needs a database of pre-parsed source files to
+	operate on, and even though it can create that database by itself it
+	still needs a list of source files to be fed to it. This is cumbersome
+	to do manually, especially in larger projects.
+	
+	In this situation, $APP comes to the rescue: It is a wrapper around
+	cscope which takes care of all the gory details one is not interested
+	in.
+	
+	Just run $APP in the top-level directory of a project and $APP will
+	scan for source files automatically, instruct cscope to build a
+	database for them, and finally call cscope to show its GUI for
+	browsing the database.
+	
+	$APP also detects whether a database is already present from the last
+	run, and will avoid building it again. (If needed, a rebuild can be
+	enforced with the -u option.)
+	
+	But it gets even better: Normally $APP creates the cscope database
+	files in the current directory, allowing them to be found easily. But
+	this is not always what is wanted. Perhaps the source-directory is
+	read-only, or or it could be written but shall not be cluttered with
+	database files.
+	
+	For such requirements, $APP presents two alternatives:
+	
+	* One can use the -t option. This will create the databases not in the
+	  current directory, but rather in a temporary directory. They will
+	  then be used there until the interactive cscope session ends, and
+	  will be automatically deleted afterward. No temporary files will
+	  therefore be left. The disadvantage of -t is that the database needs
+	  to be rebuilt on every new run, because it was deleted at the end of
+	  the last run.
+	
+	* One runs $APP with a current directory which does not contain the
+	  source files, but rather has been created exclusively for the
+	  purpose of storing the cscope database files for some project
+	  persistently. Then $APP is called with the paths to the top-level
+	  directories where the source files of interest are stored as
+	  arguments, and $APP will scan those directories for source files
+	  instead of the current directory. The cscope database files will
+	  then be created in the current directory. If $APP is run again from
+	  this database directory later, no options or arguments need to be
+	  specified, and $APP will re-use the database files and allow
+	  browsing the source files again even though they are stored in
+	  completely different directories.
+
+	The arguments to $APP are the paths to the top-level directories of
+	the directory trees which contain the source files. Defaults to "." if
+	no paths are given.
+	
+	This means $APP always assumes that the current directory is the
+	top-level directory of the source files, and will also create its
+	database files here.
+	
+	And yes, it is possible to specify more than one source directory!
+	
+	This can be useful if a project consists of different sub-projects,
+	but not all of the projects are part of the same directory tree.
+	
+	It is also useful to specify the location of header files installed in
+	non-standard places (/usr/include will be scanned automatically unless
+	the -k option is used) outside the actual project directory, allowing
+	cscope to locate them.
+	
+	Another reason for specifying multiple directory trees rather than
+	just the single parent directory containing all of them is if the
+	parent directory also contains additional sub-directories which are
+	not part of the project and should therefore not be considered by
+	cscope.
+	
+	Options:
+	
+	-u: Rebuild cscope database unconditionally, i. e. even if it already
+	    exists. This has only an effect if a cscope database already
+	    exists in the current directory. Otherwise, it will always be
+	    built. This option is necessary if the source files have changed
+	    since $APP created the cscope database, because otherwise the old
+	    database will be used which contains outdated cross referencing
+	    information.
+
+	-t: Temporary mode. Will not create a persistent cscope database in
+	    the current directory (if it does not exist already), but rather
+	    create a new database in a temporary location which only exists
+	    during the time $APP runs. After this, the cscope database will be
+	    deleted, leaving no database files around. This option is
+	    especially useful for running $APP in directories without write
+	    access or if the directory shall not be cluttered with cscope
+	    database files.
+
+	-k: Enable kernel mode. Specify this if you are browsing the Linux
+	    kernel sources or other software projects which are self-contained
+	    and do not use the C standard header files. This option disables
+	    the automatic searching for #included header files in /usr/include
+	    which can be a problem if the project itself provides header files
+	    with the same names as some files in /usr/include, because it is
+	    then unclear which file should be used. (cscope does not know what
+	    specific -I options might be used for compiling each file).
+
+	-h: Show this help.
+
+	-V: Show version information.
+
+.
+	exit_version
+}
+APP=${0##*/}
+
+
+wr() {
+	test -z "$*" && set -- -c
+	run fmt -w "$LINEWIDTH" "$@"
+}
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
+
+die() {
+	echo "ERROR: $*" >& 2
+	false; exit
+}
+
+
+run() {
+	"$@" && return
+	die "Could not execute >>>$*<<<: return code ${?}!"
+}
+
+
+system() {
+	REPLY=`run "$@"` || exit
+}
+
+
+PERMANENT=Y
+UNCONDITIONAL_REBUILD=
+KERNEL_MODE=
+while getopts kuthV OPT
+do
+	case $OPT in
+		k) KERNEL_MODE=Y;;
+		u) UNCONDITIONAL_REBUILD=Y;;
+		t) PERMANENT=;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1`
+QUERY_EXISTING=
+if test -n "$UNCONDITIONAL_REBUILD"
+then
+	PERMANENT=Y
+elif test $# = 0 && test -f cscope.files
+then
+	# Auto-select query mode if no args & cscope.files present.
+	QUERY_EXISTING=Y
+fi
+if test -z "$QUERY_EXISTING"
+then
+	test $# = 0 && set -- .
+	system date +%s; MARKER=${REPLY}_$$
+	set -- "$@" "$MARKER"
+	for D
+	do
+		test x"$D" = x"$MARKER" && break
+		run test -d "$D"
+		system readlink -f "$D"
+		set -- "$@" "$REPLY"
+	done
+	while test x"$1" != x"$MARKER"
+	do
+		shift
+	done
+	shift
+fi
+if test -z "$PERMANENT"
+then
+	while :
+	do
+		system tempfile; T=$REPLY
+		rm "$T"
+		mkdir -m 700 "$T" && break
+	done
+	trap "cd; rm -rf --one-file-system '$T'" 0
+	run cd "$T"
+fi
+if test -n "$QUERY_EXISTING"
+then
+	test -f cscope.files
+else
+	run find-c-and-cpp-sources-files "$@" > cscope.files
+fi
+set cscope -q
+test -n "$KERNEL_MODE" && set -- "$@" -k
+test -n "$UNCONDITIONAL_REBUILD" && set -- "$@" -u
+run "$@"
