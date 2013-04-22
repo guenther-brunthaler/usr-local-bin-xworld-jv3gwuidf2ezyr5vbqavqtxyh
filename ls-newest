@@ -25,17 +25,23 @@ show_help() {
 
 	-n: Sort in a way that newest (most recently modified) files come
 	    first.
+
 	-o: Sort in a way that oldest (least recently modified) files come
 	    first.
+
 	-m: Sort in a way that most-recently accessed (read or written) files
 	    come first.
+
 	-r: Restrict the output to "useful" subdirectories, i. e. exclude a
 	    predefined set of subdirectories from the output. The list of
 	    directories to exclude is hard-coded and currently contains the
 	    following directory names: "$DEFAULT_EXCLUSIONS".
+
 	-a: Show all entries sorted by age, not just the top $LIMIT_MAXENTRIES
 	    entries.
+
 	-h: Show this help.
+
 	-V: Show version information.
 
 .
