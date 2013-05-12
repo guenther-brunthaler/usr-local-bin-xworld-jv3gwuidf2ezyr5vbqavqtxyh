@@ -1,0 +1,10 @@
+#! /bin/sh
+# Display how far (in whole percentage points) a file operation has come.
+#
+# (c) 2013 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+FD_INFO=${1:?"Arg1: File descriptor info to watch; something like /proc/3847/fdinfo/3"}
+END_POS=${2:?"Arg2: End byte-position for watched file descriptor of arg1"}
+exec expr `cat "$FD_INFO" | awk '$1 == "pos:" {print $2}'` "*"  100 / "$END_POS"
