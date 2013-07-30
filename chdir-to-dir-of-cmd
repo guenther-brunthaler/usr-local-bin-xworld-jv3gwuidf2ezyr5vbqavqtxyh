@@ -1,0 +1,9 @@
+#! /bin/sh
+cn=${1:?"Usage: ${0##*/} <cmd_in_PATH>"}
+if ! cmd=`which "$cn" 2> /dev/null` || test -z "$cmd"
+then
+	echo "There is no command '$cn' in \$PATH!" >& 2
+	false; exit
+fi
+echo "Full path of command: $cmd" >& 2
+exec chdir-to-dir-of "$cmd"
