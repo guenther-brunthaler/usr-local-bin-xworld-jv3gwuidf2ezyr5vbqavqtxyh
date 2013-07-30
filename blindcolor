@@ -11,6 +11,6 @@ case $1 in
 	--white) C=7;;
 	*) echo "Bad arguments '$*'!" >& 2; false; exit;;
 esac
-printf '\e[3'$C';4'$C'm'
+printf '\033[3'$C';4'$C'm'
 cat
-printf '\e[0m'
+printf '\033[0m'
