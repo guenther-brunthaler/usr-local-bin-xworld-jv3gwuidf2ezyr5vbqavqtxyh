@@ -1,0 +1,59 @@
+#! /bin/sh
+# Poor man's screenshot utility.
+#
+# Configure your window manager to run this script with argument "-w" when the
+# 'Print'-key is pressed (screenshot of a specific window which to user has to
+# select by clicking into it), and without any argument when Shift-'Print' is
+# pressed (screenshot of whole screen).
+#
+# The screenshots will be saved as PNG files in the $HOME directory, named
+# "screenshot" plus a suffix comprised of the current date and time.
+#
+# Required tools which must be installed: "xwd" from the "x11-apps" package,
+# "convert" from the "imagemagick" package and "notify-send" from the
+# "libnotify-bin" package. (Those package names refer to Debian-based
+# distributions).
+#
+# (c) 2013 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+cleanup() {
+	test -n "$T" && rm -- "$T"
+	test -n "$OK" || notify-send -i error -t 10000 "$APP failed!"
+}
+
+set -e
+APP=${0##*/}
+OK=
+T=
+trap cleanup 0
+WINDOW=
+while getopts w OPT
+do
+	case $OPT in
+		w) WINDOW=Y;;
+		*) false
+	esac
+done
+shift `expr $OPTIND - 1`
+if test -n "$WINDOW"
+then
+	m="Screenshot: Select a window by clicking into it!"
+	notify-send -i info -t 3000 "$m"
+	set --
+else
+	set -- -root
+fi
+T=`mktemp --tmpdir "$APP-XXXXXXXXXX"`
+xwd -out "$T" "$@"
+while :
+do
+	N=`date +'%Y%m%d-%H%M%S'`
+	N=$HOME/screenshot_$N.png
+	test ! -e "$N" && break
+	sleep 1
+done
+convert "$T" -quality 0 "$N"
+notify-send -i info -t 5000 "Screenshot saved as '$N'."
+OK=Y
