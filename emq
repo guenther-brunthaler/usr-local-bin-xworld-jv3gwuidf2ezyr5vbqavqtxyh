@@ -1,0 +1,21 @@
+#! /bin/sh -e
+# Quote e-mail text. Optional argument is the quote nesting level. Defaults to
+# 1. The text will be reformatted to a proper line width before adding the
+# quotes.
+#
+# (c) 2013 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+WIDTH=65
+level=${1:-1}
+indent=
+while test x"$level" != x0
+do
+	indent="$indent>"
+	level=`expr $level - 1` || :
+done
+indent="$indent "
+cols=`printf '%s' "$indent" | wc -c`
+cols=`expr "$WIDTH" - "$cols"`
+fmt -c -w "$cols" | sed -e "s/^/$indent/"
