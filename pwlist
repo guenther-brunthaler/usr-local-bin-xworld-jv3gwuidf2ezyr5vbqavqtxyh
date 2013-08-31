@@ -1,17 +1,13 @@
-#!/bin/sh
-#
-# $HeadURL: /caches/xsvn/trunk/usr/local/bin/mktags $
-# $Author: root $
-# $Date: 2006-09-03T12:07:00.577433Z $
-# $Revision: 335 $
+#! /bin/sh
 
 
 PWLIST="$HOME/.pwlist"
-if [ -e "$PWLIST" ]; then
+if test -e "$PWLIST"
+then
 	less -L -S "$PWLIST"
 	clear
 else
-	cat <<- EOF | fmt -w `tput cols`
+	cat <<- . | fmt -w `tput cols`
 	Please install a symlink "$PWLIST" which points to your password list!
 	
 	The actual list file should reside on an encrypted file system, if
@@ -23,7 +19,7 @@ else
 	
 	This avoids that an attacker, stealing your encrypted hard drive, can
 	guess the file name of your password file, because he will only see
-	that the $PWLIST" symlink points to somewhere inside the encrypted
+	that the "$PWLIST" symlink points to somewhere inside the encrypted
 	partition.
-	EOF
+.
 fi
