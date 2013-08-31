@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 12.288
-	(c) 2008 - 2012 by Guenther Brunthaler.
+	$APP Version 13.243
+	(c) 2008 - 2013 by Guenther Brunthaler.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -370,8 +370,15 @@ gen_uuid() {
 				run "$@"
 			fi
 		} | run tr -d '-' | LC_ALL=C run tr '[:lower:]' '[:upper:]'
-	} | LC_ALL=C POSIXLY_CORRECT=1 BC_LINE_LENGTH=99 run bc \
-	| LC_ALL=C POSIXLY_CORRECT=1 run awk '
+	} | LC_ALL=C POSIXLY_CORRECT=1 run bc \
+	| {
+		s=
+		while IFS= read -r line
+		do
+			s=$s${line%"\\"}
+		done
+		run printf '%s' "$s"
+	} | LC_ALL=C POSIXLY_CORRECT=1 run awk '
 		{
 			alphabet= "0123456789abcdefghijklmnpqrstuvwxyz"
 			out= ""
