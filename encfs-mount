@@ -151,7 +151,7 @@ is_mounted() {
 random_name() {
 	{
 		echo "obase=35; ibase=16"
-		run od -An -N16 -vto1 "$random_source" \
+		run od -An -N16 -vtx1 "$random_source" \
 		| tr -d ' ' \
 		| {
 			s=
@@ -160,7 +160,8 @@ random_name() {
 				s=$s$LINE
 			done
 			echo $s
-		}
+		} \
+		| run tr '[:lower:]' '[:upper:]'
 	} | LC_ALL=C POSIXLY_CORRECT=1 run bc \
 	| {
 		s=
