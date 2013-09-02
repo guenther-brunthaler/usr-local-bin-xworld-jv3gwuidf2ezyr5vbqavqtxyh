@@ -160,7 +160,6 @@ random_name() {
 				s=$s$LINE
 			done
 			echo $s
-			echo "was: $s" >& 2
 		}
 	} | LC_ALL=C POSIXLY_CORRECT=1 run bc \
 	| {
