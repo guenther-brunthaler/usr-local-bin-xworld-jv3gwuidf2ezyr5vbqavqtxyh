@@ -21,6 +21,20 @@ show_help() {
 	Arguments are a list of directory trees to be searched and defaults to
 	the current directory.
 	
+	Some usage suggestions:
+
+	The -s (or -l) option is most useful in combination with the -a option
+	after a "cp -a" operation has failed on a large directory tree because
+	the target disk has become full, but the file system does not store
+	change-time attributes. This is usually the case for file systems from
+	the Microsoft world.
+	
+	In such cases, generate listings with "$APP -a s" for both
+	directory-trees and compare them by "diff". Strip all files only
+	present in the source tree from the diff output. This allows to detect
+	the files which have been truncated due to insufficient disk space in
+	the target directory tree, and should thus be manually removed.
+	
 	Options:
 
 	-n:
@@ -44,6 +58,18 @@ show_help() {
 	    age of the copied files rather than the age of the original files.
 	    Unfortunately, not all filesystems actually store a change-time.
 	    On those which do not, -c has the same effect as -n.
+	    
+	-l:
+	    Sort files by size (and alphabetically (using "C" locale) by path
+	    for files of the same size) rather than by time, and show file
+	    byte sizes instead of times. Larger files will precede smaller
+	    ones.
+	    
+	-s:
+	    Sort files by size (and alphabetically (using "C" locale) by path
+	    for files of the same size) rather than by time, and show file
+	    byte sizes instead of times. Smaller files will precede larger
+	    ones.
 	    
 	-R:
 	    Reverse sort order. Prints the output in the reverse order as
@@ -96,13 +122,15 @@ case $0 in
 esac
 #
 restrict=
-while getopts L:RrcanlomVh OPT
+while getopts L:RrlscanlomVh OPT
 do
 	case $OPT in
 		n) mode=newest;;
 		o) mode=oldest;;
 		m) mode=recent;;
 		c) mode=changed;;
+		s) mode=smallest;;
+		l) mode=largest;;
 		r) restrict=$DEFAULT_EXCLUSIONS;;
 		a) LIMIT_MAXENTRIES=;;
 		L) LIMIT_MAXENTRIES=$OPTARG;;
@@ -160,6 +188,8 @@ case $mode in
 	oldest) set -- "$@" "%TY-%Tm-%Td %TXZ %p\n"; sk=;;
 	recent) set -- "$@" "%AY-%Am-%Ad %AXZ %p\n"; sk=-r;;
 	changed) set -- "$@" "%CY-%Cm-%Cd %CXZ %p\n"; sk=-r;;
+	smallest) set -- "$@" "%20s %p\n"; sk=;;
+	largest) set -- "$@" "%20s %p\n"; sk=-r;;
 	*) false
 esac
 TZ=UTC0 "$@" | LC_ALL=C sort $sk | fout
