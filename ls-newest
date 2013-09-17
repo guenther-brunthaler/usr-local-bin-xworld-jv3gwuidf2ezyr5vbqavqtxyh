@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr -s <<- .
-	$APP Version 13.260
+	$APP Version 13.260.1
 
 	(c) 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -29,11 +29,22 @@ show_help() {
 	change-time attributes. This is usually the case for file systems from
 	the Microsoft world.
 	
-	In such cases, generate listings with "$APP -a s" for both
+	In such cases, generate listings with "$APP -a -s" for both
 	directory-trees and compare them by "diff". Strip all files only
-	present in the source tree from the diff output. This allows to detect
-	the files which have been truncated due to insufficient disk space in
-	the target directory tree, and should thus be manually removed.
+	present in the source tree from the diff output:
+	
+.
+	wr -s <<- .
+	\$ cd "\$TMPDIR"
+	\$ (cd "\$SRC_TREE" && $APP -sa) > in.lst
+	\$ (cd "\$DST_TREE" && $APP -sa) > out.lst
+	\$ diff -u in.lst out.lst | grep '^[^- @]' | cut -c2-
+.
+	wr <<- .	
+
+	This allows to detect the files which have been truncated due to
+	insufficient disk space in the target directory tree, and should thus
+	be manually removed.
 	
 	Options:
 
@@ -73,9 +84,9 @@ show_help() {
 	    
 	-R:
 	    Reverse sort order. Prints the output in the reverse order as
-	    defined by the -n, -o, -m or -c options. This is useful if the
-	    whole output do not fit on the screen and therefore the first
-	    (most important) entries have scrolled out view. By reverting the
+	    defined by the -n, -o etc. options. This is useful if the whole
+	    output do not fit on the screen and therefore the first (most
+	    important) entries have scrolled out of view. By reverting the
 	    order, the most important entries will be last, therefore never
 	    scrolling out of view.
 	    
