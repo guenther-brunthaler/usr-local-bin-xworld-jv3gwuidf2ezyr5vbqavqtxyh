@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr -s <<- .
-	$APP Version 13.111.1
+	$APP Version 13.260
 
 	(c) 2013 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
@@ -23,26 +23,56 @@ show_help() {
 	
 	Options:
 
-	-n: Sort in a way that newest (most recently modified) files come
+	-n:
+	    Sort in a way that newest (most recently modified) files come
 	    first.
 
-	-o: Sort in a way that oldest (least recently modified) files come
+	-o:
+	    Sort in a way that oldest (least recently modified) files come
 	    first.
 
-	-m: Sort in a way that most-recently accessed (read or written) files
+	-m:
+	    Sort in a way that most-recently accessed (read or written) files
 	    come first.
 
-	-r: Restrict the output to "useful" subdirectories, i. e. exclude a
+	-c:
+	    Sort in a way that files come first which had their on-disk
+	    structures changed the latest. This is useful if the files were
+	    copied preserving their original modification and access time,
+	    because the change-time of the originals cannot not be preserved
+	    by a copy operation. The sorting order will thus reflect the true
+	    age of the copied files rather than the age of the original files.
+	    Unfortunately, not all filesystems actually store a change-time.
+	    On those which do not, -c has the same effect as -n.
+	    
+	-R:
+	    Reverse sort order. Prints the output in the reverse order as
+	    defined by the -n, -o, -m or -c options. This is useful if the
+	    whole output do not fit on the screen and therefore the first
+	    (most important) entries have scrolled out view. By reverting the
+	    order, the most important entries will be last, therefore never
+	    scrolling out of view.
+	    
+	-L
+	    <limit>: Use <limit> instead of $LIMIT_MAXENTRIES entries for the
+	    maximum number of output lines where such a limit applies. This is
+	    mutually exclusive with the -a option.
+
+	-r:
+	    Restrict the output to "useful" subdirectories, i. e. exclude a
 	    predefined set of subdirectories from the output. The list of
 	    directories to exclude is hard-coded and currently contains the
 	    following directory names: "$DEFAULT_EXCLUSIONS".
 
-	-a: Show all entries sorted by age, not just the top $LIMIT_MAXENTRIES
+	-a:
+	    Show all entries sorted by age, not just the top $LIMIT_MAXENTRIES
 	    entries.
 
-	-h: Show this help.
+	-h:
+	    Show this help.
 
-	-V: Show version information.
+	-V:
+	    Show version information.
 
 .
 	show_version
@@ -56,6 +86,7 @@ LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
 
 LIMIT_MAXENTRIES=25
 DEFAULT_EXCLUSIONS=".bzr .git .hg CVS RCS"
+REVERSE=
 #
 set -e
 APP=${0##*/}
@@ -65,14 +96,17 @@ case $0 in
 esac
 #
 restrict=
-while getopts ranlomVh OPT
+while getopts L:RrcanlomVh OPT
 do
 	case $OPT in
 		n) mode=newest;;
 		o) mode=oldest;;
 		m) mode=recent;;
+		c) mode=changed;;
 		r) restrict=$DEFAULT_EXCLUSIONS;;
 		a) LIMIT_MAXENTRIES=;;
+		L) LIMIT_MAXENTRIES=$OPTARG;;
+		R) REVERSE=Y;;
 		h) show_help; exit;;
 		V) show_version; exit;;
 		*) false
@@ -81,7 +115,21 @@ done
 shift `expr $OPTIND - 1`
 if test -n "$LIMIT_MAXENTRIES"
 then
-	eval "fout() { head -n '$LIMIT_MAXENTRIES'; }"
+	fout_helper() {
+		if test -n "$REVERSE"
+		then
+			if test -n "$sk"
+			then
+				sk=
+			else
+				sk=-r
+			fi
+			LC_ALL=C sort $sk
+		else
+			cat
+		fi
+	}
+	eval "fout() { head -n '$LIMIT_MAXENTRIES' | fout_helper; }"
 else
 	fout() { cat; }
 fi
@@ -108,9 +156,10 @@ then
 fi
 set -- "$@" -type f -printf
 case $mode in
-	newest)	set -- "$@" "%TY-%Tm-%Td %TXZ %p\n"; sk="-r";;
+	newest)	set -- "$@" "%TY-%Tm-%Td %TXZ %p\n"; sk=-r;;
 	oldest) set -- "$@" "%TY-%Tm-%Td %TXZ %p\n"; sk=;;
-	recent) set -- "$@" "%AY-%Am-%Ad %AXZ %p\n"; sk="-r";;
+	recent) set -- "$@" "%AY-%Am-%Ad %AXZ %p\n"; sk=-r;;
+	changed) set -- "$@" "%CY-%Cm-%Cd %CXZ %p\n"; sk=-r;;
 	*) false
 esac
 TZ=UTC0 "$@" | LC_ALL=C sort $sk | fout
