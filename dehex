@@ -1,0 +1,35 @@
+#! /bin/sh
+# Portably (I hope) hex digit stream into binary output.
+# Make sure the stream does not contain non-hex characters such as newline!
+#
+# dehex version 14.31
+# (c) 2014 by Günther Brunthaler.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+trap 'echo "dehex error!" >& 2' 0
+set -e
+{
+	tr A-F a-f | tr -c 0-9a-f n
+	printf QQ
+} | {
+	LC_ALL=C
+	export LC_ALL
+	# Why that complicated? Because "head -c1" is not portable! Using 0x
+	# in printf arguments may also not be portable, but it works in bash,
+	# dash and ash - which is good enough for me.
+	while :
+	do
+		oct=`dd bs=2 count=1 2> /dev/null`
+		case $oct in
+			QQ) break;;
+			*n*)
+				echo "Invalid pair of hex-digits" \
+					"in input!" >& 2
+				false
+		esac
+		printf "\\`printf %03o 0x$oct`"
+	done
+}
+trap - 0
