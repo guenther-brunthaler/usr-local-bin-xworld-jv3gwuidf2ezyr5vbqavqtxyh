@@ -12,8 +12,9 @@ done
 APP=${APP##*/}; LOCAL_IF=${APP##*_from_}
 PORT=${LOCAL_IF##*_port_}; LOCAL_IF=${LOCAL_IF%%_port_*}
 LOCAL_IP=`
-	LC_ALL=C /sbin/ifconfig "$LOCAL_IF" | sed -e '
-		s/.*[^a-z]inet addr:\([0-9.]*\) .*/\1/;	t; d
+	PATH=/sbin:/usr/sbin:$PATH
+	LC_ALL=C ifconfig "$LOCAL_IF" | sed -e '
+		s/.*[^a-z]inet \(addr:\)\?\([0-9.]*\) .*/\2/; t; d
 	'
 `
 : ${LOCAL_IP:="<unknown>"} ${LOCAL_IF:="<unspecified>"} ${PORT:="<unknown>"}
