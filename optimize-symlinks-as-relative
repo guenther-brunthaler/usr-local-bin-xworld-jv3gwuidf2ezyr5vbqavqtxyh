@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 12.288
-	(c) 2008 - 2012 by Guenther Brunthaler.
+	$APP Version 14.120
+	(c) 2008 - 2014 by Guenther Brunthaler.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -23,6 +23,7 @@ show_help() {
 	anything.
 	EOF
 	wr . <<- EOF
+	--absolute, -a: Make symlinks absolute instead of relative.
 	--verbose, -v: Display additional diagnostic messages.
 	--silent, --quiet, -q: Display nothing unless errors occur.
 	--help, -h: Display this text.
@@ -54,6 +55,12 @@ show_help() {
 	symlinks as shortcuts), this "most efficient" form will reach the
 	symlink target with a minimum of path component traversals and will
 	require only a single symlink lookup by the kernel.
+	
+	The -a option is special: It replaces the symlink by an absolute one,
+	resolving all contained intermediate symlinks recursively as well. Use
+	this option before moving a relative symlink to a new place in the
+	file system, then re-run this script without -a again to turn it back
+	into a relative symlink.
 	
 	You might wonder why to use relative symlinks at all?
 	
@@ -135,10 +142,12 @@ system() {
 wr() {
 	local S
 	S=
-	if test x"$1" = x"."; then
+	if test x"$1" = x"."
+	then
 		S=-s; shift
 	fi
-	if test $# -gt 0; then
+	if test $# -gt 0
+	then
 		run printf '%s\n' "$*" | wr
 	else
 		run fmt $S -w $LINEWIDTH
@@ -153,7 +162,8 @@ wr() {
 # represented by an empty string instead.
 strip_root() {
 	REPLY=${1#?}
-	if test x"/$REPLY" != x"$1"; then
+	if test x"/$REPLY" != x"$1"
+	then
 		die "'$1' is not a canonical absolute path!"
 	fi
 }
@@ -166,7 +176,8 @@ strip_root() {
 split_first() {
 	REPLY=$1
 	PREFIX=${REPLY%%/*}
-	if test x"$PREFIX" != x"$REPLY"; then
+	if test x"$PREFIX" != x"$REPLY"
+	then
 		REPLY=${REPLY#*/}
 	else
 		PREFIX=$REPLY
@@ -181,26 +192,31 @@ LINEWIDTH=
 REPLY=
 tty -s <& 1 && run system tput cols
 LINEWIDTH=${REPLY:-70}
+MODE=relative
 DRY=
 VERBOSE=
-while true; do
+while true
+do
 	case $1 in
 		-h | --help) show_help | less -F; exit;;
+		--absolute | -a) MODE=absolute;;
 		--version) show_version; exit;;
 		--dry-run | -n) DRY=Y;;
 		--verbose | -v) VERBOSE=Y;;
 		--silent | --quiet | -q) exec > /dev/null;;
 		--) shift; break;;
 		-*) die "Unknown option '$1'!";;
-		*) break;;
+		*) break
 	esac
 	shift
 done
 CONV=0
-while test $# -gt 0; do
+while test $# -gt 0
+do
 	SOURCE=$1; shift
 	# Remove any redundant trailing context.
-	while true; do
+	while true
+	do
 		case $SOURCE in
 			. | */. | */ )
 				SOURCE=${SOURCE%?}
@@ -217,42 +233,52 @@ while test $# -gt 0; do
 	# Make $TARGET the absolute path of the symlink target.
 	system readlink -f "$SOURCE"
 	strip_root "$REPLY"; TARGET=$REPLY
-	# Set anchor as the parent directory of the symlink.
-	system dirname "$SOURCE"
-	system readlink -f "$REPLY"
-	strip_root "$REPLY"; ANCHOR=$REPLY
-	# Remove all leading path components shared by $ANCHOR and $TARGET.
-	while true; do
-		split_first "$ANCHOR"; NEW_ANCHOR=$REPLY
-		test -n "$PREFIX" || break
-		ANCHOR_PREFIX=$PREFIX
-		split_first "$TARGET"; NEW_TARGET=$REPLY
-		test x"$ANCHOR_PREFIX" = x"$PREFIX" || break
-		ANCHOR=$NEW_ANCHOR; TARGET=$NEW_TARGET
-	done
-	# Transform each path component left in $ANCHOR
-	# into ".." a component.
-	REL=
-	while true; do
-		split_first "$ANCHOR"
-		test -n "$PREFIX" || break
-		ANCHOR=$REPLY
-		REL="$REL${REL:+/}.."
-	done
-	# Add the remaining components of the target path.
-	test -n "$TARGET" && REL="$REL${REL:+/}$TARGET"
-	# If empty, make it ".".
-	REL="${REL:-.}"
+	if test $MODE = relative
+	then
+		# Set anchor as the parent directory of the symlink.
+		system dirname "$SOURCE"
+		system readlink -f "$REPLY"
+		strip_root "$REPLY"; ANCHOR=$REPLY
+		# Remove all leading path components shared by $ANCHOR and
+		# $TARGET.
+		while :
+		do
+			split_first "$ANCHOR"; NEW_ANCHOR=$REPLY
+			test -n "$PREFIX" || break
+			ANCHOR_PREFIX=$PREFIX
+			split_first "$TARGET"; NEW_TARGET=$REPLY
+			test x"$ANCHOR_PREFIX" = x"$PREFIX" || break
+			ANCHOR=$NEW_ANCHOR; TARGET=$NEW_TARGET
+		done
+		# Transform each path component left in $ANCHOR
+		# into ".." a component.
+		REL=
+		while :
+		do
+			split_first "$ANCHOR"
+			test -n "$PREFIX" || break
+			ANCHOR=$REPLY
+			REL="$REL${REL:+/}.."
+		done
+		# Add the remaining components of the target path.
+		test -n "$TARGET" && REL="$REL${REL:+/}$TARGET"
+		# If empty, make it ".".
+		REL="${REL:-.}"
+	else
+		REL=/$TARGET
+	fi
 	# Check whether old target was different.
-	if test x"$OLD_TARGET" = x"$REL"; then
+	if test x"$OLD_TARGET" = x"$REL"
+	then
 		test "$VERBOSE" && echo "Symlink already optimal."
 		continue
 	fi
-	echo "Converting '$SOURCE' to shortest relative path..."
-	if test "$DRY" || test "$VERBOSE"; then
+	echo "Converting '$SOURCE' to shortest $MODE path..."
+	if test "$DRY" || test "$VERBOSE"
+	then
 		echo "ln -snf \"$REL\" \"$SOURCE\""
 	fi
 	test "$DRY" || run ln -snf "$REL" "$SOURCE"
 	CONV=`expr $CONV + 1`
 done
-echo "Converted $CONV symlinks to optimal relative form."
+echo "Converted $CONV symlinks to optimal $MODE form."
