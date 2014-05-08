@@ -1,0 +1,21 @@
+#! /bin/sh
+set -e
+trap 'echo "Failed!" >& 2' 0
+test $# = 1
+o=${1%.moved}
+m=$o.moved
+test -e "$o"
+test -e "$m"
+d1=`dirname "$o"`
+d2=`dirname "$m"`
+test x"$d1" = x"$d2"
+t=`mktemp --tmpdir="$d1" -u --suffix=.tmp bzr-rotate.XXXXXXXXXX`
+test x"$o" != x"$m"
+test x"$m" != x"$t"
+test x"$t" != x"$o"
+echo "Swapping '$o' <===> '$m'..." >& 2
+mv -- "$o" "$t"
+mv -- "$m" "$o"
+mv -- "$t" "$m"
+echo Success. >& 2
+trap - 0
