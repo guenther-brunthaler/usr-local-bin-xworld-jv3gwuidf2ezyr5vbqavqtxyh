@@ -1,9 +1,9 @@
 #! /bin/sh
 exit_version() {
 	wr -s <<- . && exit
-	$APP version 13.247
+	$APP version 14.161
 
-	(c) 2008 - 2013 by Guenther Brunthaler.
+	(c) 2008 - 2014 by Guenther Brunthaler.
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
 .
@@ -87,7 +87,7 @@ exit_help() {
 	sub-directory of <mount_point_base_dir> with a randomly-generated
 	name.
 
-	--urandom, u: This is only relevant for generating a mount point name
+	--urandom, -u: This is only relevant for generating a mount point name
 	randomly, as described in the section about <mount_point_base_dir>.
 	Without, this option /dev/random will be used as source for the random
 	name. This option changes this to using /dev/urandom instead.
@@ -102,12 +102,26 @@ exit_help() {
 
 	--read-only, --readonly, --ro, -r: Mount as read-only.
 	
+	--password-file=<file>, -p <file>: Specifies the path to a text file
+	containing the password instead of manually entering it at $APP's
+	prompt. The password needs to be stored as a single line of text,
+	correctly terminated with a newline. Caveat: This option does not work
+	when setting up an encrypted directory - only afterwards when it
+	already exists. One has therefore to enter the password manually for
+	the first time; after that this option can be used to specify a path
+	to the file containing the password.
+	
 	--kmod-unload, -K: This option has an effect only when unmounting an
 	already-mounted encfs directory. If this option is specified and if
 	the "fuse" kernel module is not required any longer after unmounting
 	the encrypted filesystem, $APP will attempt to unload the kernel
 	module. This requires that "sudo rmmod fuse" has been set up by the
 	administrator to actually work.
+	
+	--dry-run, -n: Show what would be done, but don't actually do
+	anything. Caveat: This refers only to the actual encryption mount
+	command. Preparatory steps like creating missing directories or
+	required symlinks will still be performed for real.
 
 	$APP will mount the encfs directory unless already mounted; in the
 	latter case, it will unmount the directory instead.
@@ -196,17 +210,40 @@ ls_encfs() {
 }
 
 
+feed() {
+	local fodder
+	fodder=$1; shift
+	run cat "$fodder" | "$@"
+}
+
+
 NONEMPTY=
 READONLY=
 random_source=/dev/random
 KMOD_TRY_UNLOAD=
+PASSWORD_FILE=
+SIMULATE=
 while :
 do
 	case $1 in
+		-[uKernhV]?*)
+			rest=${1#-?}; opt=${1%"$rest"}; shift
+			set -- "$opt" -"$rest" "$@"
+			continue;;
+		-[p]?*)
+			rest=${1#-?}; opt=${1%"$rest"}; shift
+			set -- "$opt" "$rest" "$@"
+			continue;;
+		--?*=*)
+			rest=${1#*=}; opt=${1%"=$rest"}; shift
+			set -- "$opt" "$rest" "$@"
+			continue;;
 		--urandom | -u) random_source=/dev/urandom;;
 		--kmod-unload | -K) KMOD_TRY_UNLOAD=Y;;
 		--nonempty | --non-empty | --ne | -e) NONEMPTY=Y;;
 		--read-only | --readonly | --ro | -r) READONLY=Y;;
+		--password-file | -p) PASSWORD_FILE=$2; shift;;
+		--dry-run | -n) SIMULATE=y;;
 		--help | -h) exit_help;;
 		--version | -V) exit_version;;
 		--) shift; break;;
@@ -215,10 +252,15 @@ do
 	esac
 	shift
 done
+if test -n "$PASSWORD_FILE"
+then
+	run test -f "$PASSWORD_FILE"
+	run test -s "$PASSWORD_FILE"
+fi
 if test $# = 0 && test `ls_encfs | wc -l` = 1
 then
 	dir=`ls_encfs`
-	test -n "$dir"
+	run test -n "$dir"
 else
 	dir=${1:?"Invalid arguments - use --help for showing help!"}
 	shift
@@ -277,9 +319,17 @@ then
 else
 	run lsmod | grep -s ^fuse > /dev/null || run sudo modprobe fuse
 	echo "Trying to mount '$ENC' as '$MOUNT'..." | wr
-	set --
+	set -- encfs
+	test -n "$PASSWORD_FILE" && set -- "$@" -S
+	set -- "$@" "$ENC" "$MOUNT" --
 	test -n "$NONEMPTY" && set -- "$@" -o nonempty
 	test -n "$READONLY" && set -- "$@" -o ro
-	run encfs "$ENC" "$MOUNT" -- "$@"
+	test -n "$PASSWORD_FILE" && set -- feed "$PASSWORD_FILE" "$@"
+	if test -n "$SIMULATE"
+	then
+		run echo "SIMULATION: $*" >& 2
+	else
+		run "$@"
+	fi
 fi
 echo "Success!"
