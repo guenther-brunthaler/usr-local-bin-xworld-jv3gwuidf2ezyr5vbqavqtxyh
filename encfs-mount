@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s <<- . && exit
-	$APP version 14.161
+	$APP version 14.243
 
 	(c) 2008 - 2014 by Guenther Brunthaler.
 	This script is free software.
@@ -83,14 +83,30 @@ exit_help() {
 	presence modifies the behavior described for <directory> in this case.
 	<name>.encfs will still be created in the current directory if not
 	present, but <name> will be created as a relative symlink instead,
-	referring to a automatically created new mount point created as a
-	sub-directory of <mount_point_base_dir> with a randomly-generated
-	name.
+	referring to a automatically created new mount point (requires the -f
+	option to be specified though) created as a sub-directory of
+	<mount_point_base_dir> with a randomly-generated name.
+
+	--force, -f: Enforce automatic creating of missing mount-point
+	directories. This used to be the default in earlier versions of $APP
+	but led to accidental creation of mount point due to incorrect
+	arguments directories too often.
 
 	--urandom, -u: This is only relevant for generating a mount point name
 	randomly, as described in the section about <mount_point_base_dir>.
 	Without, this option /dev/random will be used as source for the random
-	name. This option changes this to using /dev/urandom instead.
+	name. This option changes this to using /dev/urandom instead. This
+	option implies --force.
+	
+	--timeout=<delay>, -t<delay>: Try to unmount the on-the-fly decryption
+	of the encrypted file system after a delay of <delay> without activity
+	(modifications; just having files opened for reading does not count as
+	actitity). Normally, the on-the-fly decryption remains mounted until
+	unmounted explicitly. The <delay> is can either be specified as a
+	number of hours (if less than 15) or as a number of minutes (15 or
+	more). Alternatively, the number can be suffixed (without a separating
+	space) by an explicit specifier for the time unit to be used: "m" for
+	minutes, "h" for hours (60 minutes) or "d" for days (24 hours).
 
 	--help, -h: Show this usage help.
 
@@ -105,11 +121,14 @@ exit_help() {
 	--password-file=<file>, -p <file>: Specifies the path to a text file
 	containing the password instead of manually entering it at $APP's
 	prompt. The password needs to be stored as a single line of text,
-	correctly terminated with a newline. Caveat: This option does not work
-	when setting up an encrypted directory - only afterwards when it
-	already exists. One has therefore to enter the password manually for
-	the first time; after that this option can be used to specify a path
-	to the file containing the password.
+	correctly terminated with a newline. Instead of a file, the path to a
+	FIFO can also be specified instead. In this case, the password will be
+	read from the FIFO and must also be terminated with a newline before
+	EOF. Caveat: This option does not work when setting up an encrypted
+	directory - only afterwards when it already exists. One has therefore
+	to enter the password manually for the first time; after that this
+	option can be used to specify a path to the file containing the
+	password.
 	
 	--kmod-unload, -K: This option has an effect only when unmounting an
 	already-mounted encfs directory. If this option is specified and if
@@ -124,7 +143,9 @@ exit_help() {
 	required symlinks will still be performed for real.
 
 	$APP will mount the encfs directory unless already mounted; in the
-	latter case, it will unmount the directory instead.
+	latter case, it will unmount the directory instead (but only if the
+	--force option is also provided in order to avoid creating mount point
+	directories accidentally).
 
 	Before trying to mount the encfs container directory, $APP will load
 	the "fuse" kernel module if it is not already loaded. This requires
@@ -219,18 +240,20 @@ feed() {
 
 NONEMPTY=
 READONLY=
+TIMEOUT=
+CREATE=
 random_source=/dev/random
 KMOD_TRY_UNLOAD=
-PASSWORD_FILE=
+PASSWORD_SOURCE=
 SIMULATE=
 while :
 do
 	case $1 in
-		-[uKernhV]?*)
+		-[fuKernhV]?*)
 			rest=${1#-?}; opt=${1%"$rest"}; shift
 			set -- "$opt" -"$rest" "$@"
 			continue;;
-		-[p]?*)
+		-[tp]?*)
 			rest=${1#-?}; opt=${1%"$rest"}; shift
 			set -- "$opt" "$rest" "$@"
 			continue;;
@@ -238,11 +261,13 @@ do
 			rest=${1#*=}; opt=${1%"=$rest"}; shift
 			set -- "$opt" "$rest" "$@"
 			continue;;
-		--urandom | -u) random_source=/dev/urandom;;
+		--force | -f) CREATE=Y;;
+		--timemout | -t) TIMEOUT=$2; shift;;
+		--urandom | -u) random_source=/dev/urandom; CREATE=Y;;
 		--kmod-unload | -K) KMOD_TRY_UNLOAD=Y;;
 		--nonempty | --non-empty | --ne | -e) NONEMPTY=Y;;
 		--read-only | --readonly | --ro | -r) READONLY=Y;;
-		--password-file | -p) PASSWORD_FILE=$2; shift;;
+		--password-file | -p) PASSWORD_SOURCE=$2; shift;;
 		--dry-run | -n) SIMULATE=y;;
 		--help | -h) exit_help;;
 		--version | -V) exit_version;;
@@ -252,10 +277,28 @@ do
 	esac
 	shift
 done
-if test -n "$PASSWORD_FILE"
+if test -n "$TIMEOUT"
 then
-	run test -f "$PASSWORD_FILE"
-	run test -s "$PASSWORD_FILE"
+	multiplier=1
+	case $TIMEOUT in
+		*m) TIMEOUT=${TIMEOUT%?};;
+		*h) TIMEOUT=${TIMEOUT%?}; multiplier=60;;
+		*d) TIMEOUT=${TIMEOUT%?}; multiplier=`expr 60 '*' 24`;;
+		*) test "$TIMEOUT" -lt 15 && multiplier=60
+	esac
+	test -z "`printf %s "$TIMEOUT" | tr -d 0-9`"
+	TIMEOUT=`expr $TIMEOUT '*' $multiplier`
+	echo "Automatic unmounting will be attempted after" \
+		"$TIMEOUT minutes of inactivity." >& 2
+fi
+if test -n "$PASSWORD_SOURCE"
+then
+	if test -f "$PASSWORD_SOURCE"
+	then
+		run test -s "$PASSWORD_SOURCE"
+	else
+		run test -p "$PASSWORD_SOURCE"
+	fi
 fi
 if test $# = 0 && test `ls_encfs | wc -l` = 1
 then
@@ -271,6 +314,13 @@ case $dir in
 	*.encfs) ENC=$dir; MOUNT=${dir%.*};;
 	*) MOUNT=$dir; ENC=$dir.encfs
 esac
+if test -z "$CREATE" && { test ! -e "$ENC" || test ! -e "$MOUNT"; }
+then
+	die "Both directories '$ENC' (EncFS-encrypted contents)" \
+		"and '$MOUNT' (FUSE mount point for transparent" \
+		"on-the-fly decryption of contents) need to exist." \
+		"Re-run with --force in order to create them automatically."
+fi
 test -e "$ENC" || run mkdir -m 700 "$ENC"
 if test ! -e "$MOUNT"
 then
@@ -320,11 +370,12 @@ else
 	run lsmod | grep -s ^fuse > /dev/null || run sudo modprobe fuse
 	echo "Trying to mount '$ENC' as '$MOUNT'..." | wr
 	set -- encfs
-	test -n "$PASSWORD_FILE" && set -- "$@" -S
+	test -n "$PASSWORD_SOURCE" && set -- "$@" -S
+	test -n "$TIMEOUT" && set -- "$@" -i "$TIMEOUT"
 	set -- "$@" "$ENC" "$MOUNT" --
 	test -n "$NONEMPTY" && set -- "$@" -o nonempty
 	test -n "$READONLY" && set -- "$@" -o ro
-	test -n "$PASSWORD_FILE" && set -- feed "$PASSWORD_FILE" "$@"
+	test -n "$PASSWORD_SOURCE" && set -- feed "$PASSWORD_SOURCE" "$@"
 	if test -n "$SIMULATE"
 	then
 		run echo "SIMULATION: $*" >& 2
