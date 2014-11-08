@@ -1,0 +1,11 @@
+#! /bin/sh
+# All arguments are passed to qrencode, except for -o which is added by the
+# script. The resulting image is written to stdout in JPEG format.
+set -e
+qrencode "$@" -o - \
+	| convert - \
+		-trim +repage \
+		-sample x450 \
+		-gravity Center -background white \
+		-extent '800x480!' jpg:-
+
