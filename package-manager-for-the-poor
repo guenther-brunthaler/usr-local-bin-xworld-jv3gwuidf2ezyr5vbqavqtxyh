@@ -1,9 +1,9 @@
 #! /bin/sh
 version() {
 	cat << .
-$APP version 13.56
+$APP version 14.347
 
-(c) 2013 by Guenther Brunthaler.
+(c) 2013 - 2014 by Guenther Brunthaler.
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 .
@@ -380,15 +380,8 @@ release_tmp_dir() {
 
 
 create_tmp_dir() {
-	local t
-	while :
-	do
-		t=`"$TEMPFILE"`
-		rm -- "$t"
-		mkdir -m 700 -- "$t" && break
-		sleep 1
-	done
-	TDIR=$t
+	TDIR=`"$MKTEMP" -d "${TMPDIR:-/tmp}"/pmftp.XXXXXXXXXX`
+	test -d "$TDIR"
 }
 
 
@@ -932,7 +925,7 @@ TDIR=
 trap cleanup 0
 UUID=7rttpq19eb58ybhqm18dktllt
 APP=${0##*/}
-getcmd -f TEMPFILE tempfile
+getcmd -f MKTEMP mktemp
 getcmd -i GZIP gzip
 getcmd -i BZIP2 bzip2
 getcmd -i XZ xz
