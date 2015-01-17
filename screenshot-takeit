@@ -1,0 +1,40 @@
+#! /bin/sh
+# Take a screenshot. Will try different methods once this script has been
+# extended to support different methods.
+#
+# (c) 2015 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+
+cleanup() {
+	exec 2>& 3 3>& -
+	test -z "$OK" && xmessage -file "$T"
+	rm -- "$T"
+	test -z "$OK" && echo "Failed!" >& 2
+}
+
+OK=
+APP=${0##*/}
+exec 3>& 2
+T=`mktemp "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
+trap cleanup 0
+exec 2> "$T"
+
+case $1 in
+	--window | --current)
+		window=`
+			LC_ALL=C xwininfo \
+			| sed 's/.*Window id: \([^ ]*\).*/\1/; t; d'
+		`
+		test -n "$window"
+		;;
+	*)
+		window=root
+esac
+test -n "$HOME"; test -d "$HOME"
+outname=$HOME/`date +'screenshot-%Y%m%d_%H%M%S.png'`
+import -window "$window" "$outname"
+libnotify-notify-send -t 5 "Screenshot has been taken!" "Saved as file '$outname'."
+OK=Y
