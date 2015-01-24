@@ -1,0 +1,13 @@
+#! /bin/sh
+# Use the yacas CAS to evaluate an expression which will either be taken from
+# the script's arguments or will be read from standard input. When using
+# arguments, all arguments will be joined into a single expression string
+# separated by spaces. Therefore, "calc 1+1" does the same as "calc 1 + 1".
+set -e
+y=`which yacas`
+if test $# = 0
+then
+	exec "$y" -fpc | sed 's/;$//'
+else
+	IFS=" " exec "$y" -pc --execute "[Echo($*); Exit(); ]"
+fi
