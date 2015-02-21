@@ -321,4 +321,9 @@ else
 	echo "CXXFLAGS=\"$CXXFLAGS\""
 	echo "LDFLAGS=\"$LDFLAGS\""
 	echo "export CPPFLAGS CFLAGS CXXFLAGS LDFLAGS"
+	echo "make=\"make" \
+		"CFLAGS=\\\"\\\$CFLAGS\\\"" \
+		"CXXFLAGS=\\\"\\\$CXXFLAGS\\\"" \
+		"CPPFLAGS=\\\"\\\$CPPFLAGS\\\"" \
+		"LDFLAGS=\\\"\\\$LDFLAGS\\\"\""
 fi >> setflags.local
