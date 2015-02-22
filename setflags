@@ -35,21 +35,23 @@ version_ge() {
 
 # $1: Item to ask for.
 # Returns true for "Yes". Default is "No".
+# Option -y makes "Yes" the default instead.
 # Uses always default for non-interactive shells without prompting.
 want() {
-	local REPLY
-	tty -s && read -p "Do you want $1 (y/N)? " -t 10 REPLY || REPLY=n
-	test -z "$REPLY" && REPLY=n
-	REPLY="${REPLY%${REPLY#?}}"
-	if test x"$REPLY" = x"N" || test x"$REPLY" = x"n"
+	local REPLY DEFAULT PROMPT
+	if test x"$1" = x"-y"
 	then
-		echo "Not using $1."
-		REPLY=1
+		shift; PROMPT=Y/n; DEFAULT=y
 	else
-		echo "Using $1."
-		REPLY=0
+		PROMPT=y/N; DEFAULT=n
 	fi
-	return $REPLY
+	tty -s && read -p "Do you want $1 ($PROMPT)? " -t 10 REPLY || REPLY=
+	test -z "$REPLY" && REPLY=$DEFAULT
+	case $REPLY in
+		[Nn]*) echo "Not using $1."; return 1
+	esac
+	echo "Using $1."
+	return 0
 }
 
 
@@ -119,6 +121,7 @@ testcode() {
 }
 
 
+umask 022
 GCC_VERSION="`gcc --version | head -n 1 | cut -d' ' -f3`"
 if test -z "$GCC_VERSION"
 then
@@ -292,38 +295,106 @@ else
 	MERGE_CFLAGS=Y
 fi
 
+test -n "$MAKEFLAGS" && ! want "current MAKEFLAGS '$MAKEFLAGS'" \
+	&& MAKEFLAGS=
+{
+	ncores=`getconf _NPROCESSORS_ONLN` && test -n "$ncores" \
+	|| ncores=`
+		ws=\`printf '\t :'\`; ws=${ws%:}
+		grep "^processor[$ws]*:" /proc/cpuinfo | sort -u | wc -l
+	`
+} 2> /dev/null
+nmo=$MAKEFLAGS
+if test -n "$ncores" && test "$ncores" -gt 1
+then
+	ncores=`expr $ncores + 1` # One core always waits for more work.
+	testmake() {
+		local MK I
+		I=1
+		while :
+		do
+			MK="/tmp/conftest_${$}_$I.mk"
+			test ! -e "$MK" && break
+			I=`expr $I + 1`
+		done
+		printf 'all:\n\t@true' > "$MK"
+		make -f "$MK" "$@" > /dev/null 2>& 1; I=$?
+		rm -- "$MK"
+		return $I
+	}
+	for mo in -j -l
+	do
+		case $nmo in
+			*"$mo"*) continue
+		esac
+		mo=$mo$ncores
+		if testmake $mo
+		then
+			nmo=$nmo${nmo:+ }$mo
+		fi
+	done
+	if
+		if test -n "$MAKEFLAGS" && test x"$nmo" != x"$MAKEFLAGS"
+		then
+			want -y "MAKEFLAGS replaced with '$nmo'"
+		elif test -z "$MAKEFLAGS" && test -n "$nmo"
+		then
+			want -y "MAKEFLAGS set to '$nmo'"
+		fi
+	then
+		MAKEFLAGS=$nmo
+	fi
+fi
+
+echo
+echo "Resulting variables:"
 if test -n "$MERGE_CFLAGS"
 then
-	echo "CFLAGS=\"$CPPFLAGS${CFLAGS:+ }$CFLAGS${LDFLAGS:+ }$LDFLAGS\""
-	printf '%s%s\n' "CXXFLAGS=\"$CPPFLAGS${CXXFLAGS:+ }$CXXFLAGS" \
-		"${LDFLAGS:+ }$LDFLAGS\""
+	CFLAGS="$CPPFLAGS${CFLAGS:+ }$CFLAGS${LDFLAGS:+ }$LDFLAGS"
+	CXXFLAGS="$CPPFLAGS${CXXFLAGS:+ }$CXXFLAGS${LDFLAGS:+ }$LDFLAGS"
+	test x"$CFLAGS" = x"$CXXFLAGS" && CXXFLAGS='$CFLAGS'
+	echo "CFLAGS=\"$CFLAGS\""
+	echo "CXXFLAGS=\"$CXXFLAGS\""
 else
+	test x"$CFLAGS" = x"$CXXFLAGS" && CXXFLAGS='$CFLAGS'
 	echo "CPPFLAGS=\"$CPPFLAGS\""
 	echo "CFLAGS=\"$CFLAGS\""
 	echo "CXXFLAGS=\"$CXXFLAGS\""
 	echo "LDFLAGS=\"$LDFLAGS\""
 fi
+if test -n "$MAKEFLAGS"
+then
+	echo "MAKEFLAGS=\"$MAKEFLAGS\""
+	NOTMO=
+else
+	NOTMO=MAKEFLAGS
+fi
+make=make
+test -n "$MAKEFLAGS" && make="$make \\\$MAKEFLAGS"
+test -z "$MERGE_CFLAGS" && make="$make CPPFLAGS=\\\"\\\$CPPFLAGS\\\""
+make="$make CFLAGS=\\\"\\\$CFLAGS\\\""
+make="$make CXXFLAGS=\\\"\\\$CXXFLAGS\\\""
+test -z "$MERGE_CFLAGS" && make="$make LDFLAGS=\\\"\\\$LDFLAGS\\\""
+test -n "$MAKEFLAGS" && make="$make MAKEFLAGS=\\\"\\\$MAKEFLAGS\\\""
+make="make=\"$make\""
+echo "$make"
 if test ! -e setflags.local
 then
 	echo "#! /bin/false" > setflags.local
 fi
-echo "# Settings from `date`:" >> setflags.local
+exec >> setflags.local
+echo "# Settings from `date`:"
+test -z "$MERGE_CFLAGS" && echo "CPPFLAGS=\"$CPPFLAGS\""
+echo "CFLAGS=\"$CFLAGS\""
+echo "CXXFLAGS=\"$CXXFLAGS\""
+test -z "$MERGE_CFLAGS" && echo "LDFLAGS=\"$LDFLAGS\""
+test -n "$MAKEFLAGS" && echo "MAKEFLAGS=\"$MAKEFLAGS\""
 if test -n "$MERGE_CFLAGS"
 then
-	echo "CFLAGS=\"$CPPFLAGS${CFLAGS:+ }$CFLAGS${LDFLAGS:+ }$LDFLAGS\""
-	printf '%s%s\n' "CXXFLAGS=\"$CPPFLAGS${CXXFLAGS:+ }$CXXFLAGS" \
-		"${LDFLAGS:+ }$LDFLAGS\""
-	echo "export CFLAGS CXXFLAGS"
-	echo "unset CPPFLAGS LDFLAGS"
+	echo "export CFLAGS CXXFLAGS${MAKEFLAGS:+ MAKEFLAGS}"
+	echo "unset CPPFLAGS LDFLAGS${NOTMO:+ }$NOTMO"
 else
-	echo "CPPFLAGS=\"$CPPFLAGS\""
-	echo "CFLAGS=\"$CFLAGS\""
-	echo "CXXFLAGS=\"$CXXFLAGS\""
-	echo "LDFLAGS=\"$LDFLAGS\""
-	echo "export CPPFLAGS CFLAGS CXXFLAGS LDFLAGS"
-	echo "make=\"make" \
-		"CFLAGS=\\\"\\\$CFLAGS\\\"" \
-		"CXXFLAGS=\\\"\\\$CXXFLAGS\\\"" \
-		"CPPFLAGS=\\\"\\\$CPPFLAGS\\\"" \
-		"LDFLAGS=\\\"\\\$LDFLAGS\\\"\""
-fi >> setflags.local
+	echo "export CPPFLAGS CFLAGS CXXFLAGS LDFLAGS${MAKEFLAGS:+ MAKEFLAGS}"
+	test -n "$NOTMO" && echo "unset $NOTMO"
+fi
+echo "$make"
