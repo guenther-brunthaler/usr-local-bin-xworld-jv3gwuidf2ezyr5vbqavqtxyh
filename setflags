@@ -369,15 +369,16 @@ then
 else
 	NOTMO=MAKEFLAGS
 fi
-make=make
-test -n "$MAKEFLAGS" && make="$make \\\$MAKEFLAGS"
-test -z "$MERGE_CFLAGS" && make="$make CPPFLAGS=\\\"\\\$CPPFLAGS\\\""
-make="$make CFLAGS=\\\"\\\$CFLAGS\\\""
-make="$make CXXFLAGS=\\\"\\\$CXXFLAGS\\\""
-test -z "$MERGE_CFLAGS" && make="$make LDFLAGS=\\\"\\\$LDFLAGS\\\""
-test -n "$MAKEFLAGS" && make="$make MAKEFLAGS=\\\"\\\$MAKEFLAGS\\\""
-make="make=\"$make\""
-echo "$make"
+mkargs=
+test -n "$MAKEFLAGS" && mkargs="$mkargs \\\$MAKEFLAGS"
+test -z "$MERGE_CFLAGS" && mkargs="$mkargs CPPFLAGS=\\\"\\\$CPPFLAGS\\\""
+mkargs="$mkargs CFLAGS=\\\"\\\$CFLAGS\\\""
+mkargs="$mkargs CXXFLAGS=\\\"\\\$CXXFLAGS\\\""
+test -z "$MERGE_CFLAGS" && mkargs="$mkargs LDFLAGS=\\\"\\\$LDFLAGS\\\""
+test -n "$MAKEFLAGS" && mkargs="$mkargs MAKEFLAGS=\\\"\\\$MAKEFLAGS\\\""
+mkargs=${mkargs# }
+mkargs="mkargs=\"$mkargs\""
+echo "$mkargs"
 if test ! -e setflags.local
 then
 	echo "#! /bin/false" > setflags.local
@@ -397,4 +398,4 @@ else
 	echo "export CPPFLAGS CFLAGS CXXFLAGS LDFLAGS${MAKEFLAGS:+ MAKEFLAGS}"
 	test -n "$NOTMO" && echo "unset $NOTMO"
 fi
-echo "$make"
+echo "$mkargs"
