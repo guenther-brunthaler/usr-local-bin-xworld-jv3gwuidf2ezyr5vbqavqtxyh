@@ -1,0 +1,48 @@
+#! /bin/sh
+set -e
+trap "echo '$0 failed!' >& 2" 0
+
+APP=${0##*/}
+vcs=.${APP%%-*}
+f=
+for v in .git .bzr .hg .svn CVS RCS rcs
+do
+	if test -d "$v"
+	then
+		if test -n "$f"
+		then
+			echo "Aborting for safety: Multiple VCS control" \
+				"directories have been found: $f and $v." >& 2
+			false
+		fi
+		f=$v
+	fi
+done
+if test -z "f"
+then
+	echo "Aborting: No supported type of VCS control directory has been" \
+		"found at all!" >& 2
+	false
+fi
+if test x"$vcs" != x".vcs" && test x"$f" != x"$vcs"
+then
+	echo "Aborting: No $vcs control directory could be found, although" \
+		"a $f directory was found." >& 2
+	false
+fi
+find -depth -path "./$vcs/*" -o -name "$vcs" -o -name . -prune -o -print | {
+	f=0; d=0
+	while IFS= read -r fso
+	do
+		if test -d "$fso" && test ! -L "$fso"
+		then
+			rmdir -- "$fso"
+			d=`expr $d + 1`
+		else
+			rm -f -- "$fso"
+			f=`expr $f + 1`
+		fi
+	done
+	echo "Removed $d directories and $f files/symlinks." >& 2
+}
+trap - 0
