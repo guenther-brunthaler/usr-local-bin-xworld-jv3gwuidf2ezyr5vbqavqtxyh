@@ -1,4 +1,112 @@
 #! /bin/sh
+exit_version() {
+	wr -s <<- . && OK=y && exit
+	$APP version 15.98
+
+	(c) 2015 by Guenther Brunthaler.
+	This script is free software.
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+wr() {
+	test -z "$*" && set -- -c
+	fmt -w "$LINEWIDTH" "$@"
+}
+LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
+exit_help() {
+	local ws=Lighttpd
+	wr <<- .
+	$APP - Serve a directory tree using a temporary $ws instance
+
+	$APP constructs a temporary configuration file for the $ws web server
+	program and then runs $ws in the foreground using that configuration
+	file.
+	
+	By default, the configuration file will be created such that the
+	running $ws instance serves a directory listing of the current
+	directory, binds to localhost only and uses port $DEFAULT_PORT.
+	
+	If the current directory contains an index.html file, that file will
+	be served as a starting web page instead.
+	
+	Usage: $APP
+	    [ options ... ] [ <port> [ <interface> [ <directory> ] ] ]
+
+	where
+
+	<port>:
+	    The TCP port number used for serving the directory contents.
+	    Defaults to $DEFAULT_PORT. Can alternatively be specified with the
+	    -p option. The default can also be changed by creating a symlink
+	    for $APP which ends in "-" and the new default port number. For
+	    instance, >>>ln -s "`which '$APP'`" serve-on-port-12345<<< would
+	    create an alias for $APP with 12345 as default port number.
+	<interface>:
+	    The network interface where the $ws listens for requests. Can
+	    alternatively be specified with the -i option. Defaults to
+	    "localhost". Option -a can be used to listen on all available
+	    interfaces instead.
+	<directory>:
+	    The directory to be used for serving its contents. Defaults to the
+	    current directory. Can alternatively be specified with the -d
+	    option.
+	   
+	Supported options:
+	
+	-d <directory>:
+	    Another way to specify the directory contents to be served.
+	-p <port>:
+	    Another way to specify to port number for $ws to listen for
+	    requests by a web browser.
+	-i <interface>:
+	    Another way to specify the network interface for $ws to bind to.
+	    Currently, only a single interface can be specified that way. But
+	    also see option -a.
+	-a:
+	    Bind to all available network interfaces rather to localhost or to
+	    a specific one. Use this to serve public information rather than
+	    site-local private information. Currently, this is an alias
+	    for "-i 0.0.0.0". This may change in later versions when it will
+	    also listen on all IPv6 interfaces.
+	-l:
+	    Make $ws bind to "localhost" only. This is the default and
+	    therefore a no-op, but specifying this option explicitly
+	    represents a statement about the privacy of the data to be served.
+	-D:
+	    Debug. Dumps the temporarily created configuration file for $ws.
+	    This allows one to see which $ws options are actually used.
+	-h:
+	    Show this usage help.
+	-V:
+	    Show version information for $APP.
+
+	$APP running $ws in the foreground means that all messages generated
+	by $ws will be written to the terminal; your regular log files will
+	not be flooded by messages generated from the new $ws instance as no
+	syslog-events will be generated.
+
+	In order to stop the new $ws instance, just press [Ctrl]-[C] and the
+	$ws instance will shut down gracefully.
+	
+	$APP is a front end to $ws. $ws therefore needs to be installed, but
+	its regular locally-installed configuration will not be used at all.
+	Instead, a completely new temporary configuration file will be
+	generated from scratch. This means, there is no need to manually
+	configure $ws after installation before using this script. It is also
+	not necessary that the normal site-local $ws service is up and running
+	- $APP will start a new instance from scratch.
+	
+	Bugs: There is currently no way to listen on all IPv4 as well as on
+	all IPv6 interfaces, as -i only supports a single argument and
+	-a does not do the job either. Some later version will fix this.
+
+.
+	exit_version
+}
+
 
 cleanup() {
 	rm -- "$cfg"
@@ -10,25 +118,31 @@ OK=
 cfg=`mktemp "${TMPDIR:-/tmp}/${0##*/}-XXXXXXXXXX.conf"`
 trap cleanup 0
 
-host=
+interface=
 port=
 docdir=
-while getopts d:p:h:al OPT
+dumpcfg=
+DEFAULT_PORT=${0##*-}; : ${DEFAULT_PORT:=8080}
+while getopts d:p:i:alDVh OPT
 do
 	case $OPT in
 		d) docdir=$OPTARG;;
-		h) host=$OPTARG;;
-		a) host=0.0.0.0;;
-		l) host=;;
+		i) interface=$OPTARG;;
+		a) interface=0.0.0.0;;
+		l) interface=;;
 		p) port=$OPTARG;;
+		D) dumpcfg=y;;
+		V) exit_version;;
+		h) exit_help;;
 		*) false || exit
 	esac
 done
+shift `expr $OPTIND - 1 || :`
 
-: ${port:=$1} ${port:=${0##*-}} ${port:=8080}
+: ${port:=$1} ${port:=$DEFAULT_PORT}
 test -n "$port"
-: ${host:=$2} ${host:=localhost}
-test -n "$host"
+: ${interface:=$2} ${interface:=localhost}
+test -n "$interface"
 : ${docdir:=.}
 test -n "$docdir"
 docdir=`readlink -f "$docdir"`
@@ -98,7 +212,7 @@ server.indexfiles     = ("index.html")
 server.follow-symlink = "enable"
 server.event-handler  = "linux-sysepoll"
 server.port           = $port
-server.bind           = "$host"
+server.bind           = "$interface"
 
 dir-listing.activate = "enable"
 dir-listing.hide-dotfiles = "enable"
@@ -106,7 +220,14 @@ dir-listing.encoding = "utf-8"
 
 url.access-deny = ("~", ".inc", ".disabled")
 EOF
-echo "Serving http://$host:$port/ directory '$docdir'..." >& 2
+if test -n "$dumpcfg"
+then
+	sep=`dd if=/dev/zero count=66 bs=1 2> /dev/null | tr -c = =`
+	echo $sep
+	cat "$cfg"
+	echo $sep
+fi >& 2
+echo "Serving http://$interface:$port/ directory '$docdir'..." >& 2
 echo "Press Ctrl-C within this terminal in order to stop the server."
 
 a=
