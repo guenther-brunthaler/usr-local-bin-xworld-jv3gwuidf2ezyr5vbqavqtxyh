@@ -1,0 +1,125 @@
+#! /bin/sh
+
+cleanup() {
+	rm -- "$cfg"
+	test -n "$OK" || echo 'Failed!' >& 2
+}
+
+set -e
+OK=
+cfg=`mktemp "${TMPDIR:-/tmp}/${0##*/}-XXXXXXXXXX.conf"`
+trap cleanup 0
+
+host=
+port=
+docdir=
+while getopts d:p:h:al OPT
+do
+	case $OPT in
+		d) docdir=$OPTARG;;
+		h) host=$OPTARG;;
+		a) host=0.0.0.0;;
+		l) host=;;
+		p) port=$OPTARG;;
+		*) false || exit
+	esac
+done
+
+: ${port:=$1} ${port:=${0##*-}} ${port:=8080}
+test -n "$port"
+: ${host:=$2} ${host:=localhost}
+test -n "$host"
+: ${docdir:=.}
+test -n "$docdir"
+docdir=`readlink -f "$docdir"`
+test -d "$docdir"
+
+cat << EOF > "$cfg"
+server.modules = ("mod_access")
+
+mimetype.assign = (
+  ".svg"          =>      "image/svg+xml",
+  ".svgz"         =>      "image/svg+xml",
+  ".pdf"          =>      "application/pdf",
+  ".sig"          =>      "application/pgp-signature",
+  ".spl"          =>      "application/futuresplash",
+  ".class"        =>      "application/octet-stream",
+  ".ps"           =>      "application/postscript",
+  ".torrent"      =>      "application/x-bittorrent",
+  ".dvi"          =>      "application/x-dvi",
+  ".gz"           =>      "application/x-gzip",
+  ".pac"          =>      "application/x-ns-proxy-autoconfig",
+  ".swf"          =>      "application/x-shockwave-flash",
+  ".tar.gz"       =>      "application/x-tgz",
+  ".tgz"          =>      "application/x-tgz",
+  ".tar"          =>      "application/x-tar",
+  ".zip"          =>      "application/zip",
+  ".dmg"          =>      "application/x-apple-diskimage",
+  ".mp3"          =>      "audio/mpeg",
+  ".m3u"          =>      "audio/x-mpegurl",
+  ".wma"          =>      "audio/x-ms-wma",
+  ".wax"          =>      "audio/x-ms-wax",
+  ".ogg"          =>      "application/ogg",
+  ".wav"          =>      "audio/x-wav",
+  ".gif"          =>      "image/gif",
+  ".jpg"          =>      "image/jpeg",
+  ".jpeg"         =>      "image/jpeg",
+  ".png"          =>      "image/png",
+  ".xbm"          =>      "image/x-xbitmap",
+  ".xpm"          =>      "image/x-xpixmap",
+  ".xwd"          =>      "image/x-xwindowdump",
+  ".css"          =>      "text/css",
+  ".html"         =>      "text/html",
+  ".htm"          =>      "text/html",
+  ".js"           =>      "text/javascript",
+  ".rtf"          =>      "application/rtf",
+  ".bmp"          =>      "image/bmp",
+  ".tif"          =>      "image/tiff",
+  ".tiff"         =>      "image/tiff",
+  ".ico"          =>      "image/x-icon",
+  ".dtd"          =>      "text/xml",
+  ".xml"          =>      "text/xml",
+  ".mpeg"         =>      "video/mpeg",
+  ".mpg"          =>      "video/mpeg",
+  ".mov"          =>      "video/quicktime",
+  ".qt"           =>      "video/quicktime",
+  ".avi"          =>      "video/x-msvideo",
+  ".asf"          =>      "video/x-ms-asf",
+  ".asx"          =>      "video/x-ms-asf",
+  ".wmv"          =>      "video/x-ms-wmv",
+  ".bz2"          =>      "application/x-bzip",
+  ".tbz"          =>      "application/x-bzip-compressed-tar",
+  ".tar.bz2"      =>      "application/x-bzip-compressed-tar",
+  ""              =>      "text/plain"
+ )
+
+server.document-root  = "$docdir"
+server.indexfiles     = ("index.html")
+server.follow-symlink = "enable"
+server.event-handler  = "linux-sysepoll"
+server.port           = $port
+server.bind           = "$host"
+
+dir-listing.activate = "enable"
+dir-listing.hide-dotfiles = "enable"
+dir-listing.encoding = "utf-8"
+
+url.access-deny = ("~", ".inc", ".disabled")
+EOF
+echo "Serving http://$host:$port/ directory '$docdir'..." >& 2
+echo "Press Ctrl-C within this terminal in order to stop the server."
+
+a=
+for p2 in sbin bin
+do
+	for p1 in /usr/local /opt /usr
+	do
+		p=$p1/$p2
+		test -d "$p" || continue
+		a=$a${a:+:}$p
+	done
+done
+export PATH=$PATH${PATH:+:}$a
+
+lighttpd -f "$cfg" -D
+OK=y
