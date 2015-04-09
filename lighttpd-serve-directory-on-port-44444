@@ -42,7 +42,7 @@ exit_help() {
 	    Defaults to $DEFAULT_PORT. Can alternatively be specified with the
 	    -p option. The default can also be changed by creating a symlink
 	    for $APP which ends in "-" and the new default port number. For
-	    instance, >>>ln -s "`which '$APP'`" serve-on-port-12345<<< would
+	    instance, >>>ln -s "\`which '$APP'\`" serve-on-port-12345<<< would
 	    create an alias for $APP with 12345 as default port number.
 	<interface>:
 	    The network interface where the $ws listens for requests. Can
