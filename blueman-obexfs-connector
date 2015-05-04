@@ -1,0 +1,158 @@
+#! /bin/sh
+# Open the context menu of the "blueman" traybar applet (blueman-applet),
+# choose "local services" from the menu and wait for the dialog window to pop
+# up. In the dialog window, go to the "transfers" category and expand the
+# "extended" section. Enter the pathname of this script as the command in the
+# text field for the OBEX FTP browsing command, followed with a single
+# argument "%d" (without the quotes, but separated with a space from the
+# script's pathname).
+
+set -e
+
+cleanup() {
+	local rc=$?
+	if test -n "$MP"
+	then
+		rmdir -- "$MP"
+	fi
+	test $rc = 0 || whine "Failed!"
+}
+
+whine() {
+	while :
+	do
+		case $1 in
+			-*) ;;
+			*) break
+		esac
+		shift
+	done
+	if test -n "$x"
+	then
+		xmessage "$*"
+	else
+		echo "$*" >& 2
+	fi
+}
+
+die() {
+	whine "$*"
+	false || exit
+}
+
+getdev() {
+	stat -c %d -- "$1"
+}
+
+is_mounted() {
+	local dir parent
+	dir=`getdev "$1"`; parent=`getdev "$1"/..`
+	test x"$dir" != x"$parent"
+}
+
+wait4() {
+	local tries=5
+	until "$@"
+	do
+		tries=`expr $tries - 1` || {
+			die "Waited without success for: $*"
+		}
+		sleep 1
+	done
+}
+
+have() {
+	if ! which "$1" 2> /dev/null
+	then
+		shift
+		if test $? = 0
+		then
+			false || return
+		fi
+		echo "$*"
+	fi
+}
+
+not() {
+	if "$@"
+	then
+		false || return
+	fi
+	true
+}
+
+sel() {
+	skip=0
+	while read -r line
+	do
+		case $line in
+			---) skip=1; continue
+		esac
+		test $skip = 1 && expr x"$line" : x' *$' > /dev/null \
+			&& continue
+		printf '%s\n' "$line"
+	done
+}
+
+if xset -q > /dev/null
+then
+	x=yes
+else
+	x=
+fi
+MP=
+trap cleanup 0
+script=${0##*/}
+APP=`printf %.10s "$script"`
+if test $# != 1
+then
+	die "Usage: $script <bluetooth_device_address>"
+fi
+xdg_open=`have xdg-open`
+MP=`mktemp -d "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
+is_mounted "$MP" && die "'$MP' is already mounted!"
+obexfs -b "$1" "$MP"
+wait4 is_mounted "$MP"
+"$xdg_open" "$MP" > /dev/null 2>& 1
+iconv=`have iconv :`
+cols=66
+test -n "$COLUMNS" && test $COLUMNS -lt $cols && cols=$COLUMNS
+if wr=`have fmt`
+then
+	wr="$wr -w$cols -c"
+elif wr=`have fold`
+then
+	wr="$wr -w$cols -s"
+else
+	wr=cat
+fi
+cat <<- EOF | $wr | sel | "$iconv" -c -t ISO-8859-1 | xmessage -file -
+	$script:
+	
+	An OBEX userspace file system for bluetooth device $1 has been mounted
+	at "$MP" and the default file manager has been launched for browsing
+	the file system contents of that mount point.
+	
+	As soon as you have finished browsing, close any file manager windows
+	still showing the contents of "$MP" or any of its subfolders and press
+	the "okay" button of this message window.
+	
+	The userspace file system will then be unmounted, allowing to unplug
+	bluetooth device $1 safely.
+
+	---
+		
+	$script version 15.124
+
+	(c) 2015 by Guenther Brunthaler.
+
+	This script is free software.
+
+	Distribution is permitted under the terms of the GPLv3.
+EOF
+if fuser=`have fuser`
+then
+	"$fuser" -s -k -M -m "$MP" && sleep 2
+fi
+fusermount -u -- "$MP"
+wait4 not is_mounted "$MP"
