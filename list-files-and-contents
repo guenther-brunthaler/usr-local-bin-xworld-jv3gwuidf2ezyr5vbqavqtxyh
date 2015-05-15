@@ -22,6 +22,17 @@ shift `expr $OPTIND - 1 || :`
 
 n=`expr $LINEWIDTH - 1 || echo 1`
 sep=`dd if=/dev/zero bs=1 count=$n 2> /dev/null | tr -c z -`
+if test $# = 0
+then
+	set -- *
+	n=$#
+	while test $n != 0
+	do
+		test -f "$1" && set -- "$@" "$1"
+		shift
+		n=`expr $n - 1 || :`
+	done
+fi
 first=y
 for file
 do
