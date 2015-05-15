@@ -1,0 +1,42 @@
+#! /bin/sh
+# (c) 2015 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "Failed!" >& 2' 0
+
+LINEWIDTH=
+test -t 0 && LINEWIDTH=`tput cols` || LINEWIDTH=
+: ${LINEWIDTH:=70}
+
+NUMBERED=
+while getopts n OPT
+do
+	case $OPT in
+		n) NUMBERED=y;;
+		*) false
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+n=`expr $LINEWIDTH - 1 || echo 1`
+sep=`dd if=/dev/zero bs=1 count=$n 2> /dev/null | tr -c z -`
+first=y
+for file
+do
+	if test -n "$first"
+	then
+		first=
+	else
+		echo $sep
+	fi
+	echo "*** BEGIN FILE \"$file\" ***"
+	if test -n "$NUMBERED"
+	then
+		nl -- "$file"
+	else
+		cat -- "$file"
+	fi
+	echo "*** END FILE \"$file\" ***"
+done
