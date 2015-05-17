@@ -1,0 +1,146 @@
+#! /bin/sh
+exit_version() {
+	wr -s <<- . && exit
+	$APP version 15.137
+
+	(c) 2015 by Guenther Brunthaler.
+	This script is free software.
+	Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+wr() {
+	test -z "$*" && set -- -c
+	fmt -w "$LINEWIDTH" "$@"
+}
+test -t 0 && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
+
+exit_help() {
+	wr <<- .
+	$APP - Import or export \$DISPLAY and X11 authentication cookie
+
+	Usage: $APP
+	    [ options ... ]
+	   
+	Supported options:
+	
+	-d <display_info>:
+	    Specify the contents for \$DISPLAY directly on the command line
+	    instead of using the current value of \$DISPLAY.
+	-i:
+	    Enforce import mode. This has the effect of unsetting \$DISPLAY
+	    temporarily, enforcing import mode even if \$DISPLAY is already
+	    correctly set up and the referenced X11 server is working
+	    perfectly. This can be useful for switching between multiple
+	    available x11 servers.
+	-v:
+	    Be verbose. Writes additional diagnostic messages to standard
+	    error.
+	
+	-h:
+	    Show this usage help.
+	-V:
+	    Show version information for $APP.
+
+	When $APP is run in an environment with access to a running X11
+	server, it encodes the current contents of \$DISPLAY as well as the
+	associated X11 authentication cookie and writes it as a base-64
+	encoded test to standard output.
+	
+	\$ $APP > dumpfile
+
+	This information has then to be conveyed to a different user account
+	which needs access to the same X11 server.
+	
+	\$ mailx -s "x11 server access info for you" otheruser < dump
+	
+	or
+	
+	\$ $APP | mailx -s "x11 server access info for you" otheruser
+
+	The user there needs to call $APP, which will read the beforementioned
+	encoded text from standard input, import the X11 authentication cookie
+	for accessing the X11 server, and print a variable assignment
+	statement for the \$DISPLAY variable to standard output, which can
+	then be sourced or eval'ed by the local shell in order to locally set
+	\$DISPLAY to that value.
+	
+	\$ eval `$APP < dumpfile`
+	
+	$APP distinguishes between the import and export case by checking
+	whether \$DISPLAY is set and refers to a running X11 server.
+	
+	In order to enforce import, just unset \$DISPLAY as in
+	
+	\$ eval `DISPLAY= $APP < dumpfile`
+	
+	or use the -i option which does the same internally:
+	
+	\$ eval `$APP -i < dumpfile`
+	
+	Note that the variable assignment statement is generated in the syntax
+	of the Bourne shell. If a shell with different assignment syntax is
+	used, the value of the DISPLAY variable can be extracted as follows:
+	
+	\$ $APP | head -n1 | cut -d= -f2- > contents_for_DISPLAY
+	
+	The "head" here ignores the second line which contains an "export"
+	statement for the \$DISPLAY variable.
+	
+	Note that the xauth information is security-sensitive information, and
+	only secure transports must be used to convey the output exported by
+	$APP to the account where it is imported.
+	
+	System-local e-mail or using fifos is usually secure, while Internet
+	e-mail isn't (unless encrypted).
+
+.
+	exit_version
+}
+
+inform() {
+	test -z "$VERBOSE" || echo "*** $@" >& 2
+}
+
+cleanup() {
+	test $? = 0 || echo 'Failed!' >& 2
+}
+
+set -e
+trap cleanup 0
+
+VERBOSE=
+while getopts ivd:Vh OPT
+do
+	case $OPT in
+		d) export DISPLAY=$OPTARG;;
+		i) DISPLAY=;;
+		v) VERBOSE=y;;
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+if xset -q > /dev/null 2>& 1
+then
+	{
+		printf '%s\n' "$DISPLAY"
+		xauth nextract - "$DISPLAY"
+	} | gzip -c9 | openssl base64
+	inform "Wrote encoded xauth/\$DISPLAY info to standard output."
+else
+	openssl base64 -d | gzip -dc | {
+		inform "Reading encoded xauth/\$DISPLAY info" \
+			"from standard input..."
+		read DISPLAY; export DISPLAY
+		inform "DISPLAY has been decoded as '$DISPLAY'."
+		xauth nmerge -
+		inform "xauth information has been successfully decoded" \
+			"and imported."
+		echo DISPLAY="$DISPLAY"
+		echo export DISPLAY
+	}
+fi
