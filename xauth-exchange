@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s <<- . && exit
-	$APP version 15.137
+	$APP version 15.137.1
 
 	(c) 2015 by Guenther Brunthaler.
 	This script is free software.
@@ -34,9 +34,9 @@ exit_help() {
 	    correctly set up and the referenced X11 server is working
 	    perfectly. This can be useful for switching between multiple
 	    available x11 servers.
-	-v:
-	    Be verbose. Writes additional diagnostic messages to standard
-	    error.
+	-q:
+	    Be quiet. Suppresses diagnostic messages which would normally be
+	    written to standard error.
 	
 	-h:
 	    Show this usage help.
@@ -110,13 +110,13 @@ cleanup() {
 set -e
 trap cleanup 0
 
-VERBOSE=
-while getopts ivd:Vh OPT
+VERBOSE=y
+while getopts iqd:Vh OPT
 do
 	case $OPT in
 		d) export DISPLAY=$OPTARG;;
 		i) DISPLAY=;;
-		v) VERBOSE=y;;
+		q) VERBOSE=;;
 		V) exit_version;;
 		h) exit_help;;
 		*) false || exit
