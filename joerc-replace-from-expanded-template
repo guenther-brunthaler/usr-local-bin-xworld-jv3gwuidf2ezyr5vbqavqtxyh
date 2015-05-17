@@ -31,6 +31,7 @@ trim() {
 }
 
 
+export LC_ALL=C
 BACK=`grep '^\s*-backpath /.*' ~/.joerc | head -n1`
 BACK=${BACK#*backpath}
 BACK=`trim "$BACK"`
