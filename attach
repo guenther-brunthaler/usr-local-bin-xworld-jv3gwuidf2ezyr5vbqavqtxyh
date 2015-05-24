@@ -1,4 +1,18 @@
 #! /bin/sh
-cd ~/var/run/dtach
+set -e
+
+mkd() {
+	test -d "$1" && return
+	local d=${1%/*}
+	test x"$1" = x"$d" && return
+	mkd "$d"
+	mkdir "$1"
+}
+
+trap 'test $? = 0 || echo "Failed!" >& 2' 0
+d=~/var/run/dtach
+mkd "$d"
+cd "$d"
 test $# = 1 && exec dtach -A "$1" -e ^a -z "${SHELL:-bash}"
 ls -1
+
