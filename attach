@@ -12,9 +12,20 @@ mkd() {
 
 trap 'test $? = 0 || echo "Failed!" >& 2' 0
 
-test -n "$HOME"; test -d "$HOME"
-: ${XDG_DATA_HOME:=$HOME/.local/share}
-d=$XDG_DATA_HOME/${0##*/}_${UUID}
+d=${0##*/}_${UUID}
+if test -z "$XDG_RUNTIME_DIR"
+then
+	XDG_RUNTIME_DIR=${TMPDIR:-/tmp}/`id -un`-$d
+	d=$XDG_RUNTIME_DIR
+else
+	d=$XDG_RUNTIME_DIR/$d
+fi
+if ! test -d "$XDG_RUNTIME_DIR"
+then
+	mkd "$XDG_RUNTIME_DIR"
+	chgrp `id -g` "$XDG_RUNTIME_DIR"
+	chmod 700 "$XDG_RUNTIME_DIR"
+fi
 
 mkd "$d"
 cd "$d"
