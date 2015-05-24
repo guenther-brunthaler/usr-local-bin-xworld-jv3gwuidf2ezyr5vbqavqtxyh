@@ -1,5 +1,6 @@
 #! /bin/sh
 set -e
+UUID=l3v9678vdw9y0fzaiklv0puyr
 
 mkd() {
 	test -d "$1" && return
@@ -10,9 +11,12 @@ mkd() {
 }
 
 trap 'test $? = 0 || echo "Failed!" >& 2' 0
-d=~/var/run/dtach
+
+test -n "$HOME"; test -d "$HOME"
+: ${XDG_DATA_HOME:=$HOME/.local/share}
+d=$XDG_DATA_HOME/${0##*/}_${UUID}
+
 mkd "$d"
 cd "$d"
 test $# = 1 && exec dtach -A "$1" -e ^a -z "${SHELL:-bash}"
 ls -1
-
