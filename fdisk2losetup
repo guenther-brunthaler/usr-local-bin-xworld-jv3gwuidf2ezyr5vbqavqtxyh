@@ -54,7 +54,7 @@ $img= shift;
    print "$loop ist the next free loop device.\n\n";
 }
 # 20110713: some versions of losetup only support -s, others only --sizelimit.
-if (system(q"sh -c 'losetup 2>& 1 | grep -q -- --sizelimit'") == 0) {
+if (system(q"sh -c 'losetup --help 2>& 1 | grep -q -- --sizelimit'") == 0) {
    $sizelimit= "--sizelimit";
 } else {
    $sizelimit= "-s";
@@ -68,8 +68,8 @@ while (<PT>) {
       \s (\d+) \s+
       # Ending sector.
       (\d+) \s+
-      # Number of sectors.
-      (?: \d+ \+? | [\d.]+[[:alpha:]] ) \s+
+      # Number of sectors and optionally size.
+      \d+ (?: \+? | \s+ [\d.]+[[:alpha:]]? ) \s+
       # Partition type.
       ([[:xdigit:]]{1,2}) \s+
       # File system type.
