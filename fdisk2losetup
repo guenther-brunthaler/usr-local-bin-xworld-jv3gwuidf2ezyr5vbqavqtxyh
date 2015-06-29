@@ -69,7 +69,7 @@ while (<PT>) {
       # Ending sector.
       (\d+) \s+
       # Number of sectors.
-      \d+ \+? \s+
+      (?: \d+ \+? | [\d.]+[[:alpha:]] ) \s+
       # Partition type.
       ([[:xdigit:]]{1,2}) \s+
       # File system type.
