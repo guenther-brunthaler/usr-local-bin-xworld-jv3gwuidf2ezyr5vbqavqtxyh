@@ -1,0 +1,129 @@
+#! /bin/sh
+set -e
+cleanup() {
+	test -n "$T" && rm -- "$T"
+	test $? = 0 || echo "Failed!" >& 2
+}
+T=
+trap cleanup 0
+T=`mktemp "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+
+report() {
+	echo "$@" >> "$T"
+}
+
+test -n "$HOME"
+test -d "$HOME"
+report HOME
+
+report PATH -
+
+# $XDG_DATA_HOME defines the base directory relative to which user specific
+# data files should be stored. If $XDG_DATA_HOME is either not set or empty, a
+# default equal to $HOME/.local/share should be used.
+: ${XDG_DATA_HOME:="$HOME"/.local/share}
+report XDG_DATA_HOME
+
+# $XDG_CONFIG_HOME defines the base directory relative to which user specific
+# configuration files should be stored. If $XDG_CONFIG_HOME is either not set
+# or empty, a default equal to $HOME/.config should be used.
+: ${XDG_CONFIG_HOME:="$HOME"/.config}
+report XDG_CONFIG_HOME
+
+# $XDG_DATA_DIRS defines the preference-ordered set of base directories to
+# search for data files in addition to the $XDG_DATA_HOME base directory. The
+# directories in $XDG_DATA_DIRS should be seperated with a colon ':'.
+#
+# If $XDG_DATA_DIRS is either not set or empty, a value equal to
+# /usr/local/share/:/usr/share/ should be used.
+: ${XDG_DATA_DIRS:=/usr/local/share/:/usr/share/}
+report XDG_DATA_DIRS
+
+# $XDG_CONFIG_DIRS defines the preference-ordered set of base directories to
+# search for configuration files in addition to the $XDG_CONFIG_HOME base
+# directory. The directories in $XDG_CONFIG_DIRS should be seperated with a
+# colon ':'.
+#
+# If $XDG_CONFIG_DIRS is either not set or empty, a value equal to /etc/xdg
+# should be used.
+: ${XDG_CONFIG_DIRS:=/etc/xdg}
+report XDG_CONFIG_DIRS
+
+# $XDG_CACHE_HOME defines the base directory relative to which user specific
+# non-essential data files should be stored. If $XDG_CACHE_HOME is either not
+# set or empty, a default equal to $HOME/.cache should be used.
+: ${XDG_CACHE_HOME:="$HOME"/.cache}
+report XDG_CACHE_HOME
+
+# $XDG_RUNTIME_DIR defines the base directory relative to which user-specific
+# non-essential runtime files and other file objects (such as sockets, named
+# pipes, ...) should be stored. The directory MUST be owned by the user, and
+# he MUST be the only one having read and write access to it. Its Unix access
+# mode MUST be 0700.
+report XDG_RUNTIME_DIR
+
+# $XDG_DATA_HOME is considered more important than any of the base directories
+# defined by $XDG_DATA_DIRS. The base directory defined by $XDG_CONFIG_HOME is
+# considered more important than any of the base directories defined by
+# $XDG_CONFIG_DIRS.
+report XDG_DATA_HOME XDG_DATA_DIRS
+report XDG_CONFIG_HOME XDG_CONFIG_DIRS
+
+report_path() {
+	local pc ofs=$IFS; IFS=:; set -- $1; IFS=$ofs
+	for pc
+	do
+		echo "\"$pc\""
+	done
+}
+
+check_sep() {
+	if test -n "$sep"
+	then
+		if test -n "$first"
+		then
+			echo
+		else
+			first=
+		fi
+		sep=
+	fi
+}
+
+first=Y
+sep=
+LC_COLLATE=C sort "$T" | while read vars
+do
+	eval "set -- $vars"
+	if test $# != 1
+	then
+		test x"$1" = x"-" && shift
+		sep=Y; check_sep
+		printf "# Search order based on "
+		last=
+		for var
+		do
+			test x"$var" = x- && continue
+			printf %s "${last:+, }\$$var"
+			last=$var
+		done
+		echo :
+		for var
+		do
+			test x"$var" = x- && continue
+			eval "report_path \"\$$var\""
+		done
+		sep=Y
+	else
+		check_sep
+		eval "
+			if test -n \"\${$1+Y}\"
+			then
+				vc=\$$1;
+				echo "$1=\\\"\$vc\\\""
+			else
+				echo "unset $1"
+			fi
+		"
+	fi
+done
