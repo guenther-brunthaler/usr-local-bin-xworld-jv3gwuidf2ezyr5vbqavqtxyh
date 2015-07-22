@@ -1030,6 +1030,6 @@ if ! locate_config -d "$DATA_DIR"
 then
 	mkdir -m 700 -- "$DATA_DIR"
 fi
-basedir=`. "$CONFIG_FILE" && printf "%s\n" "$basedir"`
+basedir=`basedir=; . "$CONFIG_FILE" && printf "%s\n" "$basedir"`
 "$cmd" "$@"
 OK=Y
