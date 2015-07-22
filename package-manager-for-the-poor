@@ -1,9 +1,9 @@
 #! /bin/sh
 version() {
 	cat << .
-$APP version 14.347
+$APP version 15.203
 
-(c) 2013 - 2014 by Guenther Brunthaler.
+(c) 2013 - 2015 by Guenther Brunthaler.
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 .
@@ -477,7 +477,12 @@ merge_into() {
 	elif test -d "$1"
 	then
 		local mode
-		mode=`stat -c %a -- "$1"`; test -n "$mode"
+		mode=`
+			case $sys in
+				BSD) stat -f %Mp%Lp -- "$1";;
+				*) stat -c %a -- "$1"
+			esac
+		`; test -n "$mode"
 		mkdir -m "$mode" -- "$2"
 	else
 		test -f "$1"
@@ -496,8 +501,13 @@ calcsum() {
 	esac | {
 		test -n "$2" && printf 'a=%s d=' "$2"
 		case $2 in
-			md5) "$MD5SUM" -b -- | cut -d" " -f1;;
-			cks) "$CKSUM" -- | tr " " ':'
+			md5)
+				case $sys in
+					BSD) "$MD5TOOL" -q;;
+					*) "$MD5TOOL" -b | cut -d" " -f1
+				esac
+				;;
+			cks) "$CKSUM" | tr " " ':'
 		esac
 	}
 }
@@ -505,13 +515,25 @@ calcsum() {
 
 # $1: type, $2: path.
 stat2() {
-	case $1 in
-		file) f="m=%a o=%u:%g t=%Y s=%s";;
-		dir) f="m=%a o=%u:%g";;
-		sym) f="s=%s";;
-		*) false
+	case $sys in
+		BSD)
+			case $1 in
+				file) f="m=%Mp%Lp o=%u:%g t=%m s=%z";;
+				dir) f="m=%Mp%Lp o=%u:%g";;
+				sym) f="s=%z";;
+				*) false
+			esac
+			stat -f "$f" -- "$2"
+			;;
+		*)
+			case $1 in
+				file) f="m=%a o=%u:%g t=%Y s=%s";;
+				dir) f="m=%a o=%u:%g";;
+				sym) f="s=%s";;
+				*) false
+			esac
+			stat -c "$f" -- "$2"
 	esac
-	stat -c "$f" "$2"
 }
 
 
@@ -652,6 +674,15 @@ strip_pkg_suffix() {
 }
 
 
+fdate() {
+	local F='%Y-%m-%d %H:%M:%S'
+	case $sys in
+		BSD) stat -f %Sm -t "$F" -- "$1";;
+		*) date -r "$1" +"$F"
+	esac
+}
+
+
 cmd_list() {
 	case $# in
 		0)
@@ -662,10 +693,7 @@ cmd_list() {
 				do
 					uninteresting && continue
 					f=$DATA_DIR/$pkg
-					when=`
-						date -r "$f" \
-							+"%Y-%m-%d %H:%M:%S"
-					`
+					when=`fdate "$f"`
 					strip_pkg_suffix
 					printf '%s %s\n' "$when" "$pkg"
 					any=y
@@ -925,17 +953,25 @@ TDIR=
 trap cleanup 0
 UUID=7rttpq19eb58ybhqm18dktllt
 APP=${0##*/}
+sys=`uname`
+# Check for especially supported platforms. Default is GNU-based.
+case $sys in
+	*[a-z]BSD) sys=BSD
+esac
 getcmd -f MKTEMP mktemp
 getcmd -i GZIP gzip
 getcmd -i BZIP2 bzip2
 getcmd -i XZ xz
 getcmd -i LZMA lzma
 getcmd -f TAR tar
-getcmd -i MD5SUM md5sum
+case $sys in
+	BSD) getcmd -i MD5TOOL md5;;
+	*) getcmd -i MD5TOOL md5sum
+esac
 getcmd -i CKSUM cksum
 getcmd -f WC wc
 getcmd -f FIND find
-if test -n "$MD5SUM"
+if test -n "$MD5TOOL"
 then
 	CHKDFLTYPE=md5
 elif test -n "$CKSUM"
