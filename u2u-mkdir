@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 13.243
-	(c) 2008 - 2013 by Guenther Brunthaler.
+	$APP Version 15.213
+	(c) 2008 - 2015 by Guenther Brunthaler.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -18,6 +18,13 @@ show_help() { wr <<- EOF
 	new subdirectory will have a unique secret name which cannot easily be
 	guessed by other users (and the permissions of the $U2UBASE directory
 	also do not allow displaying its directory listing).
+	
+	Note: $U2UBASE will typically have been created by the administrator
+	using one of the two following commands:
+	
+	\$ mkdir -m1701 $U2UBASE # Everyone is allowed to use $APP.
+	
+	\$ mkdir -m1710 $U2UBASE && chgrp $U2UBASE \$U2U_USERS_GROUP
 	
 	Then $APP displays the path to the created subdirectory, and by
 	default also creates a symlink to it in the current directory. (The
@@ -348,10 +355,12 @@ system() {
 wr() {
 	local S
 	S=
-	if test x"$1" = x"."; then
+	if test x"$1" = x"."
+	then
 		S=-s; shift
 	fi
-	if test $# -gt 0; then
+	if test $# -gt 0
+	then
 		run printf '%s\n' "$*" | wr
 	else
 		run fmt $S -w $LINEWIDTH
@@ -363,7 +372,8 @@ gen_uuid() {
 	{
 		echo "obase=35; ibase=16"
 		{
-			if test -f "$UUID_SOURCE"; then
+			if test -f "$UUID_SOURCE"
+			then
 				run cat "$UUID_SOURCE"
 			else
 				set -- $UUID_CMD
@@ -402,7 +412,8 @@ symextract() {
 
 
 shall() {
-	if test -z "$DRY_RUN"; then
+	if test -z "$DRY_RUN"
+	then
 		run "$@"
 	else
 		echo "SIMULATED ONLY: >>>$*<<<" >& 2
@@ -428,10 +439,7 @@ SYMLINK_OPTIMIZER=optimize-symlinks-as-relative
 SYMLINK_OPTIMIZER_ARGS=-q
 APP=${0##*/}
 # Determine output line width.
-LINEWIDTH=
-REPLY=
-tty -s <& 1 && system tput cols
-LINEWIDTH=${REPLY:-70}
+LINEWIDTH=; REPLY=; test -t 1 && system tput cols; LINEWIDTH=${REPLY:-70}
 # Start of command line processing.
 # Define presets.
 VERBOSE=
@@ -443,14 +451,17 @@ DRY_RUN=
 DIR_MODE=
 #
 COPTS=
-while true; do
-	if [ -z "$COPTS" ]; then
-		case "$1" in
+while :
+do
+	if test -z "$COPTS"
+	then
+		case $1 in
 			-?*) COPTS="$1"; shift;;
 			*) break;;
 		esac
 	fi
-	if [ "${COPTS#--}" = "$COPTS" ]; then
+	if test x"${COPTS#--}" = x"$COPTS"
+	then
 		TAIL="${COPTS#-?}"; # Switch clustering.
 		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
 	else
@@ -471,30 +482,35 @@ while true; do
 done
 # Shift off ordinal arguments.
 test $# -ge 1 && { SYMLINK="$1"; shift; }
-#test $# -ge 1 || die "Missing argument - limit for accumulated sum!"
-#LIMIT="$1"; shift
 # Check for excess arguments.
 test $# = 0 || die "Unexpected excess arguments: $*"
 # End of command line processing.
 run test -d "$U2UBASE"
 SYMNAME=${SYMLINK##*/}
-if test -n "$SYMLINK"; then
+if test -n "$SYMLINK"
+then
 	test x"${SYMLINK#/}" = x"$SYMLINK" \
 		|| die "Absolute paths are not allowed in '$SYMLINK'!"
-	if test -z "$NO_SYMLINK"; then
-		if test -n "$FORCE" && test -L "$SYMLINK"; then
+	if test -z "$NO_SYMLINK"
+	then
+		if test -n "$FORCE" && test -L "$SYMLINK"
+		then
 			shall rm "$SYMLINK"
 		fi
-		if test -L "$SYMLINK" || test -e "$SYMLINK"; then
+		if test -L "$SYMLINK" || test -e "$SYMLINK"
+		then
 			die "'$SYMLINK' already exists" \
 				"(you might consider using" \
 				"the --force option)!"
 		fi
 	fi
-elif test -z "$NO_SYMLINK"; then
+elif test -z "$NO_SYMLINK"
+then
 	I=1
-	while true; do
-		if test $I != 1; then
+	while :
+	do
+		if test $I != 1
+		then
 			SYMLINK=$DEFAULT_NAME-$I
 		else
 			SYMLINK=$DEFAULT_NAME
@@ -505,19 +521,22 @@ elif test -z "$NO_SYMLINK"; then
 	REPORT_AT_END=$SYMLINK
 fi
 system symextract "$SYMNAME"; SYMNAME=$REPLY
-while true; do
+while :
+do
 	system gen_uuid; TARGET=$U2UBASE/$SYMNAME${SYMNAME:+_}$REPLY
-	set -- mkdir
+	set mkdir
 	test -n "$DIR_MODE" && set -- "$@" -m "$DIR_MODE"
 	shall "$@" -- "$TARGET" && break
 	run sleep 1
 done
 inform "Hidden directory '$TARGET' has been created."
 test -n "$NO_SYMLINK" && REPORT_AT_END=$TARGET
-if test -z "$NO_SYMLINK"; then
+if test -z "$NO_SYMLINK"
+then
 	shall ln -s "$TARGET" "$SYMLINK"
 	inform "Symlink '$SYMLINK' has been created."
-	if have "$SYMLINK_OPTIMIZER"; then
+	if have "$SYMLINK_OPTIMIZER"
+	then
 		set -- "$SYMLINK_OPTIMIZER" $SYMLINK_OPTIMIZER_ARGS
 		shall "$@" "$SYMLINK"
 	fi
