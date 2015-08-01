@@ -19,17 +19,12 @@ system() {
 }
 
 
-while :
-do
-	system tempfile; T=$REPLY
-	rm "$T"
-	mkdir -m 700 "$T" && break
-done
-trap "cd; rm -rf --one-file-system '$T'" 0
+system mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
+trap "cd && rm -rf '$T'" 0
 echo "Entering temporary shell directory '$T'."
 echo "Enter 'exit' to leave and remove temporary directory."
 run cd "$T"
-PS1="\\u@\\h [tmpshell] \\$ " # Most likely, this will be overwritten anyway.
+PS1='\u@\h [tmpshell] \$ ' # Most likely, this will be overwritten anyway.
 export PS1
 MYSH=${SHELL:-/bin/sh}
 run test -x "$MYSH"

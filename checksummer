@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 11.225.3
+	$APP version 15.213
 
-	(c) 2011 by Guenther Brunthaler.\n
+	(c) 2011 -  2015 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -803,12 +803,7 @@ test -n "$MUTEX" && test $MUTEX != x && {
 	die "More than a single operation mode has been specified!"
 }
 system quote_slashes "$RECURSIVE"; RECURSIVE=$REPLY
-while :
-do
-	system tempfile; TDIR=$REPLY
-	rm -- "$TDIR"
-	mkdir -m 700 -- "$TDIR" && break
-done
+system mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; TDIR=$REPLY
 trap "rm -r '$TDIR'" 0
 system readlink -f "$TDIR"; TDIR=$REPLY
 T=$TDIR/checksums.tmp

@@ -1,9 +1,9 @@
 #! /bin/sh
 exit_version() {
 	wr -s <<- .; exit
-	$APP Version 13.112
+	$APP Version 15.213
 
-	(c) 2013 by Guenther Brunthaler.
+	(c) 2013 - 2015 by Guenther Brunthaler.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -195,12 +195,7 @@ then
 fi
 if test -z "$PERMANENT"
 then
-	while :
-	do
-		system tempfile; T=$REPLY
-		rm "$T"
-		mkdir -m 700 "$T" && break
-	done
+	system mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
 	trap "cd; rm -rf --one-file-system '$T'" 0
 	run cd "$T"
 fi

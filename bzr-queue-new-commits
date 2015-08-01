@@ -5,7 +5,7 @@
 #
 # The merge directive will be named like the branch nick.
 #
-# (c) 2012 by Günther Brunthaler.
+# (c) 2012 - 2015 by Günther Brunthaler.
 # This source file is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
@@ -114,12 +114,7 @@ then
 	exit
 fi
 
-while :
-do
-	system tempfile; TDIR=$REPLY
-	run rm "$TDIR"
-	mkdir -m 700 "$TDIR" && break
-done
+system mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; TDIR=$REPLY
 trap cleanup 0
 
 upstream=$TDIR/upstream

@@ -1,7 +1,7 @@
 #! /bin/sh
 # Works like "man", but displays the "man" page formatted as PostScript.
-# written in 2010 by Guenther Brunthaler.
+# written in 2010 - 2015 by Guenther Brunthaler.
 
-T=`tempfile`
-trap "rm \"$T\"" 0
+T=`mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
+trap "rm -- \"$T\"" 0
 man -t "$@" > "$T" && gv "$T"

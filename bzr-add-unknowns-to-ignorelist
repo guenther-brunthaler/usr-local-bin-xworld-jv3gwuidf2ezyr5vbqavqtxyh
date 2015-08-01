@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 12.288
-	(c) 2009 - 2012 by Guenther Brunthaler.
+	$APP Version 15.213
+	(c) 2009 - 2015 by Guenther Brunthaler.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -147,7 +147,7 @@ done
 run test -f "$EDITOR"
 system "$BZR" root; ROOT=$REPLY
 run cd "$ROOT"
-system tempfile; TF=$REPLY
+system mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; TF=$REPLY
 trap 'rm "$TF"' 0
 if test -e "$IGNOREFILE"; then
 	# Convert absolute paths into top-level relative ones.

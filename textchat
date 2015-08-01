@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	cat <<- .
-	$APP version 14.348
+	$APP version 15.213
 
-	(c) 2012 - 2014 by Guenther Brunthaler.
+	(c) 2012 - 2015 by Guenther Brunthaler.
 	This source file is free software.
 	Distribution is permitted under the terms of the GPLv3.
 .
@@ -195,7 +195,7 @@ then
 fi
 
 run test x$MODE = x"server"
-system tempfile; T=$REPLY
+system mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
 trap "rm '$T'" 0
 trap 'false; exit' USR1
 PARENT=$$

@@ -1,7 +1,7 @@
 #! /bin/sh
 set -e
-VERSION=12.66
-LIC1="(c) 2012 by Guenther Brunthaler."
+VERSION=15.213
+LIC1="(c) 2012 - 2015 by Guenther Brunthaler."
 LIC2="This script is free software."
 LIC3="Distribution is permitted under the terms of the GPLv3."
 
@@ -167,7 +167,7 @@ do
 	esac
 done
 REDIR7=; exec 7>& -
-T=`tempfile`
+T=`mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
 tac "$UNINSTALL_SCRIPT" > "$T"
 {
 	cat <<- .

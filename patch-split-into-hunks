@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 11.26.1
+	$APP version 15.213
 
-	(c) 2010 - 2011 by Guenther Brunthaler.\n
+	(c) 2010 - 2015 by Guenther Brunthaler.\n
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -120,7 +120,7 @@ TZ=UTC0
 export LC_ALL TZ
 PATCH=${1?Argument required: The patch to be split into chunks!}
 run test -f "$PATCH"
-system tempfile; T=$REPLY
+system mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
 trap cleanup 0
 HUNK_COUNT=0
 while :
