@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 15.213
+	$APP Version 15.214
 	(c) 2008 - 2015 by Guenther Brunthaler.
 
 	This script is free software.
@@ -22,9 +22,9 @@ show_help() { wr <<- EOF
 	Note: $U2UBASE will typically have been created by the administrator
 	using one of the two following commands:
 	
-	\$ mkdir -m1701 $U2UBASE # Everyone is allowed to use $APP.
+	\$ mkdir -m1703 $U2UBASE # Everyone is allowed to use $APP.
 	
-	\$ mkdir -m1710 $U2UBASE && chgrp $U2UBASE \$U2U_USERS_GROUP
+	\$ mkdir -m1730 $U2UBASE && chgrp $U2UBASE \$U2U_USERS_GROUP
 	
 	Then $APP displays the path to the created subdirectory, and by
 	default also creates a symlink to it in the current directory. (The
