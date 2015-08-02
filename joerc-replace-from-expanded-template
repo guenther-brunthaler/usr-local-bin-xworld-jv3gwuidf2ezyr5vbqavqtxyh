@@ -1,65 +1,36 @@
 #! /bin/sh
-# One needs to define a "-backpath", but it does not need
-# to actually exist in the filesystem.
+# Keeps the "-backpath" setting if there is one defined, and replaces the
+# "ftyperc"-inclusion by an inclusion of "~/.joe". Everything else is
+# replaced with the skeleton template.
 #
-# Version 12.145
-# (c) 2012 by Guenther Brunthaler.
+# Version 15.214
+# (c) 2012 - 2015 by Guenther Brunthaler.
 # This source file is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
-
-# Removes trailing and leading tabs and spaces.
-trim() {
-	local OLD NEW TAB
-	OLD=$1
-	TAB=`printf '\t'`
-	while :
-	do
-		NEW="${OLD# }"
-		NEW=${NEW#$TAB}
-		test x"$NEW" = x"$OLD" && break
-		OLD=$NEW
-	done
-	while :
-	do
-		NEW="${OLD% }"
-		NEW=${NEW%$TAB}
-		test x"$NEW" = x"$OLD" && break
-		OLD="$NEW"
-	done
-	printf '%s\n' "$NEW"
-}
-
+set -e
+trap 'test $? = 0 || echo "Failed!" >& 2' 0
 
 export LC_ALL=C
-BACK=`grep '^\s*-backpath /.*' ~/.joerc | head -n1`
-BACK=${BACK#*backpath}
-BACK=`trim "$BACK"`
-if test -z "$BACK"
+s='[[:space:]]'; n='[^[:space:]]'
+BACK=`grep "^-backpath$s" ~/.joerc | head -n1`
+BACK=`expr x"$BACK" : x"$n*$s\\+\\(.*$n\\)$s*\$" || :`
+set sed
+if test -n "$BACK"
 then
-	echo "ERROR: No backup path has been set up yet"
-	false; exit
+	if test ! -d "$BACK"
+	then
+		echo "ERROR: Old backup path '$BACK'" \
+			"has does not yet exist!" >& 2
+		false || exit
+	fi
+	set "$@" -e "s!^$s*-backpath\\($s.*\\)\\?\$!-backpath $BACK!"
 fi
-if test ! -d "$BACK"
+if grep -q '^-nobackups' ~/.joerc
 then
-	echo "ERROR: Old backup path '$BACK' has does not yet exist!"
-	false; exit
-fi
-NOBACKS=`grep '^\s*-nobackups' ~/.joerc | head -n1`
-if test -n "$NOBACKS"
-then
-	NOBACKS=`
-		printf '%s\n' "$NOBACKS" \
-			| sed -e 's,^\(\s*\)-nobackups.*,\1,'
-	`
-else
-	# By default, disable "-nobackup" so backups will be made.
-	NOBACKS=" "
+	set "$@" -e "s!^$s\\+\\(-nobackups\\($s.*$n\\)\\?\\)$s*\$!\\1!"
 fi
 FTYPERC=$HOME/.joe
-sed -e '
-	s!^\s*-backpath /.*!-backpath '$BACK'!
-	s!^\s*\(-nobackups.*\)!'"$NOBACKS"'\1!
-	s!^:include\s\s*ftyperc\s*$!:include '$FTYPERC'!
-' /usr/local/etc/skel/.joerc > ~/.joerc
+set "$@" -e "s!^:include$s\\+ftyperc$s*\$!:include $FTYPERC!"
+"$@" /usr/local/etc/skel/.joerc > ~/.joerc
 cp /usr/local/etc/skel/.joe ~/.joe
