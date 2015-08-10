@@ -1,0 +1,57 @@
+#! /bin/sh
+# Execute command line with the site-configured busybox.
+
+UUID=pbyqxzl1ktqlk3fjm3arlrclg
+
+ensure_dir() {
+	test -d "$1" && return
+	ensure_dir "`dirname -- \"$1\"`"
+	mkdir -m 700 -- "$1"
+}
+
+# Locate or migrate configuration file or data directory $2.
+#
+# $2 needs to have $UUID as part of its name. If $1 is -d then $2 is a
+# directory. If $1 is -f then $2 is a file.
+#
+# Returns true if $2 exists or has been migrated successfully.
+#
+# Returns false if the caller should create $2. In this case, the parent
+# directory of $2 will already exist.
+locate_config() {
+	test $1 "$2" && return
+	test ! -e "$2"
+	local d f found old
+	d=`dirname -- "$2"`
+	f=`basename -- "$2"`
+	ensure_dir "$d"
+	found=false
+	for old in "$d"/*$UUID*
+	do
+		if test $1 "$old"
+		then
+			mv -- "$old" "$2"
+			found=true
+			break
+		fi
+	done
+	$found || return
+}
+
+set -e
+APP=${0##*/}
+trap 'test $? = 0 || echo "$APP failed!" >& 2' 0
+test -n "$HOME"; test -d "$HOME"
+: ${XDG_CONFIG_HOME:=$HOME/.config}
+APP_=`printf '%s' "$APP" | tr -sc '[:alnum:]' _`
+CONFIG_FILE=$XDG_CONFIG_HOME/${APP_}_$UUID.conf
+if locate_config -f "$CONFIG_FILE"
+then
+	:
+else
+	echo "BUSYBOX_BIN=busybox" > "$CONFIG_FILE"
+fi
+BUSYBOX_BIN=
+. "$CONFIG_FILE"
+test -n "$BUSYBOX_BIN"
+exec "$BUSYBOX_BIN" "$@"
