@@ -43,7 +43,7 @@ APP=${0##*/}
 trap 'test $? = 0 || echo "$APP failed!" >& 2' 0
 test -n "$HOME"; test -d "$HOME"
 : ${XDG_CONFIG_HOME:=$HOME/.config}
-APP_=`printf '%s' "$APP" | tr -sc '[:alnum:]' _`
+APP_=`printf '%s' "${APP%[_-]$UUID}" | tr -sc '[:alnum:]' _`
 CONFIG_FILE=$XDG_CONFIG_HOME/${APP_}_$UUID.conf
 if locate_config -f "$CONFIG_FILE"
 then
