@@ -1,0 +1,29 @@
+#! /bin/sh
+# Determine the rate in increase/s of an accumulating resource.
+set -e
+trap 'test $? = 0 || echo "${0##*/} failed!" >& 2' 0
+interval=10
+while getopts d:n:t:i: opt
+do
+	case $opt in
+		[dnit]) interval=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+test $# = 0 && set 'grep ^intr /proc/stat | cut -d" " -f2'
+echo "Run every $interval seconds: $*" >& 2
+while :
+do
+	eval "$*"
+	sleep "$interval"
+done | awk '
+	BEGIN {
+		t= -1; iv= '"$interval"'
+	}
+
+	{
+		if (t < 0) {i= $1; t= 0}
+		else printf("%.2f\n", ($1 - i) / (t+= iv))
+	}
+'
