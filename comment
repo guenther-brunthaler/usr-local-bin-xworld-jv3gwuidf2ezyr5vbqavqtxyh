@@ -1,12 +1,77 @@
 #! /bin/sh
+# Provides transactional -i support - either all files are changed or none.
 set -e
-trap 'test $? = 0 || echo "${0##*/} failed!" >& 2' 0
+cleanup () {
+	local rc=$?
+	test -n "$T" && rm -rf -- "$TD"
+	test $rc = 0 || echo "$APP failed!" >& 2
+}
+APP=${0##*/}
+TD=
+trap cleanup 0
 s=
-while getopts s opt
+unset inplace
+while getopts I:is opt
 do
 	case $opt in
 		s) s=' ';;
+		i) inplace=;;
+		I) inplace=$OPTARG;;
 		*) false || exit
 	esac
 done
-sed "s/^/#$s/"
+shift `expr $OPTIND - 1 || :`
+from=; into=#$s
+case $APP in
+	un*) from=$into; into=
+esac
+scmd=s/^$from/$into/
+if test -z "${inplace+x}"
+then
+	sed -- "$scmd" "$@"
+	exit
+fi
+test $# != 0 # In-place editing requires files to be specified.
+tools="chmod chown"
+for tool in $tools
+do
+	if $tool --help 2> /dev/null | grep -q -- --reference=
+	then
+		eval gnu_$tool=true
+	else
+		eval gnu_$tool=false
+	fi
+done
+TD=`mktemp -d "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
+n=$#
+while :
+do
+	sed -- "$scmd" "$1" > "$TD/$n"
+	set -- "$@" "$1"; shift
+	n=`expr $n - 1` || break
+done
+n=$#
+while :
+do
+	new=`mktemp -- "$1.$APP.XXXXXXXXXX"`
+	cat "$TD/$n" > "$new"
+	rm -- "$TD/$n"
+	for tool in $tools
+	do
+		eval \$gnu_$tool && $tool --reference="$1" -- "$new" || :
+	done
+	if test -n "$inplace"
+	then
+		bak=$1$inplace
+		if test -e "$bak"
+		then
+			rm -- "$bak"
+		fi
+		mv -- -i "$1" "$bak"
+	else
+		rm -- "$1"
+	fi
+	mv -i -- "$new" "$1"
+	shift
+	n=`expr $n - 1` || break
+done
