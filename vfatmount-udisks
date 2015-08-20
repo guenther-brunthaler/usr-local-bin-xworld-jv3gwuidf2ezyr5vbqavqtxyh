@@ -1,0 +1,23 @@
+#! /bin/sh
+set -e
+trap 'test $? = 0 || echo "${0##*/} failed!" >& 2' 0
+ro=false
+dry_run=false
+while getopts rn opt
+do
+	case $opt in
+		r) ro=true;;
+		n) dry_run=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+d=$1; shift
+test $# = 0
+test -b "$d"
+d=`readlink -f -- "$d"`
+opts=umask=117,dmask=007,utf8=true,noatime
+$ro && opts=$opts,ro
+set udisksctl mount -b "$d" -t vfat -o "$opts"
+$dry_run && set echo SIMULATION: "$@"
+"$@"
