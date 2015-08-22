@@ -13,8 +13,8 @@ T=
 trap cleanup 0
 T=`mktemp -d "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
 echo "Entering temporary shell directory '$T'." >& 2
-export p=`pwd`
-echo "The former parent directory is available as \$p." >& 2
+export d=`pwd`
+echo "The original current directory is available as \$d." >& 2
 echo "Enter 'exit' to leave and remove temporary directory." >& 2
 cd "$T"
 PS1='\u@\h [tmpshell] \$ ' # Most likely, this will be overwritten anyway.
