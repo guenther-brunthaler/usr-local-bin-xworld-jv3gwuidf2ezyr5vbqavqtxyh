@@ -1,32 +1,25 @@
 #! /bin/sh
 # Run a shell in a temporary directory to be removed when the shell exits.
 
-
-die() {
-	echo "ERROR: $*" >& 2
-	false; exit
+set -e
+cleanup() {
+	local rc=$?
+	cd
+	test -n "$T" && rm -rf -- "$T"
+	test $rc = 0 || echo "$APP failed!" >& 2
 }
-
-
-run() {
-	"$@" && return
-	die "Could not execute >>>$*<<<: return code ${?}!"
-}
-
-
-system() {
-	REPLY=`run "$@"` || exit
-}
-
-
-system mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
-trap "cd && rm -rf '$T'" 0
-echo "Entering temporary shell directory '$T'."
-echo "Enter 'exit' to leave and remove temporary directory."
-run cd "$T"
+APP=${0##*/}
+T=
+trap cleanup 0
+T=`mktemp -d "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
+echo "Entering temporary shell directory '$T'." >& 2
+export p=`pwd`
+echo "The former parent directory is available as \$p." >& 2
+echo "Enter 'exit' to leave and remove temporary directory." >& 2
+cd "$T"
 PS1='\u@\h [tmpshell] \$ ' # Most likely, this will be overwritten anyway.
 export PS1
 MYSH=${SHELL:-/bin/sh}
-run test -x "$MYSH"
+test -x "$MYSH"
 "$MYSH"
-echo "Removing temporary shell directory '$T'."
+echo "Removing temporary shell directory '$T'." >& 2
