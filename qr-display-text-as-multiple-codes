@@ -1,0 +1,131 @@
+#! /bin/sh
+QR_BYTES_MAX=190
+QR_WANTS_CODEPAGE=WINDOWS-1252
+SEPARATOR_CHAR='-'
+SEPARATOR_CHARS_IN_SEPARATOR=5
+
+set -e
+
+exit_version() {
+	wr -s <<- EOF; exit
+	$APP version 15.235
+
+	(c) 2015 by Guenther Brunthaler.
+	This script is free software.
+	Distribution is permitted under the terms of the GPLv3.
+EOF
+}
+
+exit_help() {
+	wr <<- EOF; exit
+	$APP - display text as a sequence of QR-codes
+	
+	Usage: $APP
+	   [ <options> ] files ...
+	   
+	where
+	
+	<files> is an arbitrary number of text files in current locale
+	encoding to be displayed. If no files are specified, text is read from
+	standard input instead.
+	
+	If more than one file is specified, the contents of the files will be
+	concatenated for display, prefixed by the input file names and
+	separated from each other by a separator line ("$sep").
+	
+	If reading from standard input or only a single file has been
+	specified, just the contents are used and no indication of a file name
+	will be conveyed.
+	
+	Options:
+	
+	-b <bytes>:
+	   Override the default maximum bytes ($QR_BYTES_MAX) of text to be
+	   displayed per QR-code in the sequence. Lower values will display
+	   more QR-codes, but the displayed codes may be easier to read by
+	   capturing devices because of the lower resolution.
+	-c <charset>:
+	   The character set to be used within the QR code. Defaults to
+	   "$QR_WANTS_CODEPAGE".
+	-h:
+	   Display this help and exit.
+	-V:
+	   Display version information and exit.
+
+EOF
+	exit_version
+}
+
+wr() {
+	local opts=
+	test -z "$*" && opts=-c
+	{
+		fmt -w "$LINEWIDTH" $opts "$@" \
+		|| fold -s "$@" | sed 's/[[:space:]]*$//' \
+		|| cat "$@"
+	} 2> /dev/null
+}
+LINEWIDTH=
+test -t 0 && LINEWIDTH=`tput cols` || LINEWIDTH=
+mxlw=100; test ${LINEWIDTH:=66} -gt $mxlw && LINEWIDTH=$mxlw
+
+
+cleanup() {
+	local rc=$? t
+	for t in "$T1" "$T2"
+	do
+		test -n "$t" && rm -- "$t"
+	done
+	test $rc = 0 || echo "$APP failed!" >& 2
+}
+APP=${0##*/}
+T1=
+T2=
+trap cleanup 0
+sep=`
+	dd if=/dev/zero bs=1 count="$SEPARATOR_CHARS_IN_SEPARATOR" \
+		2> /dev/null \
+	| tr -c -- "$SEPARATOR_CHAR" "$SEPARATOR_CHAR"
+`
+while getopts b:c:hV opt
+do
+	case $opt in
+		b) QR_BYTES_MAX=$OPTARG;;
+		c) QR_WANTS_CODEPAGE=$OPTARG;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+T2=${TMPDIR:-/tmp}/$APP.XXXXXXXXXX
+T1=`mktemp "$T2"`
+T2=`mktemp "$T2"`
+case $# in
+	0) cat > "$T1";;
+	1) cat "$1" > "$T1";;
+	*)
+		first=true
+		for f
+		do
+			if $first
+			then
+				first=false
+			else
+				echo $sep
+			fi
+			printf '$s:\n' "$f"
+			cat "$f"
+		done > "$T1"
+esac
+iconv -t "$QR_WANTS_CODEPAGE" "$T1" > "$T2"
+skip=0
+while :
+do
+	dd if="$T2" of="$T1" bs=$QR_BYTES_MAX count=1 skip=$skip 2> /dev/null
+	test ! -s "$T1" && break
+	skip=`expr $skip + 1`
+	echo "Displaying output block # $skip." >& 2
+	qrencode -o - < "$T1" | display
+done
+echo "Finished." >& 2
