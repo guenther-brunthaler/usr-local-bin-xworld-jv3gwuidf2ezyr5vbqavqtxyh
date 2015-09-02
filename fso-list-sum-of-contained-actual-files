@@ -1,0 +1,48 @@
+#! /bin/sh
+
+trap 'test $? = 0 || echo "${0##*/} failed!" >& 2' 0
+sum=0
+files=0
+others=0
+while IFS= read fso
+do
+	if test -f "$fso" && test ! -L "$fso"
+	then
+		size=`stat -c %s -- "$fso"`
+		sum=`expr $sum + $size`
+		files=`expr $files + 1`
+	elif test -e "$fso"
+	then
+		others=`expr $others + 1`
+	else
+		echo "Ignoring non-existing '$fso'!" >& 2
+	fi
+done
+if test ! -t 1
+then
+	echo $sum
+	exit
+fi
+sum=${sum}0
+for u in bytes K M G T P E Z Y bad
+do
+	test $u != bad
+	if test $sum -lt 10000
+	then
+		case $u in
+			?) u=${u}iB
+		esac
+		case $sum in
+			??*)
+				int=${sum%?}; fract=${sum#"$int"}
+				sum=$int
+				test $fract != 0 && sum=$sum.$fract
+		esac
+		sum="$sum $u"
+		break
+	fi
+	sum=`expr "(" $sum + 512 ")" / 1024`
+done
+echo "$sum in $files files."
+test $others = 0 && exit
+echo "$others non-file file system objects have been ignored." >& 2
