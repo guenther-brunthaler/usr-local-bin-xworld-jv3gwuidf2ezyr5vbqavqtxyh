@@ -1,11 +1,11 @@
 #! /bin/sh
 
 trap 'test $? = 0 || echo "${0##*/} failed!" >& 2' 0
-add=500; div=1000; suffix=B
+base=1000; suffix=B
 while getopts b opt
 do
 	case $opt in
-		b) add=512; div=1024; suffix=iB;;
+		b) base=1024; suffix=iB;;
 		*) false || exit
 	esac
 done
@@ -31,22 +31,23 @@ then
 	echo $sum
 	exit
 fi
-sum=${sum}0
+sum=${sum}0; factor=1
 for u in bytes K M G T P E Z Y bad
 do
 	test $u != bad
-	if test $sum -lt 10000
+	val=`expr "(" $sum + $factor / 2 ")" / $factor`
+	if test $val -lt 10000
 	then
 		case $u in
 			?) u=$u$suffix
 		esac
-		int=${sum%?}; fract=${sum#"$int"}
+		int=${val%?}; fract=${val#"$int"}
 		sum=$int
 		test $fract != 0 && sum=$sum.$fract
 		sum="$sum $u"
 		break
 	fi
-	sum=`expr "(" $sum + $add ")" / $div`
+	factor=`expr $factor "*" $base`
 done
 echo "$sum in $files files."
 test $others = 0 && exit
