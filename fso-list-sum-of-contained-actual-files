@@ -32,12 +32,9 @@ do
 		case $u in
 			?) u=${u}iB
 		esac
-		case $sum in
-			??*)
-				int=${sum%?}; fract=${sum#"$int"}
-				sum=$int
-				test $fract != 0 && sum=$sum.$fract
-		esac
+		int=${sum%?}; fract=${sum#"$int"}
+		sum=$int
+		test $fract != 0 && sum=$sum.$fract
 		sum="$sum $u"
 		break
 	fi
