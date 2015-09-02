@@ -43,7 +43,7 @@ do
 		esac
 		int=${val%?}; fract=${val#"$int"}
 		sum=$int
-		test $fract != 0 && sum=$sum.$fract
+		test $factor != 1 && sum=$sum.$fract
 		sum="$sum $u"
 		break
 	fi
