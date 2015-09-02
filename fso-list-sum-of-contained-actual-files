@@ -38,13 +38,11 @@ do
 	val=`expr "(" $sum + $factor / 2 ")" / $factor`
 	if test $val -lt 10000
 	then
-		case $u in
-			?) u=$u$suffix
-		esac
 		int=${val%?}; fract=${val#"$int"}
-		sum=$int
-		test $factor != 1 && sum=$sum.$fract
-		sum="$sum $u"
+		case $u in
+			?) sum="$int.$fract $u$suffix";;
+			*) sum="$int $u"
+		esac
 		break
 	fi
 	factor=`expr $factor "*" $base`
