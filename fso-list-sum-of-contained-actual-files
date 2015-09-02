@@ -32,11 +32,10 @@ then
 	exit
 fi
 sum=${sum}0; factor=1
-for u in bytes K M G T P E Z Y bad
+for u in bytes K M G T P E Z Y
 do
-	test $u != bad
 	val=`expr "(" $sum + $factor / 2 ")" / $factor`
-	if test $val -lt 10000
+	if test $val -lt 10000 || test $u = Y
 	then
 		int=${val%?}; fract=${val#"$int"}
 		case $u in
