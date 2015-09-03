@@ -23,5 +23,9 @@ start=`date -d "$start" +%s`
 	'
 } | awk -F, '
 	$1 ~ /^[1-9]/ && $1 >= '$start' {s+= $2 + $3}
-	END {printf "%.2f MiB\n", s / 2 ^ 20}
-'
+	END {printf "%.2f\n", s / 2 ^ 20}
+' | {
+	c=`locale -k LC_NUMERIC | grep decimal_point`
+	decimal_point='.'; eval "$c"
+	sed -e "s/[.]/$decimal_point/" -e 's/$/ MiB/'
+}
