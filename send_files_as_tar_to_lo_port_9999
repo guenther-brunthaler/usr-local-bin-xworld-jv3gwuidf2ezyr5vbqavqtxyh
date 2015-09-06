@@ -1,6 +1,6 @@
 #! /bin/sh
 set -e
-trap "echo 'Failed!' >& 2" 0
+trap "test $? = 0 || echo 'Failed!' >& 2" 0
 APP=$0
 while :
 do
@@ -19,12 +19,27 @@ LOCAL_IP=`
 `
 : ${LOCAL_IP:="<unknown>"} ${LOCAL_IF:="<unspecified>"}
 : ${LOCAL_PORT:="<unknown>"}
+wr() {
+	local wr cols=66 maxcols=100
+	wr=`tput cols 2> /dev/null || echo ${COLUMNS:-$cols}`
+	test $wr -lt $maxcols && cols=$wr
+	if wr=`which fmt 2> /dev/null`
+	then
+		"$wr" -w$cols -c
+	elif wr=`which fold 2> /dev/null`
+	then
+		"$wr" -w$cols -s | sed 's/ *$//'
+	else
+		cat
+	fi | sed '0,/^(c)/ b; /./ b; d'
+}
 test $# -ge 1 && test -e "$1" || set -- --usage
 case $1 in
-	--help | -h | --usage) cat << EOF; trap - 0; exit
+--help | -h | --usage) wr << EOF; exit
 $APP - send files/directories as a tar archive via raw TCP
 
-Usage: $APP <files_and_or_directories>
+Usage:
+   $APP <files_and_or_directories>
 
 Listens at local port $LOCAL_PORT on interface '$LOCAL_IF' and sends a set of
 files/directories as a tar archive (created on the fly) over raw TCP to any
@@ -48,10 +63,12 @@ to "hard-wire" different interface/port combinations. It is also possible to
 add an initial argument --override-script-name=<name> which will then be used
 as the script name instead of "$APP".
 
-$APP version 13.93
+$APP version 15.249
 
-(c) 2013 by Günther Brunthaler.
+(c) 2013 - 2015 by Guenther Brunthaler.
+
 This script is free software.
+
 Distribution is permitted under the terms of the GPLv3.
 EOF
 esac
@@ -59,4 +76,3 @@ esac
 tar -cv "$@" | socat -u \
 	STDIN \
 	TCP4-LISTEN:"$LOCAL_PORT",bind="$LOCAL_IP",reuseaddr
-trap - 0

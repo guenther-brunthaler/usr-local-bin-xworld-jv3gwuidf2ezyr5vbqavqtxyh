@@ -1,6 +1,6 @@
 #! /bin/sh
 set -e
-trap "echo 'Failed!' >& 2" 0
+trap "test $? = 0 || echo 'Failed!' >& 2" 0
 APP=$0
 while :
 do
@@ -18,12 +18,26 @@ LOCAL_IP=`
 	'
 `
 : ${LOCAL_IP:="<unknown>"} ${LOCAL_IF:="<unspecified>"} ${PORT:="<unknown>"}
+wr() {
+	local wr cols=66 maxcols=100
+	wr=`tput cols 2> /dev/null || echo ${COLUMNS:-$cols}`
+	test $wr -lt $maxcols && cols=$wr
+	if wr=`which fmt 2> /dev/null`
+	then
+		"$wr" -w$cols -c
+	elif wr=`which fold 2> /dev/null`
+	then
+		"$wr" -w$cols -s | sed 's/ *$//'
+	else
+		cat
+	fi | sed '0,/^(c)/ b; /./ b; d'
+}
 case $1 in
-	--help | -h | --usage) cat << EOF; trap - 0; exit
+	--help | -h | --usage) wr << EOF; exit
 $APP - extract contents of a tar archive received via raw TCP
 
-Usage: $APP
-       $APP <listening_sender>
+Usage:
+   $APP [ <listening_sender> ]
 
 Receives files from a tar archive sent over raw TCP from a different host.
 
@@ -45,9 +59,9 @@ script in order to "hard-wire" different interface/port combinations. It is
 also possible to add an initial argument --override-script-name=<name> which
 will then be used as the script name instead of "$APP".
 
-$APP version 13.82.2
+$APP version 15.249
 
-(c) 2013 by Günther Brunthaler.
+(c) 2013 - 2015 by Günther Brunthaler.
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 EOF
@@ -61,4 +75,3 @@ else
 fi
 src=$src,bind="$LOCAL_IP"
 socat -u "$src" STDOUT | tar -xv
-trap - 0
