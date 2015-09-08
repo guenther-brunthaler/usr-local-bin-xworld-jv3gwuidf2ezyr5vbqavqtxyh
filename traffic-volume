@@ -2,18 +2,30 @@
 # Displays the combined up- and download byte count on the specified interface
 # (defaults to ppp0) since the interface was brought up.
 
-PATH=/sbin:/usr/sbin:$PATH
-LC_ALL=C ifconfig ${1:-ppp0} | perl -ne '
-	BEGIN {
-		$b= 0;
-	}
-	if (/RX[^0-9]*([0-9]*).*TX[^0-9]*([0-9]*)/) {
-		$b= $1 + $2;
-	} elsif (/\s[RT]X packets\s.*\sbytes\s*(\d+)/) {
-		$b+= $1;
-	}
-	END {
-		$mb= 1024 ** 2;
-		printf "%.2f MiB\n", $b / $mb;
-	}
-'
+set -e
+log=/var/log/ppp-traffic.log
+
+trap 'test $? = 0 || echo "${0##*/} failed!" >& 2' 0
+export PATH=/sbin:/usr/sbin:/usr/local/sbin:$PATH
+
+now=`date +%s`
+start=`date -d "@$now" +'%Y-%m-%d'`
+start=`date -d "$start" +%s`
+{
+	test -e "$log" && cut -d, -f6,8,9 "$log"
+	{
+		LC_ALL=C ifconfig "${1:-ppp0}" 2> /dev/null || :
+	} | awk '
+		BEGIN {r= t= 0}
+		$1 == "RX" && $4 == "bytes" {r= $5}
+		$1 == "TX" && $4 == "bytes" {t= $5}
+		END {print "'"$now"'," r "," t}
+	'
+} | awk -F, '
+	$1 ~ /^[1-9]/ && $1 >= '$start' {s+= $2 + $3}
+	END {printf "%.2f\n", s / 2 ^ 20}
+' | {
+	c=`locale -k LC_NUMERIC | grep decimal_point`
+	decimal_point='.'; eval "$c"
+	sed -e "s/[.]/$decimal_point/" -e 's/$/ MiB/'
+}
