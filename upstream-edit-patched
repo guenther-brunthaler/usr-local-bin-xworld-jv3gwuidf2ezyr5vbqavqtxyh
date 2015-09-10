@@ -66,7 +66,7 @@ test -f "$1" || die "File '$1' to be patched does not exist!"
 if test -f "$upstream"
 then
 	T=`mktemp "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
-	LC_ALL=C TZ=UTC0 diff -- "$upstream" "$1" > "$T" || :
+	LC_ALL=C TZ=UTC0 diff -u -- "$upstream" "$1" > "$T" || :
 	if test -f "$patch" && cmp -s -- "$T" "$patch"
 	then
 		say "(No changes in patch.)"
