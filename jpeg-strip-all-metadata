@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << .; exit
-$APP version 15.273
+$APP version 15.273.1
 
 (c) 2015 by Guenther Brunthaler.
 This script is free software.
@@ -12,7 +12,7 @@ APP=${0##*/}
 
 exit_help() {
 	wr << .; exit_version
-$APP - purge all non-image metadate from JPEG files
+$APP - purge all non-image metadata from JPEG files
 
 Usage:
    $APP [ <options> ... ] <jpeg_file> ...
@@ -28,11 +28,11 @@ Options:
 -V:
    Show version information and exit.
 
-$APP removes all metadata such as comments, EXIF-information etc. from the
+$APP removes all metadata such as comments, EXIF-information, etc. from the
 current contents of the specified JPEG files.
 
 Use it to remove any identifying information except for the image data itself
-from the contents of the files.
+(beware of possible watermarking!) from the contents of the files.
 
 $APP also (losslessly) optimizes the ICT coefficients of the existing
 compressed image data, possibly making the file smaller.
