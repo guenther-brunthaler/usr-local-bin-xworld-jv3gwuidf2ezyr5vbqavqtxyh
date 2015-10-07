@@ -1,0 +1,101 @@
+#! /bin/sh
+exit_version() {
+	wr -s << .; exit
+$APP version 15.273.1
+
+(c) 2015 by Guenther Brunthaler.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << .; exit_version
+$APP - purge all non-image metadata from JPEG files
+
+Usage:
+   $APP [ <options> ... ] <jpeg_file> ...
+
+Options:
+
+-q:
+   Quiet operation. Displays no progress information. Errors are still shown.
+-D:
+   Show debug information.
+-h:
+   Show this help and exit.
+-V:
+   Show version information and exit.
+
+$APP removes all metadata such as comments, EXIF-information, etc. from the
+current contents of the specified JPEG files.
+
+Use it to remove any identifying information except for the image data itself
+(beware of possible watermarking!) from the contents of the files.
+
+$APP also (losslessly) optimizes the ICT coefficients of the existing
+compressed image data, possibly making the file smaller.
+
+$APP is a thin wrapper around the "jpegtran" command, which does the actual
+work and therefore needs to be installed.
+
+.
+}
+
+MAX_WIDTH=100
+test -t 1 && LINEWIDTH=`tput cols 2> /dev/null` || LINEWIDTH=$COLUMNS
+test ${LINEWIDTH:=66} -gt $MAX_WIDTH && LINEWIDTH=$MAX_WIDTH
+
+if tool=`which fmt`
+then
+	wr() {
+		"$tool" -w $LINEWIDTH -c "$@"
+	}
+elif tool=`which fold`
+then
+	wr() {
+		"$tool" -s $LINEWIDTH | sed 's/[[:space:]]\+$//'
+	}
+else
+	wr() {
+		cat
+	}
+fi
+
+set -e
+cleanup() {
+	local rc=$?
+	test -n "$T" && rm -- "$T"
+	test $rc = 0 || echo "$APP failed!" >& 2
+}
+T=
+trap cleanup 0
+verbose=true
+opts=
+while getopts qDhV opt
+do
+	case $opt in
+		D) opts="$opts -verbose";;
+		q) verbose=false;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+T=`mktemp "${TMPDIR:-/tmp}/$APP".XXXXXXXXXX`
+for f
+do
+	jpegtran$opts -optimize -copy none -perfect "$f" > "$T"
+	if cmp -s -- "$f" "$T"
+	then
+		if $verbose
+		then
+			echo "(No changes in '$f'.)" >& 2
+		fi
+	else
+		$verbose && echo "Updating '$f'..." >& 2
+		cat "$T" > "$f"
+	fi
+done

@@ -1,0 +1,98 @@
+#! /bin/sh
+exit_help() {
+cat << EOF && exit
+$APP
+
+Maintain patches for local modifications made to upstream files.
+
+When putting both the locally modified file and the patch under
+version control, it is easy to integrate future upstream changes
+by just letting upstream overwrite the local changes and then
+re-applying the patch.
+
+This script shall be called before and after editing the locally
+modified file.
+
+Before the modification, it reconstructs a the upstream version
+by reversing the patch to a copy of the locally modified file.
+
+If no patch exists yet, a copy of the file is made and it is
+assumed to be the unmodified upstream version. Option -f needs to
+be specified in this case in order to avoid creating new files
+accidentally because of spelling errors or incorrect command line
+arguments.
+
+When called after the modification, a new patch is generated from
+the contents of the reconstructed upstream version and the new
+locally modified version. After this, the reconstructed upstream
+version is deleted because it is no longer required.
+
+$APP version 15.253
+
+(c) 2015 by Guenther Brunthaler.
+This source file is free software.
+Distribution is permitted under the terms of the GPLv3.
+EOF
+}
+
+set -e
+say() {
+	printf '%s\n' "$*" >& 2
+}
+cleanup() {
+	local rc=$?
+	test -n "$T" && rm -- "$T"
+	test $rc = 0 || say "$APP failed!"
+}
+APP=${0##*/}
+T=
+trap cleanup 0
+force=false
+while getopts fh opt
+do
+	case $opt in
+		h) exit_help;;
+		f) force=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+die() {
+	say "$@"; false || exit
+}
+test $# = 1 || die "One argument required: The file to be patched."
+patch=$1.patch
+upstream=$1.upstream
+test -f "$1" || die "File '$1' to be patched does not exist!"
+if test -f "$upstream"
+then
+	T=`mktemp "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
+	LC_ALL=C TZ=UTC0 diff -u -- "$upstream" "$1" > "$T" || :
+	if test -f "$patch" && cmp -s -- "$T" "$patch"
+	then
+		say "(No changes in patch.)"
+	else
+		if test ! -f "$patch"
+		then
+			test ! -e "$patch"
+			cp -a -- "$1" "$patch" # Copy permissions.
+		fi
+		cat "$T" > "$patch"
+		say "Updated '$patch'."
+	fi
+	rm -- "$upstream"
+elif test -f "$patch"
+then
+	cp -a -- "$1" "$upstream"
+	patch -R -- "$upstream" "$patch" || {
+		rm -- "$upstream"
+		die "Could not revert '$patch' to reconstruct '$upstream'!"
+	}
+	say "Reconstructed '$upstream'."
+elif $force
+then
+	cp -a -- "$1" "$upstream"
+	say "Created '$upstream' directly from '$1'."
+else
+	die "Neither '$upstream' nor '$patch' exist and -f was not specified."
+fi
