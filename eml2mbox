@@ -16,7 +16,7 @@ inform() {
 }
 
 convert() {
-	date -d "@$1" +'From - %a %b %e %H:%M:%S %Y'
+	printf 'From - %s\015\012' "`date -d "@$1" +'%a %b %e %H:%M:%S %Y'`"
 	cat
 }
 
