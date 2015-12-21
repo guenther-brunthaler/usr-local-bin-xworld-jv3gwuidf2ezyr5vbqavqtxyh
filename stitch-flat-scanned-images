@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << EOF | wrs; exit
-$APP version 15.355
+$APP version 15.355.1
 
 (c) 2015 by Guenther Brunthaler.
 This script is free software.
@@ -15,19 +15,19 @@ APP=${0##*/}
 
 exit_help() {
 	cat << EOF | wr; exit_version
-$APP - steamlessly stitch together a series of flat-scanned images
+$APP - seamlessly stitch together a series of flat-scanned images
 
 Usage:
   $APP [ <options> ... ] <image1> <image2> ...
 
 $APP reads two or more input image files which represent different parts of a
-single large 2D picture and uses "ImageMagick" and the "Hugin" panorama
-stitcher in order to reconstruct the large picture from the specified
-fragments images.
+single larger 2D picture and uses "ImageMagick" and the "Hugin" panorama
+stitcher in order to reconstruct the large picture from the specified fragment
+images.
 
 A typical application for $APP would be reassembling an image which was too
-large to fit into a flatbed scanner, so it was scanned as multiple overlapping
-fragment images instead.
+large to fit into a flatbed scanner, so it has been scanned as multiple
+slightly overlapping fragment images instead.
 
 $APP will effectively play a puzzle game with the input files, trying to
 figure out how they need to be rotated and shifted in order to blend together
@@ -35,16 +35,16 @@ nicely.
 
 If the puzzle problem should become too complex, $APP may fail. In this case,
 manually subdivide the set of fragment images, and use $APP to assemble a
-larger fragments from each set. Continue this process recursively until only a
+larger fragment from each set. Continue this process recursively until only a
 single image remains.
 
 The input files must all have the same resolution, and the stitched output
 file will also have that resolution. Any input file format supported by
 ImageMagick is allowed.
 
-The output file will always be created as a TIFF file with LZW compression.
-Use "convert" after running $APP in order to convert the output file into a
-different format if required.
+The output file will always be created as a TIFF file with lossless LZW
+compression. Use "convert" after running $APP in order to convert the output
+file into a different format if required.
 
 At least two images files must be specified as input files. $APP will create
 the stitched output file in the current directory by concatenating the
