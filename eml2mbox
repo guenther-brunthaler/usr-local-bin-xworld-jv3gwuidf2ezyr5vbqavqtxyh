@@ -1,0 +1,52 @@
+#! /bin/sh
+# Convert an arbitrary number of *.eml files specified as arguments into a
+# single MBOX file written to standard output. If no arguments are provided, a
+# single EML file will be read from standard input instead.
+#
+# (c) 2015 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+inform() {
+	$verbose && return
+	echo "$*" >& 2
+}
+
+convert() {
+	printf 'From - %s\015\012' "`date -d "@$1" +'%a %b %e %H:%M:%S %Y'`"
+	cat
+}
+
+verbose=true
+while getopts q opt
+do
+	case $opt in
+		q) verbose=false;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+count=0
+if test $# = 0 || test $# = 1 && test x"$1" = x"-"
+then
+	inform "Reading *.eml message from standard input..."
+	mod=`date +%s`
+	test -n "$mod"
+	convert "$mod"
+	count=1
+else
+	for eml
+	do
+		inform "Reading *.eml message from file '$eml'..."
+		test -f "$eml"
+		test -r "$eml"
+		mod=`stat -c %Y -- "$eml"`
+		test -n "$mod"
+		convert "$mod" < "$eml"
+		count=`expr $count + 1`
+	done
+fi
+inform "$count file(s) have been converted."
