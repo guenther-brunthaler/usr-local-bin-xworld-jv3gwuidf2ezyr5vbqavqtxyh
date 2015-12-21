@@ -1,0 +1,185 @@
+#! /bin/sh
+exit_version() {
+	cat << EOF | wrs; exit
+$APP version 15.355
+
+(c) 2015 by Guenther Brunthaler.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+
+Heavily based on the script by Terry Duell (c) 2013, 2014, 2015
+from http://hugin.sourceforge.net/tutorials/hugin-2015.0.0/en.shtml
+EOF
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << EOF | wr; exit_version
+$APP - steamlessly stitch together a series of flat-scanned images
+
+Usage:
+  $APP [ <options> ... ] <image1> <image2> ...
+
+$APP reads two or more input image files which represent different parts of a
+single large 2D picture and uses "ImageMagick" and the "Hugin" panorama
+stitcher in order to reconstruct the large picture from the specified
+fragments images.
+
+A typical application for $APP would be reassembling an image which was too
+large to fit into a flatbed scanner, so it was scanned as multiple overlapping
+fragment images instead.
+
+$APP will effectively play a puzzle game with the input files, trying to
+figure out how they need to be rotated and shifted in order to blend together
+nicely.
+
+If the puzzle problem should become too complex, $APP may fail. In this case,
+manually subdivide the set of fragment images, and use $APP to assemble a
+larger fragments from each set. Continue this process recursively until only a
+single image remains.
+
+The input files must all have the same resolution, and the stitched output
+file will also have that resolution. Any input file format supported by
+ImageMagick is allowed.
+
+The output file will always be created as a TIFF file with LZW compression.
+Use "convert" after running $APP in order to convert the output file into a
+different format if required.
+
+At least two images files must be specified as input files. $APP will create
+the stitched output file in the current directory by concatenating the
+basenames of the input files with "+". For instance,
+
+\$ $APP left.jpg right.png
+
+will create output file "left+right.tif". The output file name can also be
+explicitly specified using -o (see below).
+
+Supported options:
+
+-o <outfile>:
+  Specify the output filename explicitly.
+-h:
+  Show this help and exit.
+-V:
+  Show version information and exit.
+
+EOF
+}
+
+set -e
+cleanup() {
+	local rc=$?
+	test -n "$TD" && rm -rf -- "$TD"
+	test $rc = 0 || echo "$0 failed!" >& 2
+}
+TD=
+trap cleanup 0
+
+if
+	test -t 0 && LINEWIDTH=`tput cols 2> /dev/null` \
+	&& test -n "$LINEWIDTH"
+then
+	MAX=100
+	test $LINEWIDTH -gt $MAX && LINEWIDTH=$MAX
+else
+	LINEWIDTH=66
+fi
+
+have() {
+	which $1 > /dev/null 2>& 1 || false
+}
+
+if have fmt
+then
+	wr() { fmt -c -w $LINEWIDTH; }
+elif have fold
+then
+	wr() { fold -s -w $LINEWIDTH | sed 's/[[:space:]]\+$//'; }
+else
+	wr() { cat; }
+fi
+
+wrs() {
+	sed 's/^$/|/; p; s/.*//' | wr | sed '/^$/d; s/^|$//'
+}
+
+outfile=
+while getopts o:hV opt
+do
+	case $opt in
+		o) outfile=$OPTARG;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+for tool in \
+	convert make identify autooptimiser cpclean cpfind linefind \
+	pano_modify pto2mk pto_gen pto_lensstack pto_var
+do
+	x=`which -- "$tool"`
+	test -n "$x"; test -f "$x"; test -x "$x"
+	eval "$tool=\$x"
+done
+
+test $# -ge 2
+
+TD=`mktemp -d "${TMPDIR:-/tmp}/$APP".XXXXXXXXXX`
+
+infiles=
+nf=1
+cfp=
+resunits=
+for f
+do
+	test -f "$f"
+	test -r "$f"
+	of=$nf.tif
+	echo "Loading '$f'..." >& 2
+	"$convert" "$f" -compress LZW "$TD/$of"
+	"$identify" -format '%x %y %U\n' "$TD/$of" > "$TD/ii.txt"
+	read n_xres n_yres n_resunits < "$TD/ii.txt"
+	test -n "$n_xres"
+	test -n "$n_yres"
+	test -n "$n_resunits"
+	if test -n "$resunits"
+	then
+		test x"$n_xres" = x"$xres"
+		test x"$n_yres" = x"$yres"
+		test x"$n_resunits" = x"$resunits"
+	else
+		xres=$n_xres; yres=$n_yres; resunits=$n_resunits
+	fi
+	infiles="$infiles $of"
+	bf=${f##*/}; cfp=$cfp${cfp:++}${bf%.*}
+	nf=`expr $nf + 1`
+done
+test -n "$cfp"
+test -z "$outfile" && outfile=$cfp.tif
+
+Prefix=out
+result=$TD/$Prefix.tif
+FOV=10
+(
+	cd "$TD"
+	"$pto_gen" --projection=0 --fov=$FOV -o project.pto$infiles
+	"$pto_lensstack" -o project1.pto --new-lens i1 project.pto
+	"$cpfind" -o project1.pto --multirow project1.pto
+	"$cpclean" -o project2.pto project1.pto
+	"$linefind" -o project3.pto project2.pto
+	opt=TrX,TrY,TrZ,r,Eev,Ra,Rb,Rc,Rd,Re
+	opt=$opt,!TrX0,!TrY0,!TrZ0,!r0,!Eev0,!Ra1,!Rb1,!Rc1,!Rd1,!Re1
+	"$pto_var" -o setoptim.pto --opt $opt project3.pto
+	"$autooptimiser" -n -o autoptim.pto setoptim.pto
+	"$pano_modify" --projection=0 --fov=AUTO --center --canvas=AUTO \
+		--crop=AUTO -o autoptim2.pto autoptim.pto
+	"$pto2mk" -o project.mk -p $Prefix autoptim2.pto
+	"$make" -f project.mk all
+)
+test -f "$result"
+echo "Creating '$outfile'..." >& 2
+"$convert" "$result" -compress LZW -units $resunits \
+	-density ${xres}x$yres "$outfile"
