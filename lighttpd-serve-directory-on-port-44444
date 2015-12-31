@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s <<- . && OK=y && exit
-	$APP version 15.98
+	$APP version 15.365
 
 	(c) 2015 by Guenther Brunthaler.
 	This script is free software.
@@ -75,6 +75,14 @@ exit_help() {
 	    Make $ws bind to "localhost" only. This is the default and
 	    therefore a no-op, but specifying this option explicitly
 	    represents a statement about the privacy of the data to be served.
+	-r:
+	    Enable raw mode. In this mode, all files in the directory will be
+	    reported as MIME-type application/octet-stream instead of assuming
+	    a MIME type based on well-known file extensions. This allows
+	    downloading them as-is in most web browsers instead of
+	    interpreting the file contents as web pages, images, video files
+	    etc. It will also avoid online-playback of multimedia files,
+	    downloading them instead.
 	-D:
 	    Debug. Dumps the temporarily created configuration file for $ws.
 	    This allows one to see which $ws options are actually used.
@@ -121,9 +129,10 @@ trap cleanup 0
 interface=
 port=
 docdir=
-dumpcfg=
+dumpcfg=false
+raw=false
 DEFAULT_PORT=${0##*-}; : ${DEFAULT_PORT:=8080}
-while getopts d:p:i:alDVh OPT
+while getopts d:p:i:arlDVh OPT
 do
 	case $OPT in
 		d) docdir=$OPTARG;;
@@ -131,7 +140,8 @@ do
 		a) interface=0.0.0.0;;
 		l) interface=;;
 		p) port=$OPTARG;;
-		D) dumpcfg=y;;
+		D) dumpcfg=true;;
+		r) raw=true;;
 		V) exit_version;;
 		h) exit_help;;
 		*) false || exit
@@ -148,10 +158,17 @@ test -n "$docdir"
 docdir=`readlink -f "$docdir"`
 test -d "$docdir"
 
-cat << EOF > "$cfg"
+{
+	cat << EOF
 server.modules = ("mod_access")
 
 mimetype.assign = (
+EOF
+	if $raw
+	then
+		:
+	else
+		cat << EOF
   ".svg"          =>      "image/svg+xml",
   ".svgz"         =>      "image/svg+xml",
   ".pdf"          =>      "application/pdf",
@@ -205,10 +222,24 @@ mimetype.assign = (
   ".tbz"          =>      "application/x-bzip-compressed-tar",
   ".tar.bz2"      =>      "application/x-bzip-compressed-tar",
   ""              =>      "text/plain"
- )
+EOF
+	fi
+	cat << EOF
+)
 
 server.document-root  = "$docdir"
+EOF
+	if $raw
+	then
+		cat << EOF
+server.indexfiles     = ()
+EOF
+	else
+		cat << EOF
 server.indexfiles     = ("index.html")
+EOF
+	fi
+	cat << EOF
 server.follow-symlink = "enable"
 server.event-handler  = "linux-sysepoll"
 server.port           = $port
@@ -220,7 +251,8 @@ dir-listing.encoding = "utf-8"
 
 url.access-deny = ("~", ".inc", ".disabled")
 EOF
-if test -n "$dumpcfg"
+} > "$cfg"
+if $dumpcfg
 then
 	sep=`dd if=/dev/zero count=66 bs=1 2> /dev/null | tr -c = =`
 	echo $sep
