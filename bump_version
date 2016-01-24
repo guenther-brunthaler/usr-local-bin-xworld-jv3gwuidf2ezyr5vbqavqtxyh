@@ -23,33 +23,33 @@ trap cleanup 0
 
 process() {
 	awk -v file="$1" -v day="$day" -v year="$year" '
-		function f(msg) {
+		function qf(msg) {
 			return msg " in file \"" file "\""
 		}
 		
-		function i(info) {
-			print info > "/dev/stderr"
+		function info(msg) {
+			print msg > "/dev/stderr"
 		}
 
-		function d(msg) {
-			i(f(msg) "!")
+		function die(msg) {
+			info(qf(msg) "!")
 			exit 1
 		}
 		
-		function u(what) {
-			i("Updating " f(what) "...")
+		function update(what) {
+			info("Updating " qf(what) "...")
 		}
 		
-		#function r(k, v) {
-		#	i(k " == >>>" v "<<<.")
+		#function report(k, v) {
+		#	info(k " == >>>" v "<<<.")
 		#}
 		
-		function p(text, ere) {
+		function parse(text, ere) {
 			rest= text
-			return m(ere)
+			return mnx(ere)
 		}
 		
-		function m(ere) {
+		function mnx(ere) {
 			if (match(rest, ere)) {
 				mt= substr(rest, 1, RSTART - 1 + RLENGTH)
 				rest= substr(rest, RSTART + RLENGTH)
@@ -57,33 +57,54 @@ process() {
 			return RSTART
 		}
 		
+		function splitA(str, arr, sep) {
+			return arr[0]= split(str, arr, sep)
+		}
+		
+		function joinA(arr, sep,   i, n, r) {
+			n= arr[0]
+			r= arr[1]
+			for (i= 2; i <= n; ++i) r= r sep arr[i]
+			return r
+		}
+		
+		BEGIN {
+			crx= "[(][Cc][)][[:space:]]+"
+			vrx= "[[:space:]]+[Vv]ersion[[:space:]]+"
+			vnrx= "(0|[1-9][0-9]*)"
+			vnrx= "^" vnrx "([.]" vnrx ")*"
+		}
+		
 		{dopr= 1}
 	
-		p($0, "[(][Cc][)][[:space:]]+") {
+		parse($0, crx) {
 			pfx= mt
-			sy= ""; if (m("^2[0-9]{3}")) sy= mt
+			sy= ""; if (mnx("^2[0-9]{3}")) sy= mt
 			sep= ""
-			if (sy != "" && m("^[[:space:]]*--?[[:space:]]*")) {
+			if (sy != "" && mnx("^[[:space:]]*--?[[:space:]]*")) {
 				sep= mt
 			}
-			ey= "";	if (sep != "" && m("2[0-9]{3}")) ey= mt
+			ey= "";	if (sep != "" && mnx("2[0-9]{3}")) ey= mt
 			if (sy != "" && rest != "" && rest ~ /^[0-9]/) {
-				d("Missing valid copyright end year")
+				die("Missing valid copyright end year")
 			}
 			if (sy != "" && ey == "") ey= sy
 			if (sy != "" && sy > ey) {
-				d( \
+				die( \
 					"copyright start year " sy \
 					" was greater than end year " ey \
 				)
 			}
 			if (sy != "" && ey != year) {
-				if (year < ey) d( \
+				if (year < ey) die( \
 					"new copyright end year " year \
 					" would become less then current" \
 					" end year " ey \
 				)
-				u("copyright end year from " ey " to " year)
+				update( \
+					"copyright end year from " \
+					ey " to " year \
+				)
 				ey= year
 			}
 			if (sy != "") {
@@ -96,10 +117,10 @@ process() {
 			}
 		}
 		
-		p($0, "[[:space:]]+[Vv]ersion[[:space:]]+") {
+		parse($0, vrx) {
 			pfx= mt
-			if (m("^[1-9][0-9]*([.][1-9][0-9]*)*")) {
-				n= split(mt, v, "[.]")
+			if (mnx(vnrx)) {
+				n= splitA(mt, v, "[.]")
 				if ( \
 					n >= 2 && v[y= n - 1] >= 2000 \
 					&& v[y + 1] >= 1 && v[y + 1] <= 366 \
@@ -108,7 +129,7 @@ process() {
 					&& v[y + 2] >= 1 \
 				) {
 					t= "year.day_number[.increment]-based"
-					if (v[y] > year) d( \
+					if (v[y] > year) die( \
 						"Cannot increment " t \
 						" version number: old year " \
 						v[y] " was already later" \
@@ -116,7 +137,7 @@ process() {
 					); else if ( \
 						v[y] == year \
 						&& v[y + 1] > day \
-					) d( \
+					) die( \
 						"Cannot increment " t \
 						" version number: old day" \
 						" number " v[y + 1] \
@@ -129,25 +150,26 @@ process() {
 					) {
 						# New year/day and no <inc>.
 						v[y]= year; v[y + 1]= day
-						if (n == y + 2) delete v[y + 2]
+						if (n == y + 2) v[0]= --n
 					} else {
 						# Create or increment <inc>.
-						if (n == y + 1) v[n= y + 2]= 0
-						++v[y + 2]
+						if (n == y + 1) {
+							v[v[0]= ++n]= 0
+						}
+						++v[n]
 					}
 				} else if (v[n] >= 0) {
 					t= "serially incrementing"
 					++v[n] # Increment last component.
 				} else t= ""
 				if (t != "") {
-					nv= v[j= 1]
-					while (++j <= n) nv= nv "." v[j]
-					u( \
+					nv= joinA(v, ".")
+					update( \
 						t " version number from " mt \
 						" to " nv \
 					)
 					print pfx nv rest
-					dopr= 0
+					#dopr= 0
 				}
 			}
 		}
