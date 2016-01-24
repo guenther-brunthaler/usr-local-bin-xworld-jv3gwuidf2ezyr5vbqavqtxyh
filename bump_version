@@ -1,0 +1,202 @@
+#! /bin/sh
+# Increment the version number and update the copyright ending year if
+# necessary.
+#
+# Specify a list of source files as arguments, or feed a single source file
+# as standard input.
+#
+# Version 2016.24.4
+# (c) 2016 by Guenther Brunthaler.
+# This script file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+cleanup() {
+	local rc=$?
+	test -n "$NF" && rm -f -- "$NF"
+	test -n "$T" && rm -f -- "$T"
+	test $rc = 0 || echo "$0 failed!" >& 2
+}
+NF=
+T=
+trap cleanup 0
+
+process() {
+	awk -v file="$1" -v day="$day" -v year="$year" '
+		function f(msg) {
+			return msg " in file \"" file "\""
+		}
+		
+		function i(info) {
+			print info > "/dev/stderr"
+		}
+
+		function d(msg) {
+			i(f(msg) "!")
+			exit 1
+		}
+		
+		function u(what) {
+			i("Updating " f(what) "...")
+		}
+		
+		#function r(k, v) {
+		#	i(k " == >>>" v "<<<.")
+		#}
+		
+		function p(text, ere) {
+			rest= text
+			return m(ere)
+		}
+		
+		function m(ere) {
+			if (match(rest, ere)) {
+				mt= substr(rest, 1, RSTART - 1 + RLENGTH)
+				rest= substr(rest, RSTART + RLENGTH)
+			}
+			return RSTART
+		}
+		
+		{dopr= 1}
+	
+		p($0, "[(][Cc][)][[:space:]]+") {
+			pfx= mt
+			sy= ""; if (m("^2[0-9]{3}")) sy= mt
+			sep= ""
+			if (sy != "" && m("^[[:space:]]*--?[[:space:]]*")) {
+				sep= mt
+			}
+			ey= "";	if (sep != "" && m("2[0-9]{3}")) ey= mt
+			if (sy != "" && rest != "" && rest ~ /^[0-9]/) {
+				d("Missing valid copyright end year")
+			}
+			if (sy != "" && ey == "") ey= sy
+			if (sy != "" && sy > ey) {
+				d( \
+					"copyright start year " sy \
+					" was greater than end year " ey \
+				)
+			}
+			if (sy != "" && ey != year) {
+				if (year < ey) d( \
+					"new copyright end year " year \
+					" would become less then current" \
+					" end year " ey \
+				)
+				u("copyright end year from " ey " to " year)
+				ey= year
+			}
+			if (sy != "") {
+				if (sy == ey) ey= sep= ""
+				else if (sep == "") sep= " - "
+			}
+			if (sy != "") {
+				print pfx sy sep ey rest
+				dopr= 0
+			}
+		}
+		
+		p($0, "[[:space:]]+[Vv]ersion[[:space:]]+") {
+			pfx= mt
+			if (m("^[1-9][0-9]*([.][1-9][0-9]*)*")) {
+				n= split(mt, v, "[.]")
+				if ( \
+					n >= 2 && v[y= n - 1] >= 2000 \
+					&& v[y + 1] >= 1 && v[y + 1] <= 366 \
+					|| n >= 3 && v[y= n - 2] >= 2000 \
+					&& v[y + 1] >= 1 && v[y + 1] <= 366 \
+					&& v[y + 2] >= 1 \
+				) {
+					t= "year.day_number[.increment]-based"
+					if (v[y] > year) d( \
+						"Cannot increment " t \
+						" version number: old year " \
+						v[y] " was already later" \
+						" than current year " year \
+					); else if ( \
+						v[y] == year \
+						&& v[y + 1] > day \
+					) d( \
+						"Cannot increment " t \
+						" version number: old day" \
+						" number " v[y + 1] \
+						" was already later" \
+						" than current day" \
+						" number " day \
+					); else if ( \
+						v[y] != year \
+						|| v[y + 1] != day \
+					) {
+						# New year/day and no <inc>.
+						v[y]= year; v[y + 1]= day
+						if (n == y + 2) delete v[y + 2]
+					} else {
+						# Create or increment <inc>.
+						if (n == y + 1) v[n= y + 2]= 0
+						++v[y + 2]
+					}
+				} else if (v[n] >= 0) {
+					t= "serially incrementing"
+					++v[n] # Increment last component.
+				} else t= ""
+				if (t != "") {
+					nv= v[j= 1]
+					while (++j <= n) nv= nv "." v[j]
+					u( \
+						t " version number from " mt \
+						" to " nv \
+					)
+					print pfx nv rest
+					dopr= 0
+				}
+			}
+		}
+
+		dopr {print}
+	'
+}
+
+year=`date -u +%Y.%j | sed 's/[.]0*/./'`
+day=${year#*.}; year=${year%%.*}
+mode=`umask -S`
+T=`mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
+if test $# = 0
+then
+	process "(standard input)"
+else
+	for file
+	do
+		test -f "$file"
+		test -r "$file"
+		process "$file" < "$file" > "$T"
+		if cmp -s -- "$file" "$T"
+		then
+			:
+		else
+			echo "Updating $file..." >& 2
+			NF=`mktemp -- "$file.XXXXXXXXXX"`
+			cat "$T" > "$NF"
+			chmod "$mode" -- "$NF"
+			for perm in x w
+			do
+				if test -$perm "$file"
+				then
+					chmod +$perm -- "$NF"
+				else
+					chmod -$perm -- "$NF"
+				fi
+			done
+			if test ! -w "$file"
+			then
+				echo "Updated file '$NF'" \
+					"shall replace '$file'."
+				echo "The old '$file' needs to removed first."
+				echo "But '$file' is write-protected."
+			fi >& 2
+			rm -- "$file" # User might choose to *not* remove.
+			nf=$NF
+			test ! -f "$file" && NF=
+			mv -- "$nf" "$file"; NF=
+		fi
+	done
+fi

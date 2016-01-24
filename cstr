@@ -1,0 +1,27 @@
+#! /bin/sh
+# Help filter for editing concatenated C strings. Converts between C form and
+# free text form, auto-detecting the current form.
+#
+# Version 2016.24.1
+#
+# (c) 2016 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+# $1: Indentation step size. $2: Indentation count.
+indent_spaces=`expr ${1:-3} '*' ${2:-1}`
+indent=
+while test x"$indent_spaces" != x"0"
+do
+	indent=" $indent"
+	indent_spaces=`expr $indent_spaces - 1 || :`
+done
+exec sed '
+	s/^[[:space:]]*"\(.*\)\\n"[[:space:]]*/\1/; t unescape
+	:escape
+	s/\(["\\[:cntrl:]]\)/\\\1/g;
+	s/.*/'"$indent"'"&\\n"/
+	b
+	:unescape
+	s/\\\([[:print:]]\)/\1/g
+'
