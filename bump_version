@@ -5,7 +5,7 @@
 # Specify a list of source files as arguments, or feed a single source file
 # as standard input.
 #
-# Version 2016.24.4
+# Version 2016.24.5
 # (c) 2016 by Guenther Brunthaler.
 # This script file is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -69,22 +69,27 @@ process() {
 		}
 		
 		BEGIN {
-			crx= "[(][Cc][)][[:space:]]+"
-			vrx= "[[:space:]]+[Vv]ersion[[:space:]]+"
-			vnrx= "(0|[1-9][0-9]*)"
-			vnrx= "^" vnrx "([.]" vnrx ")*"
+			ws="[[:space:]]"; ows= ws "*"; ws= ws "+"
+			bow= "(^|[^[:alnum:]])"
+			crx= "([(][Cc][)]|[Cc]opyright(ed)?|[Ww]ritten)"
+			rx= "(in|by" ws "[-_@ .[:alpha:]]+)"
+			crx= bow "(" crx "(" ws rx ")?)" ws
+			vrx= bow "[Vv]ersion" ws
+			integer= "(0|[1-9][0-9]*)"
+			vnrx= "^" integer "([.]" integer ")*"
+			ynrx= "((19|2[0-9])[0-9]{2})"
 		}
 		
 		{dopr= 1}
 	
 		parse($0, crx) {
 			pfx= mt
-			sy= ""; if (mnx("^2[0-9]{3}")) sy= mt
+			sy= ""; if (mnx("^" ynrx)) sy= mt
 			sep= ""
-			if (sy != "" && mnx("^[[:space:]]*--?[[:space:]]*")) {
+			if (sy != "" && mnx("^" ows "--?" ows)) {
 				sep= mt
 			}
-			ey= "";	if (sep != "" && mnx("2[0-9]{3}")) ey= mt
+			ey= "";	if (sep != "" && mnx(ynrx)) ey= mt
 			if (sy != "" && rest != "" && rest ~ /^[0-9]/) {
 				die("Missing valid copyright end year")
 			}
@@ -169,7 +174,7 @@ process() {
 						" to " nv \
 					)
 					print pfx nv rest
-					#dopr= 0
+					dopr= 0
 				}
 			}
 		}
