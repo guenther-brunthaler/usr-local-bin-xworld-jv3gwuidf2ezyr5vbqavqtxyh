@@ -1,0 +1,87 @@
+#! /bin/sh
+# Run a command in a new terminal window; then prompt the user to either close
+# the window, or drop into an interactive shell.
+
+set -e
+cleanup() {
+	local rc=$?
+	test -n "$T" && rm -f -- "$T"
+	test $rc = 0 || echo "$0 failed!" >& 2
+}
+T=
+trap cleanup 0
+
+test -n "$SHELL"
+test -x "$SHELL"
+
+title=
+dir=
+while getopts t:d: opt
+do
+	case $opt in
+		t) title=$OPTARG;;
+		d) dir=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+quote() {
+	exec sed '
+		s/\\\+$/&\\/
+		s/"/\\"/g
+		s/.*/"&"/
+	'
+}
+
+qin() {
+	local sep arg
+	sep=
+	REPLY=
+	for arg
+	do
+		if expr x"$arg" : x".*['\"\\\\[:space:][:cntrl:]]" > /dev/null
+		then
+			arg=`printf '%s' "$arg" | quote`
+		fi
+		REPLY="$REPLY$sep$arg"; sep=" "
+	done
+}
+
+T=`mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
+{
+	qin "$@"
+	printf '( %s )\n' "$REPLY"
+	cat << 'EOF'
+rc=$?
+echo
+if test $rc != 0
+then
+	echo "WARNING: Command returned code: $rc!"
+EOF
+cat << EOF2
+	printf %s "Command was: "
+	cat << 'EOF'
+$REPLY
+EOF
+	printf 'Current working directory was: '
+	pwd
+	echo
+fi
+EOF2
+cat << 'EOF'
+echo "Press [Enter] to close this window"
+echo "or press [s] followed by [Enter] in order"
+echo "to start a shell within this terminal window."
+REPLY=
+if read -p "? " REPLY && test -n "$REPLY"
+then
+	exec "$SHELL" -i
+fi
+EOF
+} > "$T"
+set xterm
+test -n "$title" && set "$@" -T "$title"
+set "$@" -e "$SHELL" -l "$T"
+test -n "$dir" && cd -- "$dir"
+"$@"
