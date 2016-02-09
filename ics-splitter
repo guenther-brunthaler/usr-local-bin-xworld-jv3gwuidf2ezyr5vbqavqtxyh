@@ -1,0 +1,179 @@
+#! /bin/sh
+exit_version() {
+	wrL << EOF; exit
+$APP version 2016.40
+
+(c) 2016 by Guenther Brunthaler.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+EOF
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << EOF; exit_version
+$APP - split .ics files after some maximum number of entries
+
+Usage: $APP [ <options> ... ] <file_1.ics> ...
+
+Processes any number of .ics files and creates numbered copies of their
+contents with a maximum number of entries per output file.
+
+Options:
+
+-b <namebase>:
+    Define the base name for the generated output files. If not specified, the
+    name of the first input file will be used as the base name of all output
+    files.
+-D <min:digits>:
+    The minimum number of decimal digits used for numbering the output files.
+    Defaults to 1.
+-n <max_entries>:
+    The maximum number of calendar events allowed per output file. This
+    controls when the next numbered output file will be created during
+    splitting. Defaults to $max_entries.
+-d <outdir>:
+    The directory where to create the output files. Defaults to the current
+    directory. The names of the files created there will be that of the first
+    input file (or the name specified with -b), with any path prefix stripped,
+    and a counter value inserted between the base name and its file extension
+    (if any - without a file extension, the counter will be appended to the
+    end of the file name).
+-V:
+    Display version information and exit.
+-h
+    Display THIS help and exit.
+
+EOF
+}
+
+set -e
+
+wrL() {
+	local LINE
+	while IFS= read -r LINE
+	do
+		printf "%s\n" "$LINE" | wr
+	done
+}
+
+if
+        test -t 0 && LINEWIDTH=`tput cols 2> /dev/null` \
+        && test -n "$LINEWIDTH"
+then
+        MAX=100
+        test $LINEWIDTH -gt $MAX && LINEWIDTH=$MAX
+else
+        LINEWIDTH=66
+fi
+
+have() {
+        which $1 > /dev/null 2>& 1 || false
+}
+
+if have fmt
+then
+        wr() { fmt -c -w $LINEWIDTH; }
+elif have fold
+then
+        wr() { fold -s -w $LINEWIDTH | sed 's/[[:space:]]\+$//'; }
+else
+        wr() { cat; }
+fi
+
+run() {
+	"$@" && return
+	{
+		echo "Assertion $*"
+		echo "failed in $0!"
+	} >& 2
+	false || exit
+}
+
+close_calendar() {
+	echo END:VCALENDAR
+	exec >& -; redir_stdout=false
+}
+
+cleanup() {
+	local rc=$?
+	$redir_stdin && exec <& -
+	$redir_stdout && exec >& -
+	test $rc = 0 || echo "$0 failed!" >& 2
+}
+redir_stdin=false
+redir_stdout=false
+trap cleanup 0
+
+max_entries=20
+namebase=
+outdir=.
+digits=1
+while getopts n:b:d:D:Vh opt
+do
+	case $opt in
+		b) namebase=$OPTARG;;
+		D) digits=$OPTARG;;
+		n) max_entries=$OPTARG;;
+		d) outdir=$OPTARG;;
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+run test -d "$outdir"
+
+prefix=
+nf=1
+for infile
+do
+	run test -f "$infile"
+	exec < "$infile"; redir_stdin=true
+	output=false
+	while IFS= read -r line
+	do
+		if test x"$line" = x"BEGIN:VEVENT"
+		then
+			if $redir_stdout
+			then
+				:
+			else
+				if test -z "$prefix"
+				then
+					base=${namebase:-"$infile"}
+					base=`basename -- "$base"`
+					run test -n "$base"
+					prefix=${base%.*}
+					suffix=${base#"$prefix"}
+				fi
+				outfile=`
+					printf '%s/%s-%0*u%s' "$outdir" \
+						"$prefix" "$digits" "$nf" \
+						"$suffix"
+				`
+				run test ! -e "$outfile"
+				exec > "$outfile"; redir_stdout=true
+				echo BEGIN:VCALENDAR
+				echo VERSION:2.0
+				echo METHOD:PUBLISH
+				part=1
+			fi
+			output=true
+		fi
+		$output && printf '%s\n' "$line"
+		if $output && test x"$line" = x"END:VEVENT"
+		then
+			if test x$part = x"$max_entries"
+			then
+				close_calendar
+				nf=`expr $nf + 1`
+			else
+				part=`expr $part + 1`
+			fi
+			output=false
+		fi
+	done
+done
+$redir_stdout && close_calendar
