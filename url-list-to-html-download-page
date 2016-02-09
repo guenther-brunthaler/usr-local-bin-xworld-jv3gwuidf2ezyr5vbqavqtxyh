@@ -1,0 +1,48 @@
+#! /bin/sh
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+bb=busybox-pbyqxzl1ktqlk3fjm3arlrclg
+bb=`which "$bb" 2> /dev/null` || bb=busybox
+
+while getopts o: opt
+do
+	case $opt in
+		o)
+			test -d "`dirname -- "$OPTARG"`"
+			exec > "$OPTARG"
+			;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+if test $# != 0
+then
+	me=$0
+	if test ! -f "$me"
+	then
+		me=`which "$me"`
+	fi
+	for url_list
+	do
+		test -f "$1"
+	done
+	"$bb" cat -- "$@" | "$me"
+	exit
+fi
+cat << EOF
+<html>
+<body>
+EOF
+while IFS= read -r url
+do
+	hu=`"$bb" httpd -e "$url"`
+	cat << EOF
+<p><a type="application/octet-stream" href="$url">$hu</a></p>
+EOF
+done
+cat << EOF
+</body>
+</html>
+EOF
