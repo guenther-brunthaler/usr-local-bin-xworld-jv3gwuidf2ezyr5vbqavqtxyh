@@ -3,7 +3,7 @@
 # extended to support different methods.
 #
 # Version 2016.37
-# (c) 2015 - 2016 by Guenther Brunthaler.
+# Copyright (c) 2015-2016 Guenther Brunthaler. All rights reserved.
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 set -e

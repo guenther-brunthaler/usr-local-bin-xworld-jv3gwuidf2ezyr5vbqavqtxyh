@@ -3,7 +3,7 @@ exit_version() {
 	wr -s <<- .; exit
 	$APP Version 15.213
 
-	(c) 2013 - 2015 by Guenther Brunthaler.
+	Copyright (c) 2013-2015 Guenther Brunthaler. All rights reserved.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }

@@ -3,7 +3,7 @@ show_version() {
 	wrL <<-.
 	$APP version 12.27
 
-	(c) 2008 - 2012 by Guenther Brunthaler.
+	Copyright (c) 2008-2012 Guenther Brunthaler. All rights reserved.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }

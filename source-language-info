@@ -3,7 +3,7 @@ show_version() {
 	wrL <<-.
 	$SCRIPT version 10.124
 
-	(c) 2008 - 2010 by Guenther Brunthaler.
+	Copyright (c) 2008-2010 Guenther Brunthaler. All rights reserved.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }

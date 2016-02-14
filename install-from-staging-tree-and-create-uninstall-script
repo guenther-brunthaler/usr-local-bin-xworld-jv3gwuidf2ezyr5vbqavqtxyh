@@ -1,7 +1,7 @@
 #! /bin/sh
 set -e
 VERSION=15.213
-LIC1="(c) 2012 - 2015 by Guenther Brunthaler."
+LIC1="Copyright (c) 2012-2015 Guenther Brunthaler. All rights reserved."
 LIC2="This script is free software."
 LIC3="Distribution is permitted under the terms of the GPLv3."
 

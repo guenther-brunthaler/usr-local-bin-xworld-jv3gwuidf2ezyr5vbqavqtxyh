@@ -3,7 +3,7 @@ version() {
 	cat << .
 $APP version 15.203
 
-(c) 2013 - 2015 by Guenther Brunthaler.
+Copyright (c) 2013-2015 Guenther Brunthaler. All rights reserved.
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 .

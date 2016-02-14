@@ -3,7 +3,7 @@ exit_version() {
 	wr -s <<- . && exit
 	$APP version 14.243
 
-	(c) 2008 - 2014 by Guenther Brunthaler.
+	Copyright (c) 2008-2014 Guenther Brunthaler. All rights reserved.
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
 .

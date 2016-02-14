@@ -104,7 +104,7 @@ show_usage() {
 	
 	$APP version 12.127
 
-	(c) 2008 - 2012 by Guenther Brunthaler
+	Copyright (c) 2008-2012 Guenther Brunthale. All rights reserved.
 EOT
 	exit
 }

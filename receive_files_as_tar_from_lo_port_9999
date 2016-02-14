@@ -61,7 +61,7 @@ will then be used as the script name instead of "$APP".
 
 $APP version 15.249
 
-(c) 2013 - 2015 by Günther Brunthaler.
+Copyright (c) 2013-2015 Günther Brunthaler. All rights reserved.
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 EOF

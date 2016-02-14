@@ -2,7 +2,7 @@
 show_version() {
 	wr . <<- EOF
 	$APP Version 15.214
-	(c) 2008 - 2015 by Guenther Brunthaler.
+	Copyright (c) 2008-2015 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
