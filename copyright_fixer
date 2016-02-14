@@ -1,0 +1,5 @@
+#! /bin/sh
+find . -type f -print0 | xargs -0 grep -l "([cC]).* - " \
+| xargs sed -i '
+	s/\([Cc]opyright][[:space:]]*\)\?([cC]) \([0-9]\{4\}\) - \([0-9]\{4\}\) by \([^.]*\)[.]\([Aa]ll rights reserved[.]\)\?/Copyright (c) \2-\3 \4. All rights reserved./
+'
