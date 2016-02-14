@@ -1,9 +1,11 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$SCRIPT version 12.288
+	$SCRIPT version 2016.45
 
-	(c) 2008 - 2012 by Guenther Brunthaler.
+	Copyright (c) 2008-2016 Guenther Brunthaler. All rights reserved.
+
+	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -67,7 +69,8 @@ die() {
 
 notice() {
 	run cat <<-.
-	(c) `date '+%Y'` by $NAME.
+	Copyright (c) `date '+%Y'` $NAME. All rights reserved.
+	
 	This source file is free software.
 	Distribution is permitted under the terms of the GPLv3.
 	.

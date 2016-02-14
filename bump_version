@@ -5,8 +5,9 @@
 # Specify a list of source files as arguments, or feed a single source file
 # as standard input.
 #
-# Version 2016.24.5
-# (c) 2016 by Guenther Brunthaler.
+# Version 2016.45
+# Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+# 
 # This script file is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
@@ -71,7 +72,9 @@ process() {
 		BEGIN {
 			ws="[[:space:]]"; ows= ws "*"; ws= ws "+"
 			bow= "(^|[^[:alnum:]])"
-			crx= "([(][Cc][)]|[Cc]opyright(ed)?|[Ww]ritten)"
+			crx="([(][Cc][)]|\302\251)"
+			crx="([Cc]opyright(ed)?" ows ")?" crx
+			crx= "(" crx "|[Ww]ritten)"
 			rx= "(in|by" ws "[-_@ .[:alpha:]]+)"
 			crx= bow "(" crx "(" ws rx ")?)" ws
 			vrx= bow "[Vv]ersion" ws
