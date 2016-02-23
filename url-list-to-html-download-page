@@ -5,13 +5,16 @@ trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 bb=busybox-pbyqxzl1ktqlk3fjm3arlrclg
 bb=`which "$bb" 2> /dev/null` || bb=busybox
 
-while getopts o: opt
+checkboxed=false
+opts=
+while getopts o:c opt
 do
 	case $opt in
 		o)
 			test -d "`dirname -- "$OPTARG"`"
 			exec > "$OPTARG"
 			;;
+		c) checkboxed=true; opts="$opts -$opt";;
 		*) false || exit
 	esac
 done
@@ -28,20 +31,41 @@ then
 	do
 		test -f "$1"
 	done
-	"$bb" cat -- "$@" | "$me"
+	"$bb" cat -- "$@" | "$me"$opts
 	exit
 fi
 cat << EOF
 <html>
 <body>
 EOF
+if $checkboxed
+then
+	echo '<form action="">'
+	line=1
+fi
 while IFS= read -r url
 do
 	hu=`"$bb" httpd -e "$url"`
-	cat << EOF
-<p><a type="application/octet-stream" href="$url">$hu</a></p>
-EOF
+	if $checkboxed
+	then
+		test $line != 1 && echo '<hr>'
+		echo '<input type="checkbox" name="1" value="'$line'">'
+	else
+		printf %s '<p>'
+	fi
+	printf %s '<a type="application/octet-stream" href="'"$url"'">'"$hu"'</a>'
+	if $checkboxed
+	then
+		line=`expr $line + 1`
+	else
+		echo '</p>'
+	fi
 done
+if $checkboxed
+then
+	test $line != 1 && echo
+	echo '</form>'
+fi
 cat << EOF
 </body>
 </html>
