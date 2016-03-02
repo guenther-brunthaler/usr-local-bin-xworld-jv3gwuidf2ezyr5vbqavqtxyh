@@ -5,16 +5,16 @@ trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 bb=busybox-pbyqxzl1ktqlk3fjm3arlrclg
 bb=`which "$bb" 2> /dev/null` || bb=busybox
 
-checkboxed=false
+checkboxed=true
 opts=
-while getopts o:c opt
+while getopts o:C opt
 do
 	case $opt in
 		o)
 			test -d "`dirname -- "$OPTARG"`"
 			exec > "$OPTARG"
 			;;
-		c) checkboxed=true; opts="$opts -$opt";;
+		C) checkboxed=false; opts="$opts -$opt";;
 		*) false || exit
 	esac
 done
