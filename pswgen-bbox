@@ -1,0 +1,66 @@
+#! /bin/sh
+set -e
+exit_version() {
+	cat << EOF; exit
+$0 version 2016.120
+
+Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+EOF
+}
+
+exit_help() {
+	cat << EOF; exit_version
+$0 - BusyBox-based password generator
+
+Generates random passwords (made of digits, letters, "/" and "+").
+
+Usage: $0 [ <options> ... ] [ <bits> ]
+
+where
+
+<bits>: Required password strength in bits. Default is 128.
+
+Options:
+
+-u: Use /dev/urandom rather than /dev/random as randomness source.
+-h: Display this help.
+-V: Display version information.
+
+EOF
+}
+
+for bb in busybox-pbyqxzl1ktqlk3fjm3arlrclg busybox-localsite busybox bb
+do
+	bb=`which -- "$bb" 2> /dev/null` && break
+done
+if test ! -f "$bb"
+then
+	echo "BusyBox needs to be installed for this script to work!" >& 2
+	false || exit
+fi
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+rnd=/dev/random
+while getopts uhV opt
+do
+	case $opt in
+		u) rnd=/dev/urandom;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `"$bb" expr $OPTIND - 1 || :`
+if test $# != 0
+then
+	bits=$1; shift
+	"$bb" expr x"$bits" : x'[1-9][0-9]*$' > /dev/null
+else
+	bits=128
+fi
+test $# = 0
+"$bb" dd if="$rnd" bs=1 count=`"$bb" expr '(' "$bits" + 7 ')' / 8` \
+	2> /dev/null \
+| "$bb" uuencode -m x | "$bb" sed '2!d;' | "$bb" tr -d = 
