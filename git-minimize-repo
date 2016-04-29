@@ -1,0 +1,4 @@
+#! /bin/sh
+set -e
+git reflog expire --expire=all --all
+git gc --aggressive --prune=all
