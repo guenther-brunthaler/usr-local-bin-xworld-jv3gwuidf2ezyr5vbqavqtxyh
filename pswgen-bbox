@@ -2,7 +2,7 @@
 set -e
 exit_version() {
 	cat << EOF; exit
-$0 version 2016.120
+$0 version 2016.120.1
 
 Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
 
@@ -15,7 +15,8 @@ exit_help() {
 	cat << EOF; exit_version
 $0 - BusyBox-based password generator
 
-Generates random passwords (made of digits, letters, "/" and "+").
+Generates cryptographically strong random passwords
+consisting of digits, letters, "/" and "+".
 
 Usage: $0 [ <options> ... ] [ <bits> ]
 
