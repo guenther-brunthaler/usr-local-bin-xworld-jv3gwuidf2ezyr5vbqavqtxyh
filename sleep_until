@@ -1,4 +1,8 @@
 #! /bin/sh
+# Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 case $# in
@@ -10,7 +14,7 @@ case $# in
 		end='s/^\([0-9]\{2\}\)[h:]\([0-9]\{2\}\)$/\1:\2/'
 		case $# in
 			1) msg=$1;;
-			*) msg=$1:$2
+			*) msg=`printf %02u:%02u "$1" "$2"`
 		esac
 		;;
 	*) false || exit
