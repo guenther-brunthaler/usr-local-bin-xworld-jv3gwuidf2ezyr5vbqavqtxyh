@@ -1,0 +1,97 @@
+#! /bin/sh
+set -e
+cleanup() {
+	local rc; rc=$?
+	$redir5 && exec 5>& -
+	test -n "$T" && rm -- "$T"
+	test $rc = 0 || echo "$0 failed!" >& 2
+}
+T=
+redir5=false
+trap cleanup 0
+marker='$QSTR$'
+width=79
+while getopts m:w: opt
+do
+	case $opt in
+		m) marker=$OPTARG;;
+		w) width=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+die() {
+	printf '%s\n' "$*" >& 2
+	false || exit
+}
+
+tfile() {
+	mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"
+}
+
+first=true
+while IFS= read -r line
+do
+	if $first
+	then
+		first=false
+		case $line in
+			*"$marker"*)
+				revert=true
+				prefix=${line%%"$marker"*}
+				suffix=${line##*"$marker"}
+				test x"$prefix$marker$suffix" = x"$line" || {
+					die "Ambiguous marker!"
+				}
+				strip=`expr ${#prefix} + ${#suffix} + 1`
+				strip=`printf '%*s' $strip x`
+				strip=${strip%x}
+				exec 5>& 1; redir5=true
+				continue
+				;;
+			*)
+				revert=false
+				prefix=$line
+				suffix=$line
+				any_other=false
+				T=`tfile`
+				exec 5> "$T"; redir5=true
+		esac
+	elif $revert
+	then
+		tline=${line#"$strip"}
+		test x"$tline" != x"$line" || {
+			die "Corrupted line indendation for stripping!"
+		}
+		line=$prefix$tline$suffix
+	else
+		any_other=true
+		while test -n "$suffix"
+		do
+			tline=${line%"$suffix"}
+			test x"$tline" != x"$line" && break
+			suffix=${suffix#?}
+		done
+		while test -n "$prefix"
+		do
+			tline=${line#"$prefix"}
+			test x"$tline" != x"$line" && break
+			prefix=${prefix%?}
+		done
+	fi
+	printf '%s\n' "$line" >& 5
+done
+redir_5=false; exec 5>& -
+$revert && exit
+$any_other || { prefix=; suffix=; }
+indent=`expr ${#prefix} + ${#suffix} || :`
+test $indent -gt $width && indent=$width
+indent=`expr $indent + 1`
+indent=`printf '%*s' $indent x`; indent=${indent%x}
+printf '%s%s%s\n' "$prefix" "$marker" "$suffix"
+while IFS= read -r line
+do
+	line=${line%"$suffix"}
+	printf '%s%s\n' "$indent" "${line#"$prefix"}"
+done < "$T"
