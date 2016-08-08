@@ -1,0 +1,304 @@
+#! /bin/sh
+# Convert between one-logical-line-is-one-paragraph text files and such which
+# have been word-wrapped according to the RFC 3676 specs for format=flowed
+# e-mail text files. Multiple levels of quoting in the text, if any, will be
+# converted, too.
+#
+# Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+# 
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+DelSp=false
+unsafe_quoting=false
+format_as_rcf3676=false
+flinewidth=72
+while getopts dQfw: opt
+do
+	case $opt in
+		f) format_as_rcf3676=true;;
+		w) flinewidth=$OPTARG;; # Only for -f!
+		Q) unsafe_quoting=true;;
+		d) DelSp=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+if $format_as_rcf3676 && test $flinewidth -gt 78
+then
+	echo "RFC 3676 forbids line length target values" \
+		"larger than 78 characters!" >& 2
+	false || exit
+fi
+
+# Avoid locale-dependent equivalence classes in string comparisons.
+export LC_COLLATE=C
+
+uuid=i71ytx9b79rm1adjppxt1ctw7
+cr=`printf '\015:'`; cr=${cr%?}
+lf=`printf '\012:'`; lf=${lf%?}
+
+# Assume $lql is the current quoting level before the declaration.
+# Parse $1 as "$delta:$qlevel" and put result into $qlevel or return false.
+eval_qdecl() {
+	local delta nql rql sign absdelta
+	delta=${1%%:*}; nql=${1##*:}
+	test x"$delta:$nql" = x"$1" || return
+	if test -n "$delta"
+	then
+		absdelta=${delta#?}; sign=${delta%"$absdelta"}
+		rql=`expr $lql $sign $absdelta || :`; test -n "$rql"
+		if test -n "$nql"
+		then
+			test x"$nql" = x"$rql"
+		else
+			nql=$rql
+		fi
+	fi
+	qlevel=$nql
+	lql=$qlevel
+}
+
+# Generated: "[Q ${delta} = ${qlevel}]"
+# Also accept: "[Q ${delta}]
+# Also accept: "[Q ${qlevel}]
+# and ignore spaces or letter case when parsing except between digits.
+# Assume $lql is the current quoting level before the declaration.
+# Parse $line and put result into $qlevel or return false.
+parse_simple_qdecl() {
+	local t
+	t='
+		# Parse and remove mandatory prefix.
+		s/^\[[Qq][[:space:]]*//; t 1
+		: fail
+		s/.*//; q
+		: 1
+		# Parse and remove mandatory suffix.
+		s/\([0-9]\)[[:space:]]*][[:space:]]*$/\1/; t 2
+		b fail
+		: 2
+		# Try to parse delta and replace it by "$delta:".
+		s/^\([-+]\)[[:space:]]*\([0-9]\{1,\}\)/\1\2:/; t delta
+		# No delta, prefix with ":".
+		s/^/:/
+		b level
+		: delta
+		# Try parsing "=" after delta.
+		s/^\([^:]*:\)[[:space:]]*=[[:space:]]*/\1/; t level
+		# Failed. There must be no level then.
+		s/^\([^:]*:\)$/\1/; t
+		b fail
+		: level
+		# Parse level after "$delta:".
+		s/^\([^:]*:\)\([0-9]\{1,\}\)$/\1\2/; t
+		b fail
+	'
+	t=`printf '%s\n' "$line" | sed "$t"` || return
+	eval_qdecl "$t"
+}
+
+# Generated: "NEW QUOTING LEVEL = ${qlevel} (${delta]), MARKER = ${uuid}"
+# Accept: "${ANY_TEXT}${qlevel} (${delta])${ANY_TEXT}${uuid}"
+# Also accept: "${qlevel}${ANY_TEXT}${uuid}"
+# Also accept: "${delta}${ANY_TEXT}${uuid}"
+# and ignore spaces when parsing except between digits.
+# Assume $lql is the current quoting level before the declaration.
+# Parse $line and put result into $qlevel or return false.
+parse_safe_qdecl() {
+	local t
+	t='
+		# Parse and remove mandatory prefix.
+		s/^\[//; t 1
+		: fail
+		s/.*//; q
+		: 1
+		# Parse and remove mandatory suffix.
+		s/\([^[:space:]]\)[[:space:]]*'$uuid'][[:space:]]*$/\1/; t 2
+		b fail
+		: 2
+		# Try to parse "...(${delta})..." into "$delta:".
+		s/^\(.*\)(\([-+]\)[[:space:]]*\([0-9]\{1,\}\)).*/\2\3:\1/
+		t both
+		b simple
+		: both
+		# Try to parse "$delta:...${qlevel}" into "$delta:$qlevel".
+		s/^\([^:]*:\)\(.*[^0-9]\)*\([0-9]\{1,\}\)[[:space:]]*$/\1\3/
+		t
+		: simple
+		# Try to parse "${delta}..." into "$delta:".
+		s/^(\([-+]\)[[:space:]]*\([0-9]\{1,\}\)).*/\1\2:/
+		t
+		# No delta, parse "${qlevel}..." into ":$qlevel".
+		s/^\([0-9]\{1,\}\)).*/:\1/; t
+		b fail
+	'
+	t=`printf '%s\n' "$line" | sed "$t"` || return
+	eval_qdecl "$t"
+}
+
+# Write next partial line "$segment", space-stuffed if $stuff is "1", prefixed
+# by $lql quotes, suffixed by one space if $ts = 1, using $CRLF as line
+# terminator. Do not output empty $segments if $any_written was true. Set
+# $any_written to true.
+wr_segment() {
+	local p
+	test -z "$segment" && $any_written && return
+	if test $lql = 0
+	then
+		p=
+	else
+		p=`printf '%*s' $lql " " | tr " " ">"`
+	fi
+	test $stuff = 1 && p=$p" "
+	p=$p$segment
+	test $ts = 1 && p=$p" "
+	printf '%s%s' "$p" "$cr$lf"
+	any_written=true
+}
+
+if $format_as_rcf3676
+then
+	# Read flow-text, output them as RFC 3676 encoded e-mail text lines
+	# terminated with CRLF.
+	lql=0
+	while IFS= read -r line
+	do
+		# Handle quoting meta-instructions.
+		if $unsafe_quoting
+		then
+			case $line in
+				"[Q"*"]"*)
+					if parse_simple_qdecl
+					then
+						lql=$qlevel
+						continue
+					fi
+			esac
+		else
+			case $line in
+				"["*$uuid"]"*)
+					if parse_safe_qdecl
+					then
+						lql=$qlevel
+						continue
+					fi
+			esac
+		fi
+		segment=; any_written=false
+		while :
+		do
+			if $DelSp
+			then
+				ts=1
+				rest=${line#?}
+				test x"$rest" != x"$line" || rest=
+				part=${line%"$rest"}
+				line=$rest
+			else
+				ts=0
+				part=${line%%" "*}
+				if test x"$part" != x"$line"
+				then
+					part=$part" "
+				else
+					part=$line
+				fi
+				line=${line#"$part"}
+			fi
+			nsegment=$segment$part
+			case $nsegment in
+				. | ' '* | '>'* | 'From '*) stuff=1;;
+				*) stuff=0
+			esac
+			nsl=`expr $qlevel + $stuff + ${#nsegment} + $ts || :`
+			if test -z "$segment" || test $nsl -le $flinewidth
+			then
+				segment=$nsegment
+				if test -z "$line"
+				then
+					ts=0
+					wr_segment
+					break
+				fi
+			else
+				wr_segment
+				segment=$part
+			fi
+		done
+	done
+else
+	# Read RFC 3676 encoded lines, output them as flow-text.
+	inpara=false
+	lql=0
+	while IFS= read -r line
+	do
+		# Accept (and remove) CR before newline.
+		case $line in
+			*"$cr") line=${line%?}
+		esac
+		# Detect and remove quoting.
+		qlevel=0
+		while :
+		do
+			case $line in
+				'>'*)
+					line=${line#?}
+					qlevel=`expr $qlevel + 1`
+					;;
+				*) break
+			esac
+		done
+		# Remove any space stuffing.
+		line=${line#" "}
+		# Handle differing quoting levels.
+		if test $qlevel != $lql
+		then
+			# Enforce a newline before a line with different
+			# quoting level than the line before, even if the line
+			# before specified that the next line should be part
+			# of the same paragraph.
+			if $inpara
+			then
+				echo
+				inpara=false
+			fi
+			delta=`printf '%+d' \`expr $qlevel - $lql\``
+			if $unsafe_quoting
+			then
+				q="Q $delta = $qlevel"
+			else
+				q="NEW QUOTING LEVEL = $qlevel ($delta),"
+				q="$q MARKER = $uuid"
+			fi
+			echo "[$q]"
+			lql=$qlevel
+		fi
+		# Check for flowed text.
+		case $line in
+			"-- ")
+				# Usenet Signature - do not process, but
+				# consider it *not* to be a part of the same
+				# paragraph as the lines before.
+				$inpara && echo
+				;;
+			*" ")
+				# Line is flowed.
+				if $DelSp
+				then
+					# Delete one trailing space.
+					line=${line%?}
+				fi
+				# Output line contents without trailing
+				# newline.
+				printf '%s' "$line"
+				inpara=true
+				continue
+		esac
+		# Output the line and append a newline. Terminates current
+		# paragraph.
+		printf '%s\n' "$line"
+		inpara=false
+	done
+fi
