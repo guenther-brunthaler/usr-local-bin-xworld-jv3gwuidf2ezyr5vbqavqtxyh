@@ -1,9 +1,10 @@
 #! /bin/sh
 exit_version() {
 	wrL << EOF; exit
-$APP version 2016.40.1
+$APP version 2016.282
 
-(c) 2016 by Guenther Brunthaler.
+Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 EOF
@@ -102,7 +103,7 @@ close_calendar() {
 }
 
 cleanup() {
-	local rc=$?
+	rc=$?
 	$redir_stdin && exec <& -
 	$redir_stdout && exec >& -
 	test $rc = 0 || echo "$0 failed!" >& 2

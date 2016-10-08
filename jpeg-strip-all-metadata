@@ -1,9 +1,10 @@
 #! /bin/sh
 exit_version() {
 	wr -s << .; exit
-$APP version 15.273.1
+$APP version 2016.282
 
-(c) 2015 by Guenther Brunthaler.
+Copyright (c) 2015-2016 Guenther Brunthaler. All rights reserved.
+
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 .
@@ -65,7 +66,7 @@ fi
 
 set -e
 cleanup() {
-	local rc=$?
+	rc=$?
 	test -n "$T" && rm -- "$T"
 	test $rc = 0 || echo "$APP failed!" >& 2
 }

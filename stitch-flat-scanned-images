@@ -1,9 +1,10 @@
 #! /bin/sh
 exit_version() {
 	cat << EOF | wrs; exit
-$APP version 15.357
+$APP version 2016.282
 
-(c) 2015 by Guenther Brunthaler.
+Copyright (c) 2015-2016 Guenther Brunthaler. All rights reserved.
+
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 
@@ -72,7 +73,7 @@ EOF
 
 set -e
 cleanup() {
-	local rc=$?
+	rc=$?
 	test -n "$TD" && rm -rf -- "$TD"
 	test $rc = 0 || echo "$0 failed!" >& 2
 }

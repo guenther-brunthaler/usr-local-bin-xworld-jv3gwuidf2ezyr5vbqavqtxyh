@@ -3,7 +3,7 @@
 
 set -e
 cleanup() {
-	local rc=$?
+	rc=$?
 	cd
 	test -n "$T" && rm -rf -- "$T"
 	test $rc = 0 || echo "$APP failed!" >& 2

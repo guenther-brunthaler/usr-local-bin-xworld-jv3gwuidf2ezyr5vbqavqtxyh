@@ -9,7 +9,7 @@
 set -e
 
 cleanup() {
-	local rc=$?
+	rc=$?
 	exec 2>& 3 3>& -
 	test $rc = 0 || xmessage -file "$T"
 	rm -- "$T"

@@ -8,9 +8,10 @@ set -e
 
 exit_version() {
 	wr -s <<- EOF; exit
-	$APP version 15.235
+	$APP version 2016.282
 
-	(c) 2015 by Guenther Brunthaler.
+	Copyright (c) 2015-2016 Guenther Brunthaler. All rights reserved.
+
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
 EOF
@@ -71,7 +72,8 @@ mxlw=100; test ${LINEWIDTH:=66} -gt $mxlw && LINEWIDTH=$mxlw
 
 
 cleanup() {
-	local rc=$? t
+	rc=$?
+	local t
 	for t in "$T1" "$T2"
 	do
 		test -n "$t" && rm -- "$t"

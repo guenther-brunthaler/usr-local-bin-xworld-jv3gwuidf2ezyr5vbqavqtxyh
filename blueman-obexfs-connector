@@ -10,7 +10,7 @@
 set -e
 
 cleanup() {
-	local rc=$?
+	rc=$?
 	if test -n "$MP"
 	then
 		rmdir -- "$MP"

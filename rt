@@ -4,7 +4,7 @@
 
 set -e
 cleanup() {
-	local rc=$?
+	rc=$?
 	test -n "$T" && rm -f -- "$T"
 	test $rc = 0 || echo "$0 failed!" >& 2
 }

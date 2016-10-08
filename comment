@@ -2,7 +2,7 @@
 # Provides transactional -i support - either all files are changed or none.
 set -e
 cleanup () {
-	local rc=$?
+	rc=$?
 	test -n "$T" && rm -rf -- "$TD"
 	test $rc = 0 || echo "$APP failed!" >& 2
 }
