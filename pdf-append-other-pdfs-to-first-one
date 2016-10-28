@@ -1,0 +1,43 @@
+#! /bin/sh
+# This script can be run from the command line or be executed by a graphical
+# file manager. It requires 2 or more PDF files as argument, and appends the
+# contents of all the remaining PDFs in the same order to the existing
+# contents of the first one.
+#
+# Version 2016.302
+#
+# Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+#
+# This script file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+cleanup() {
+	rc=$?
+	if test -n "$O"
+	then
+		mv -- "$T" "$O"
+	elif test -n "$T"
+	then
+		rm -- "$T"
+	fi
+	test $rc = 0 && return
+	msg="$0 failed!"
+	xmessage "$msg" || printf '%s\n' "$msg" >& 2
+}
+T=
+O=
+trap cleanup 0
+trap 'exit $?' QUIT TERM INT HUP
+
+test $# != 0
+test $# = 1 && return # Nothing to do.
+T=`mktemp -- "$1.bak.XXXXXXXXXX"`
+mv -- "$1" "$T"
+O=$1
+shift
+gs -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -q -sDEVICE=pdfwrite \
+	-sOutputFile="$O" "$T" "$@"
+O=
+rm -- "$T"
+T=
