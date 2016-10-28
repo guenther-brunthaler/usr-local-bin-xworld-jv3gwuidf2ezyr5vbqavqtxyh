@@ -14,30 +14,21 @@
 set -e
 cleanup() {
 	rc=$?
-	if test -n "$O"
-	then
-		mv -- "$T" "$O"
-	elif test -n "$T"
-	then
-		rm -- "$T"
-	fi
+	test -n "$O" && mv -- "$B" "$O"
 	test $rc = 0 && return
 	msg="$0 failed!"
 	xmessage "$msg" || printf '%s\n' "$msg" >& 2
 }
-T=
 O=
 trap cleanup 0
 trap 'exit $?' QUIT TERM INT HUP
 
 test $# != 0
 test $# = 1 && return # Nothing to do.
-T=`mktemp -- "$1.bak.XXXXXXXXXX"`
-mv -- "$1" "$T"
+B=`mktemp -- "$1.original.bak.XXXXXXXXXX"`
+mv -- "$1" "$B"
 O=$1
 shift
 gs -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -q -sDEVICE=pdfwrite \
-	-sOutputFile="$O" "$T" "$@"
+	-sOutputFile="$O" "$B" "$@"
 O=
-rm -- "$T"
-T=
