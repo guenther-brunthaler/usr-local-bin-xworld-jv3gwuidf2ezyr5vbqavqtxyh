@@ -16,10 +16,10 @@ cleanup() {
 	rc=$?
 	test -n "$O" && mv -- "$B" "$O"
 	test $rc = 0 && return
-	msg="$0 failed!"
-	xmessage "$msg" || printf '%s\n' "$msg" >& 2
+	xmessage "$MSG" || printf '%s\n' "$MSG" >& 2
 }
 O=
+MSG="$0 failed!"
 trap cleanup 0
 trap 'exit $?' QUIT TERM INT HUP
 
@@ -29,6 +29,16 @@ B=`mktemp -- "$1.original.bak.XXXXXXXXXX"`
 mv -- "$1" "$B"
 O=$1
 shift
-gs -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -q -sDEVICE=pdfwrite \
-	-sOutputFile="$O" "$B" "$@"
+set -- "$B" "$@"
+if tool=`which pdfunite 2> /dev/null`
+then
+	"$tool" "$@" "$O"
+elif tool=`which gs 2> /dev/null`
+then
+	"$tool" -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -q \
+		-sDEVICE=pdfwrite -sOutputFile="$O" "$@"
+else
+	MSG="Either pdfunite or gs must be installed!"
+	false || exit
+fi
 O=
