@@ -1,0 +1,52 @@
+#! /bin/sh
+exit_version() {
+	cat << EOF; exit
+$APP Version 2016.314
+
+Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+
+This script file is free software.
+Distribution is permitted under the terms of the GPLv3.
+EOF
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << EOF; echo; exit_version; # Text width: 66 columns.
+Usage: $APP [ <options> ... ] [ <dir1> <dir2> ... ]
+
+Displays groups of files with duplicate contents, no matter where
+within the files are located, and no matter which names they
+have.
+
+By default, the directory tree at the current directory is
+scanned. But if one or more paths to directories are specified as
+arguments, all of them are treated as a single large set of files
+to be scanned for duplicates.
+
+Options:
+
+-h: Display this help and exit.
+-V: Display version information and exit.
+EOF
+}
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+while getopts hV opt
+do
+	case $opt in
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+test $# = 0 && set .
+find "$@" -type f | while IFS= read -r f
+do
+	md5sum -b -- "$f"
+done | {
+	export LC_COLLATE=C
+	sort | uniq -w 32 -D
+}
