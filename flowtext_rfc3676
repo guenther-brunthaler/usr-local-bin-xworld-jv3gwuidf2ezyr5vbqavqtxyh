@@ -4,7 +4,11 @@
 # e-mail text files. Multiple levels of quoting in the text, if any, will be
 # converted, too.
 #
-# Version 2016.319
+# When formatting flow text back into RFC 3676, delta specifications have
+# precedence: If both an indentation level delta and an absolute indentation
+# level are specified, the absolute level is ignored.
+#
+# Version 2016.319.1
 #
 # Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
 # 
@@ -15,11 +19,13 @@ trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 DelSp=false
 unsafe_quoting=false
 format_as_rcf3676=false
+format_as_plaintext=false
 flinewidth=72
-while getopts dQfw: opt
+while getopts dQftw: opt
 do
 	case $opt in
 		f) format_as_rcf3676=true;;
+		t) format_as_plaintext=true;;
 		w) flinewidth=$OPTARG;; # Only for -f!
 		Q) unsafe_quoting=true;;
 		d) DelSp=true;;
@@ -45,20 +51,15 @@ lf=`printf '\012:'`; lf=${lf%?}
 # Assume $lql is the current quoting level before the declaration.
 # Parse $1 as "$delta:$qlevel" and put result into $qlevel or return false.
 eval_qdecl() {
-	local delta nql rql sign absdelta
+	local delta nql sign
 	delta=${1%%:*}; nql=${1##*:}
 	test x"$delta:$nql" = x"$1" || return
 	if test -n "$delta"
 	then
-		absdelta=${delta#?}; sign=${delta%"$absdelta"}
-		rql=`expr $lql $sign $absdelta || :`; test -n "$rql"
-		if test -n "$nql"
-		then
-			test x"$nql" = x"$rql"
-		else
-			nql=$rql
-		fi
+		nql=${delta#?}; sign=${delta%"$nql"}
+		nql=`expr $lql $sign $nql || :`
 	fi
+	test -n "$nql"
 	qlevel=$nql
 	lql=$qlevel
 }
@@ -137,26 +138,38 @@ parse_safe_qdecl() {
 }
 
 # Write next partial line "$segment", space-stuffed if $stuff is "1", prefixed
-# by $lql quotes, suffixed by one space if $ts = 1, using $CRLF as line
+# by $lql quotes, suffixed by one space if $ts = 1 using $CRLF as line
 # terminator. Do not output empty $segments if $any_written was true. Set
 # $any_written to true.
+#
+# If $format_as_plaintext is true, those rules are changed. Space stuffing is
+# not performed, $ts = 1 is always assumed, and lines are terminated using the
+# platform-specific native newline sequence.
 wr_segment() {
 	local p
 	test -z "$segment" && $any_written && return
-	if test $lql = 0
+	if test $lql -le 0
 	then
+		# Allow the nesting level to become negative, too. Treat it
+		# as a level of 0 in such cases.
 		p=
 	else
 		p=`printf '%*s' $lql " " | tr " " ">"`
 	fi
-	test $stuff = 1 && p=$p" "
-	p=$p$segment
-	test $ts = 1 && p=$p" "
-	printf '%s%s' "$p" "$cr$lf"
+	if $format_as_plaintext
+	then
+		test -n "$segment" && test -n "$p" && p=$p" "
+		printf '%s%s\n' "$p" "$segment"
+	else
+		test $stuff = 1 && p=$p" "
+		p=$p$segment
+		test $ts = 1 && p=$p" "
+		printf '%s%s' "$p" "$cr$lf"
+	fi
 	any_written=true
 }
 
-if $format_as_rcf3676
+if $format_as_rcf3676 || $format_as_plaintext
 then
 	# Read flow-text, output them as RFC 3676 encoded e-mail text lines
 	# terminated with CRLF.
