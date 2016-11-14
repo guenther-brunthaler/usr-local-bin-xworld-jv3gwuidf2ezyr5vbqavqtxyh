@@ -1,49 +1,39 @@
 #! /usr/bin/perl -w
 #
-# Convert formatted text to free flowing text.
+# Convert formatted text to free flowing text. Assume empty lines to separate
+# paragraphs. Also every line starting with most special characters is
+# considered a paragraph, unless the line before it contains whitespace at its
+# end, in which case it is assumed to be just another continuation line.
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/unwrap $
-# $Author: root $
-# $Date: 2007-03-02T16:11:48.529261Z $
-# $Revision: 585 $
+# Version 16.319
+#
+# Copyright (c) 2007-2016 Guenther Brunthaler. All rights reserved.
+# 
+# This script file is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
+use locale;
 
-my($st);
-$st= 0;
-while (<>) {
+my $o= '';
+while (defined($_= <>)) {
    chomp;
-   s/\s+/ /g;
-   s/^\s+|\s+$//g;
-   for (;;) {
-      if ($st == 0) {
-         # Searching for first paragraph.
-         last if $_ eq '';
-         $st= 1;
-      } elsif ($st == 1) {
-         # Output first part of paragraph.
-         print;
-         $st= 2;
-         last;
-      } elsif ($st == 2) {
-         # Output remainder of paragraph.
-         if ($_ eq '') {
-            # End of paragraph encountered.
-            print "\n"; # Terminate current line.
-            $st= 3;
-         } else {
-            # Continuation.
-            print " ", $_;
-         }
-         last;
-      } elsif ($st == 3) {
-         # Searching for (non-first) next paragraph.
-         last if $_ eq '';
-         print "\n"; # Empty line.
-         $st= 1;
-      }
+   s/^\s+$//; # Lines only containing whitespace are always considered empty.
+   if (s/\s+$//) {
+      # RFC 3676 indication of being followed with a continuation line.
+      s/\s+/ /g; # Merge multiplace whitespace.
+      s/^ //; # Remove any leading space.
+      $o.= " " if $o ne '' && length;
+      $o.= $_;
+      next;
+   }
+   if (!length || /^[^"'([{[:alnum:]]|^(-|[.]{2,})\s/) {
+      # Assume this starts a new paragraph.
+      print "$o\n" if $o ne '';
+      print "$_\n";
+      $o= '';
+   } else {
+      $o.= " " if $o ne '';
+      $o.= $_;
    }
 }
-if ($st == 2) {
-   # Terminate current line.
-   print "\n";
-}
+print "$o\n" if $o ne '';

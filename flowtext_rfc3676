@@ -4,6 +4,8 @@
 # e-mail text files. Multiple levels of quoting in the text, if any, will be
 # converted, too.
 #
+# Version 2016.319
+#
 # Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
 # 
 # This source file is free software.
@@ -61,9 +63,9 @@ eval_qdecl() {
 	lql=$qlevel
 }
 
-# Generated: "[Q ${delta} = ${qlevel}]"
-# Also accept: "[Q ${delta}]
-# Also accept: "[Q ${qlevel}]
+# Generated: "}Q $delta = $qlevel"
+# Also accept: "}Q $delta"
+# Also accept: "}Q $qlevel"
 # and ignore spaces or letter case when parsing except between digits.
 # Assume $lql is the current quoting level before the declaration.
 # Parse $line and put result into $qlevel or return false.
@@ -71,12 +73,12 @@ parse_simple_qdecl() {
 	local t
 	t='
 		# Parse and remove mandatory prefix.
-		s/^\[[Qq][[:space:]]*//; t 1
+		s/^}[Qq][[:space:]]*//; t 1
 		: fail
 		s/.*//; q
 		: 1
 		# Parse and remove mandatory suffix.
-		s/\([0-9]\)[[:space:]]*][[:space:]]*$/\1/; t 2
+		s/\([0-9]\)[[:space:]]*$/\1/; t 2
 		b fail
 		: 2
 		# Try to parse delta and replace it by "$delta:".
@@ -99,25 +101,21 @@ parse_simple_qdecl() {
 	eval_qdecl "$t"
 }
 
-# Generated: "NEW QUOTING LEVEL = ${qlevel} (${delta]), MARKER = ${uuid}"
-# Accept: "${ANY_TEXT}${qlevel} (${delta])${ANY_TEXT}${uuid}"
-# Also accept: "${qlevel}${ANY_TEXT}${uuid}"
-# Also accept: "${delta}${ANY_TEXT}${uuid}"
+# Generated: "}}} NEW QUOTING LEVEL = $qlevel ($delta), MARKER = $uuid {{{"
+# Accept: "$ANY_TEXT$qlevel ($delta)$ANY_TEXT$uuid$ANY_TEXT"
+# Also accept: "$qlevel$ANY_TEXT$uuid$ANY_TEXT"
+# Also accept: "$delta$ANY_TEXT$uuid$ANY_TEXT"
 # and ignore spaces when parsing except between digits.
 # Assume $lql is the current quoting level before the declaration.
 # Parse $line and put result into $qlevel or return false.
 parse_safe_qdecl() {
 	local t
 	t='
-		# Parse and remove mandatory prefix.
-		s/^\[//; t 1
+		# Parse and remove mandatory suffix.
+		s/'$uuid'.*//; t 1
 		: fail
 		s/.*//; q
 		: 1
-		# Parse and remove mandatory suffix.
-		s/\([^[:space:]]\)[[:space:]]*'$uuid'][[:space:]]*$/\1/; t 2
-		b fail
-		: 2
 		# Try to parse "...(${delta})..." into "$delta:".
 		s/^\(.*\)(\([-+]\)[[:space:]]*\([0-9]\{1,\}\)).*/\2\3:\1/
 		t both
@@ -169,7 +167,7 @@ then
 		if $unsafe_quoting
 		then
 			case $line in
-				"[Q"*"]"*)
+				"}Q"*)
 					if parse_simple_qdecl
 					then
 						lql=$qlevel
@@ -178,7 +176,7 @@ then
 			esac
 		else
 			case $line in
-				"["*$uuid"]"*)
+				*$uuid*)
 					if parse_safe_qdecl
 					then
 						lql=$qlevel
@@ -267,12 +265,11 @@ else
 			delta=`printf '%+d' \`expr $qlevel - $lql\``
 			if $unsafe_quoting
 			then
-				q="Q $delta = $qlevel"
+				echo "}Q $delta = $qlevel"
 			else
 				q="NEW QUOTING LEVEL = $qlevel ($delta),"
-				q="$q MARKER = $uuid"
+				echo "}}} $q MARKER = $uuid {{{"
 			fi
-			echo "[$q]"
 			lql=$qlevel
 		fi
 		# Check for flowed text.
