@@ -1,0 +1,36 @@
+#! /bin/sh
+# Preserve all possible file attributes including sparseness.
+#
+# Displays a warning for every unsupported feature, but this has no effect on
+# tar's return code.
+#
+# Version 2016.337
+#
+# Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+if
+	type tar > /dev/null 2>& 1 \
+	&& tar --version 2> /dev/null | grep -q "GNU tar"
+then
+	exec tar --acls --selinux --xattrs --sparse "$@"
+else
+	cat << EOF >& 2 # The following text has 72 columns per line.
+*** ERROR: GNU tar is not available! ***
+
+There can be no guarantee that all attributes will be preserved.
+
+The next best thing you might try should be bsdtar. It preserves at
+least ACLs and EAs by default, and optionally sparseness (-S).
+
+Then there is a tar implementation in BusyBox. But it preserves neither
+ACLs nor EAs nor sparseness.
+
+As a last resort, try pax. Like BusyBox tar, it does not support ACLs,
+EAs or sparseness, and may add additional restrictions for
+filename/pathname lengths.
+
+EOF
+	false || exit
+fi
