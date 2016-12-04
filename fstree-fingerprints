@@ -1,0 +1,58 @@
+#! /bin/sh
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+outdir=.
+add='%f:%g:%u:%i:%Y:'
+while getopts o:c opt
+do
+	case $opt in
+		c) add=;; # Contents only.
+		o) outdir=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+sum() {
+	md5sum -b | cut -d" " -f 1
+}
+
+dev() {
+	stat -c %T:%t -- "$1"
+}
+
+test -d "$outdir"
+test -w "$outdir"
+out=$outdir/`date +'gathered_%Y%m%d_%H%M%S.lst'`
+find . | while IFS= read -r f
+do
+	if test -L "$f"
+	then
+		T=L; m=`readlink -- "$f" | sum`
+	elif test -f "$f"
+	then
+		T=F; m=`sum < "$f"`
+	elif test -d "$f"
+	then
+		T=D; m=
+	elif test -b "$f"
+	then
+		T=B; m=`dev "$f"`
+	elif test -c "$f"
+	then
+		T=C; m=`dev "$f"`
+	elif test -S "$f"
+	then
+		T=S; m=
+	elif test -p "$f"
+	then
+		T=P; m=
+	else
+		echo "WTF is '$f'???" >& 2
+		false || exit
+	fi
+	m=`stat -c "$add%F:$m" -- "$f" | sum`
+	echo "$T:$m $f"
+done > "$out"
+sort -o "$out" -k2 -- "$out"
