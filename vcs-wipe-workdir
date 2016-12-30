@@ -1,6 +1,10 @@
 #! /bin/sh
+# Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 set -e
-trap "echo '$0 failed!' >& 2" 0
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 
 APP=${0##*/}
 vcs=.${APP%%-*}
@@ -13,7 +17,7 @@ do
 		then
 			echo "Aborting for safety: Multiple VCS control" \
 				"directories have been found: $f and $v." >& 2
-			false
+			false || exit
 		fi
 		f=$v
 	fi
@@ -22,13 +26,13 @@ if test -z "f"
 then
 	echo "Aborting: No supported type of VCS control directory has been" \
 		"found at all!" >& 2
-	false
+	false || exit
 fi
 if test x"$vcs" != x".vcs" && test x"$f" != x"$vcs"
 then
 	echo "Aborting: No $vcs control directory could be found, although" \
 		"a $f directory was found." >& 2
-	false
+	false || exit
 fi
 find -depth -path "./$vcs/*" -o -name "$vcs" -o -name . -prune -o -print | {
 	f=0; d=0
@@ -45,4 +49,3 @@ find -depth -path "./$vcs/*" -o -name "$vcs" -o -name . -prune -o -print | {
 	done
 	echo "Removed $d directories and $f files/symlinks." >& 2
 }
-trap - 0
