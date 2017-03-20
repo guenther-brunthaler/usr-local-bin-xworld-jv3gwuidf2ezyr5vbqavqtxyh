@@ -165,7 +165,7 @@ else
 		echo "Checksum in file '$f2' of" \
 			"checksums file '$f' is correct."
 	fi
-	error=false
+	errors=false
 	while read -r _ _ path
 	do
 		test x"${path#/}" = x"$path" # Paths in file must be relative!
@@ -201,8 +201,9 @@ else
 	then
 		# There are errors which already existed when the checksum
 		# file was created. Complain anyway.
-		grep -v -- '^[[:digit:]]' "$cf"
-		echo "There checksum file '$f' contains the above errors!"
+		grep -v -- '^[[:digit:]]' "$T" || :
+		echo "The files listed in checksum file '$f'"
+		echo "triggered the above errors!"
 		fail
 	else
 		echo "All checksums match."
