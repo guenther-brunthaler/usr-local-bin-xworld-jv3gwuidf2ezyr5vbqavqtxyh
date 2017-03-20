@@ -20,12 +20,13 @@
 set -e
 cleanup() {
 	rc=$?
-	test -n "$T" && rm -- "$T"
+	test -n "$TDIR" && rm -r -- "$TDIR"
 	test $rc = 0 || echo "$0 failed!" >& 2
 }
-T=
+TDIR=
 trap cleanup 0
 trap 'exit $?' INT TERM HUP QUIT
+oldIFS=$IFS
 
 SEP=`printf '\034:'`; SEP=${SEP%:}
 add_xcl() {
@@ -104,6 +105,15 @@ success() {
 	echo "*** SUCCESS ***" >& 2
 }
 
+# Like xargs, but path names are passed as complete lines without any quoting.
+xargs_from_lines() {
+	sed '
+		s:^./::
+		s:['\'\\\\\\\\']:'\\\\'&:g
+		s:.*:'\''&'\'':
+	' | xargs -E '' "$@"
+}
+
 cd "$dir"
 if $save
 then
@@ -124,18 +134,16 @@ then
 	done
 	IFS=$oldIFS
 	set "$@" ! -type l -type f
-	"$@" | sed '
-		s:^./::
-		s:['\'\\\\\\\\']:'\\\\'&:g
-		s:.*:'\''&'\'':
-	' | xargs -E '' cksum -- | LC_COLLATE=C sort -k 3 > "$cf"
+	"$@" | xargs_from_lines	cksum -- | LC_COLLATE=C sort -k 3 > "$cf"
 	cksum -- "$cf" > "$cf2"
 	read sum _ < "$cf2"
 	echo "All checksums have been created successfully."
 	echo "Top-level checksum is $sum."
 	success
 else
-	T=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
+	TDIR=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
+	T=$TDIR/t1
+	T2=$TDIR/t2
 
 	# Compare factual file $T to should-be file $1 and bail out with a
 	# diff if there are any differences.
@@ -158,7 +166,7 @@ else
 			"checksums file '$f' is correct."
 	fi
 	error=false
-	while read -r sum size path
+	while read -r _ _ path
 	do
 		test x"${path#/}" = x"$path" # Paths in file must be relative!
 		if test ! -e "$path"
@@ -177,14 +185,16 @@ else
 		then
 			echo "UNSUPPORTED:SPECIAL_FILE ? $path"
 			errors=true
-		elif cksum -- "$path"
+		elif test -r "$path"
 		then
-			:
+			printf '%s\n' "$path" >& 5
 		else
 			echo "UNREADABLE_FILE ? $path"
 			errors=true
 		fi
-	done < "$cf" > "$T"
+	done < "$cf" > "$T2" 5> "$T"
+	xargs_from_lines cksum -- < "$T" >> "$T2"
+	LC_COLLATE=C sort -k 3 "$T2" > "$T"
 	compare "$cf"
 	echo
 	if $errors
