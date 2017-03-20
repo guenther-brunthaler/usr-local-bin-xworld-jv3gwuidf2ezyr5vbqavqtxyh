@@ -1,0 +1,104 @@
+#! /bin/sh
+# Move symlinks from a directory tree into a text archive file, which can
+# later be extracted to re-create the symlinks elsewhere.
+#
+# Useful as a preprocessing step before creating a patch, because "diff"
+# ignores symlink definitions and only cares about their referenced targets.
+#
+# This script converts symlinks to normal files, which can be "diff"ed and
+# patched just fine.
+#
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+force=false
+f=symlinks.txt
+while getopts a:f opt
+do
+	case $opt in
+		a) f=$OPTARG;;
+		f) force=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1`
+
+save=
+case $1 in
+	move-from) save=true;;
+	restore) save=false
+esac
+test $# != 2 && save=
+: ${save:?"Usage: $0 [ <options> ... ] ( move-from | restore ) <dirtree>"}
+dir=$2
+test -d "$dir"
+if $save
+then
+	if test -e "$f"
+	then
+		$force
+	fi
+	> "$f"
+else
+	test -f "$f"
+fi
+cf=`readlink -f -- "$f"`
+cd "$dir"
+if $save
+then
+	# Save symlinks; store source paths relative to directory tree, and
+	# sort them by source path in a locale-independent way.
+	find . -type l | LC_COLLATE=C sort | while IFS= read -r L
+	do
+		L=${L#./}
+		test -L "$L" || exit
+		echo "L:$L"
+		echo "T:`readlink -- "$L"`"
+	done > "$cf"
+fi
+n=0
+i=0
+while IFS=: read -r K L
+do
+	test L = "$K"
+	IFS=: read -r K T
+	test T = "$K"
+	if $save
+	then
+		# Remove previously archived symlink, moving it out of the way
+		# of "diff" which should only look at the symlink archive
+		# files.
+		rm -- "$L"
+		n=`expr $n + 1`
+	else
+		# Restore the symlink, replacing any already-existing instance
+		# of it if necessary.
+		if test -L "$L" && test x"`readlink -- "$L"`" = x"$T"
+		then
+			i=`expr $i + 1`
+			continue
+		fi
+		if test -e "$L"
+		then
+			rm -- "$L"
+		fi
+		ln -s -- "$T" "$L"
+		n=`expr $n + 1`
+	fi
+done < "$cf"
+if $save
+then
+	echo "Moved $n symlinks into archive file '$f'."
+else
+	echo "Restored $n symlinks from archive file '$f'."
+	if test 0 != $i
+	then
+		echo "Ignored $i existing symlinks which already referenced"
+		echo "the intended targets."
+	fi
+fi
