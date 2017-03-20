@@ -27,12 +27,21 @@ T=
 trap cleanup 0
 trap 'exit $?' INT TERM HUP QUIT
 
+SEP=`printf '\034:'`; SEP=${SEP%:}
+add_xcl() {
+	exclusions=$exclusions${exclusions:+$SEP}$1
+}
+
 force=false
 f=CKSUMS
 f2=CKSUMSSUM
-while getopts c:a:f opt
+exclusions=;
+fo=$f; f2o=$f2
+while getopts Xx:c:a:f opt
 do
 	case $opt in
+		x) add_xcl "$OPTARG";;
+		X) add_xcl "$fo"; add_xcl "$f2o";;
 		a) f=$OPTARG;;
 		c) f2=$OPTARG;;
 		f) force=true;;
@@ -106,8 +115,20 @@ then
 	then
 		set "$@" ! -path "./$cf2"
 	fi
+	oldIFS=$IFS; IFS=$SEP
+	for x in $exclusions
+	do
+		IFS=$oldIFS
+		mkrel "$x" "$dir"; x=$t
+		test x"${x#/}" = x"$x" && set "$@" ! -path "./$x"
+	done
+	IFS=$oldIFS
 	set "$@" ! -type l -type f
-	"$@" | sed 's:^./::' | xargs cksum -- | LC_COLLATE=C sort -k 3 > "$cf"
+	"$@" | sed '
+		s:^./::
+		s:['\'\\\\\\\\']:'\\\\'&:g
+		s:.*:'\''&'\'':
+	' | xargs -E '' cksum -- | LC_COLLATE=C sort -k 3 > "$cf"
 	cksum -- "$cf" > "$cf2"
 	read sum _ < "$cf2"
 	echo "All checksums have been created successfully."
