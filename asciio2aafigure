@@ -1,0 +1,21 @@
+#! /bin/sh
+# Post-process ASCII-art written by the "asciio" ASCII-art-editor in order to
+# make it acceptable input for "aafigure", which converts it into graphics.
+#
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# 
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+sed '
+	# Replace asciio corner symbols with "+".
+	s/-[.'\'']/-+/g
+	s/[.'\'']-/+-/g
+	# Connect adjacent perpendicular lines.
+	s/-|/-+/g
+	s/|-/+-/g
+	# Double-quote words containing runs of the same ASCII character.
+	s/ \(\([^ |][^|]*\)*[[:alnum:]]\([^|]*[^ |]\)*\) /"\1"/g
+' 
