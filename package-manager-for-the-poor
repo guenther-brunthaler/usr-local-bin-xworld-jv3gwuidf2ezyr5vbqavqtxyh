@@ -1020,7 +1020,7 @@ if test ! -d "$ITARGET"
 then
 	die "Installation target directory '$ITARGET' does not exist!"
 fi
-test -n "$cmd" || die "Ḿissing command!"
+test -n "$cmd" || die "Missing command!"
 if ! locate_config -f "$CONFIG_FILE"
 then
 	> "$CONFIG_FILE"
