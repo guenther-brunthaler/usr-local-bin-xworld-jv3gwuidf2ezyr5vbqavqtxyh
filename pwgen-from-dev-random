@@ -9,6 +9,6 @@ then
 else
 	alias b64=base64
 fi
-chars=43
-test $# != 0 && chars=22
-dd if=/dev/random bs=1 count=$chars 2> /dev/null | b64 | tr -d =
+bits=256
+test $# != 0 && bits=128
+dd if=/dev/random bs=1 count=`expr $bits / 8` 2> /dev/null | b64 | tr -d =
