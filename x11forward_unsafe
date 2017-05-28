@@ -1,0 +1,14 @@
+#! /bin/sh
+# Use this if "ssh -XY" does not work.
+# Works on Linux only.
+#
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+#
+# This script file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+cat << 'EOF'
+you@here $ ssh -R 127.0.0.1:6010:127.0.0.1:6010 user@remotehost
+user@remotehost $ export DISPLAY=127.0.0.1:10
+EOF
+exec socat TCP4-LISTEN:6010,bind=127.0.0.1,fork,reuseaddr \
+	ABSTRACT:/tmp/.X11-unix/X0
