@@ -1,14 +1,47 @@
 #! /bin/sh
-# Use this if "ssh -XY" does not work.
+# Use this if "ssh -XY" does not work. Run it with "&" in the background.
 # Works on Linux only.
+#
+# Version 2017.160
 #
 # Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
 #
 # This script file is free software.
 # Distribution is permitted under the terms of the GPLv3.
-cat << 'EOF'
-you@here $ ssh -R 127.0.0.1:6010:127.0.0.1:6010 user@remotehost
-user@remotehost $ export DISPLAY=127.0.0.1:10
+DISPLAY_OFFSET=10
+PORT_BASE=6000
+LOCAL=127.0.0.1
+#
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+test -n "$DISPLAY"
+# DISPLAY=hostname:displaynumber.screennumber
+# Both numbers may contain leading zeros.
+ld=${DISPLAY#:}
+if sn=`expr x"${ld}z" : x'[0-9]\{1,\}\.\([0-9]\{1,\}z\)$'`
+then
+	if sn=`expr ${sn%z} + 0`
+	then
+		sn=.$sn
+	else
+		sn=
+	fi
+fi
+ld=`expr "a${ld}" : '\(a[0-9]\{1,\}\)\(\.[0-9]\{1,\}\)\{0,1\}$'`
+ld=`expr ${ld#a} + 0 || :`
+# Linux specific: start.
+ls=/tmp/.X11-unix/X$ld$sn
+test -S "$ls"
+ls=ABSTRACT:$ls
+# Linux specific: end.
+rd=`expr $ld + $DISPLAY_OFFSET || :`
+rp=`expr $rd + $PORT_BASE || :`
+cat << EOF
+Process $$: Redirect X11 access from remotehost to local X11 display.
+
+you@here \$ ssh -R $LOCAL:$rp:$LOCAL:$rp user@remotehost
+user@remotehost \$ export DISPLAY=$LOCAL:$rd
+
+Don't forget to kill this process once the SSH session is over!
 EOF
-exec socat TCP4-LISTEN:6010,bind=127.0.0.1,fork,reuseaddr \
-	ABSTRACT:/tmp/.X11-unix/X0
+exec socat TCP4-LISTEN:$rp,bind=$LOCAL,fork,reuseaddr "$ls"
