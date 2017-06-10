@@ -1,0 +1,459 @@
+#! /bin/sh
+exit_version() {
+	wr -s << EOF; exit
+$APPLICATION_NAME version 2017.160
+
+Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+
+This script file is free software.
+Distribution is permitted under the terms of the GPLv3.
+EOF
+}
+APPLICATION_NAME=${0##*/}
+
+exit_help() {
+	wr << EOF
+$APPLICATION_NAME - checkpoint the contents of directory trees
+
+$APPLICATION_NAME writes checkpoint data for all members of one or more
+directory trees to standard output. This data can be used to compare the state
+of the members, depending on which attributes have been selected for
+checkpointing.
+
+Saving this information and comparing it later allows to determine what has
+changed in the directory trees. Checkpoint data is always dependent on file
+contents or symlink targets, but may optionally also include things like file
+permissions, time stamps and inode information.
+
+Usage:
+   $APPLICATION_NAME
+   [ <options> ... [--]]
+   [ <directory> ...]
+
+$APPLICATION_NAME scans the specified directory trees recursively and writes a
+list of checkpoint entries for all encountered filesystem objects to standard
+output, sorted lexicograpically by path name.
+
+If no directory trees have been specified as arguments, reads an unsorted list
+of path names from standard input and writes checkpoint entries for those file
+system objects only to standard output.
+
+The checkpoint entries consist of the following columns separated by a single
+ASCII space character:
+EOF
+	wr -s << EOF
+
+* Attribute hash
+* Content hash
+* Path name
+EOF
+	wr << EOF
+
+See below for a more detailed explanation what is included in those hashes.
+
+When specifying directories to be scanned as arguments, "find" is invoked with
+the -xdev option for finding the file system objects. This will exclude any
+contents of active mount points from traversal, because this is dangerous (it
+might try to traverse a network share). Invoke "find" yourself and pipe its
+output to $APPLICATION_NAME if you want more control over the traversal
+process.
+
+In the output, the paths will always be sorted lexicographically with
+LC_COLLATE=C in order to allow later comparisons independent of user-specific
+collation order.
+
+Options:
+
+-A,
+-C,
+-D,
+-E,
+-H,
+-i,
+-I,
+-M,
+-N,
+-O,
+-P:
+   Enable the attribute hash inclusion indicators of the same name as the
+   option letter. By default, none of them is included in the attribute
+   hash.
+-h:
+   Display this help and exit.
+-V:
+   Display version information and exit.
+
+Here is a more detailed explanation of the values in the checkpoint data
+output columns:
+
+* Attribute hash:
+   An alphabetically sorted (ASCII collation order) list of attribute
+   inclusion indicators for optional attributes, followed by a colon and a
+   shortened 256 bit SHA-2 hash over selected attributes of the current file
+   system object. Only the leading $attr_bits bits of the hash value will be
+   displayed. The inclusion indicator will be one of the following:
+EOF
+	wr << EOF
+   * C:
+      Inode change time (ctime).
+   * M:
+      Time of last modification (mtime).
+   * A:
+      Time of last access (atime). The actual meaning of this time stamp
+      dependd on the mount options used. For instance, the atime will not be
+      updated for file systems which have been mounted as read-only.
+   * P:
+      Numerical permissions bits (excluding additional permissions from ACLs).
+   * O:
+      Names of the primary user and group, falling back to numeric IDs if no
+      names are available. Excludes additional owner information only found in
+      ACLs.
+   * N:
+      Numeric primary UID and GID. Excludes additional owner information only
+      found in ACLs.
+   * D:
+      Information from the discretionary access control list associated with
+      the file system object, sorted for normalization of entries. Not
+      implemented yet.
+   * E:
+      extended attributes. Not implemented yet.
+   * H:
+      A sorted list of the inodes of all directories which contain hard links
+      to this entry. Not implemented yet. Only directories found while
+      traversing will be considered. Also, the number of hard links is
+      included, which might be larger than the directory inodes which have
+      been found. The latter information has been implemented already.
+   * i:
+     File system type, maximum length of filenames, device- and inode number.
+   * I:
+     File system ID, mount ID or both - whatever is actually supported. This
+     is usually ephemeral information which only remains identical as long as
+     the file system remains mounted.
+   * -:
+     This indicator will be present if no actual indicators have been selected
+     for inclusion. Unlike the other indicators, this cannot be selected by a
+     command line option and will be enabled automatically of no other
+     indicators are present. The attribute hash will be that of an empty
+     string, which will be the same value for all entries.
+   The attribute hash does not include the path name or anything covered by
+   the content hash (see below).
+
+* content hash:
+   An object type indicator followed by a colon and a 256 bit SHA-2 hash over
+   the binary contents of the file, the target of the symlink, or the relevant
+   attributes of the special file. The following type indicators are used: F
+   for normal file, S for UNIX-domain socket, P for e FIFO, L for a symlink, C
+   for a character device node, B for a block device node.
+
+* path name:
+   This is the absolute or relative path name of the current file system
+   entry, depending on how the directorie tree arguments have been specified
+   on the command line. There is no support for path names containing a
+   newline character.
+
+SHA-256 (actually SHA-2 with 256 bit) has been used for the attributes as well
+as for the file contents in order to avoid requiring more than one
+implementation of a hash function. It is a total waste for the attribute hash,
+of course, which used a shortened output.
+
+When reading path names from standard input, directory names should also be
+provided as they are encountered. Although no checkpoint entries will be
+created for directories directly, their inode numbers will be included in the
+lists of hardlinks enabled by the -H option where appropriate.
+EOF
+	echo; exit_version
+}
+
+set -e
+cleanup() {
+	rc=$?
+	test -n "$TD" && rm -rf -- "$TD"
+	test $rc = 0 || echo "$0 failed!" >& 2
+}
+trap cleanup 0
+TD=
+trap 'exit $?' HUP INT TERM QUIT
+
+dinfo() {
+	echo "DEBUG: $*" >& 2
+}
+
+die() {
+	echo "ERROR: $*" >& 2
+	false || exit
+}
+
+if command -v fmt > /dev/null
+then
+	wr() {
+		fmt -w $LINEWIDTH -c ${1+-s}
+	}
+elif command -v fold > /dev/null
+then
+	wr() {
+		fold -w $LINEWIDTH -s | sed 's/[[:space:]]*$//'
+	}
+else
+	wr() {
+		cat
+	}
+fi
+LINEWIDTH=
+test -t 0 && LINEWIDTH=`tput cols` || LINEWIDTH=
+mxlw=100; test ${LINEWIDTH:=66} -gt $mxlw && LINEWIDTH=$mxlw
+
+if command -v sha256sum > /dev/null
+then
+	hash_stdin() {
+		sha256sum -b | sed 's/ .*//'
+	}
+elif command -v openssl > /dev/null
+then
+	hash_stdin() {
+		openssl sha256 -hex | sed 's/.* \([^ ]*\)$/\1/'
+	}
+else
+	die "Please install sha256sum or openssl!"
+fi
+                                                                                
+# Keep in sync with "case $opt" below!
+indicators='A | C | D | E | H | i | I | M | N | O | P'
+attr_bits=112
+avail=
+enab=
+selected=
+oldIFS=$IFS; IFS='| '
+for opt in $indicators
+do
+	avail=$avail$opt
+	eval opt_$opt=false
+done
+IFS=$oldIFS
+DEBUG=
+while getopts d:hV$avail opt
+do
+	enab=$enab${enab:+ }-$opt
+	case $opt in
+		A | C | D | E | H | i | I | M | N | O | P)
+			# Keep in sync with "indicators=" above!
+			selected=$selected$opt
+			eval opt_$opt=true
+			;;
+		h) exit_help;;
+		V) exit_version;;
+		d) DEBUG=$OPTARG; enab=$enab$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+parse_debug_options() {
+	debug_opts=false
+	debug_args=false
+	debug_hash=false
+	debug_stat=false
+	debug_trace=false
+	OPTIND=1
+	while getopts oahst opt
+	do
+		case $opt in
+			o) debug_opts=true;;
+			a) debug_args=true;;
+			h) debug_hash=true;;
+			s) debug_stat=true;;
+			t) debug_trace=true;;
+			*) false || exit
+		esac
+	done
+	shift `expr $OPTIND - 1 || :`
+	if test $# != 0
+	then
+		die "Unsupported debug non-options: '$*'!"
+	fi
+}
+parse_debug_options $DEBUG
+if $debug_opts || $debug_args
+then
+	dinfo "$APPLICATION_NAME Process PID $$"
+fi
+if $debug_opts
+then
+	dinfo "command line options:${enab:+ }$enab"
+fi
+if $debug_args
+then
+	i=1
+	for arg
+	do
+		dinfo "ARGV[$i] == '$arg'"
+		i=`expr $i + 1`
+	done
+fi
+if $debug_hash
+then
+	hash_stdin() {
+		echo "HASH('`cat`')"
+	}
+fi
+$debug_trace && set -xv
+if test $# != 0
+then
+	# Handle the comfort option of specifying directories directly as
+	# arguments.
+	if command -v "$0" > /dev/null
+	then
+		myself() {
+			exec "$0"${enab:+ $enab}
+		}
+	else
+		myself() {
+			exec /bin/sh -- "$0"${enab:+ $enab}
+		}
+	fi
+	i=$#
+	# Protect directory names which might be mismatched with options.
+	while :
+	do
+		test -n "$1"
+		case $1 in
+			-*) set -- "$@" "./$1";;
+			*) set -- "$@" "$1"
+		esac
+		shift
+		i=`expr $i - 1` || break
+	done
+	find -H "$@" -xdev | sed 's:^\./::g' | myself
+	exit
+fi
+
+stat_fso() {
+	local opts
+	opts=
+	while test $# != 2
+	do
+		opts=${opts:+"$opts "}$1
+		shift
+	done
+	TZ=UTC0 LC_NUMERIC=C stat${opts:+ $opts} -c "$1" -- "$2"
+}
+statf_majmin=%t:%T
+statf_C='%.Z'
+statf_fC=
+statf_M='%.Y'
+statf_fM=
+statf_A='%.X'
+statf_fA=
+statf_P='%f'
+statf_fP=
+statf_O='%U:%G'
+statf_fO=
+statf_N='%u:%g'
+statf_fN=
+statf_D='NYI=D'
+statf_fD=
+statf_E='NYI=E'
+statf_fE=
+statf_H='%h:NYI_FULLY=H'
+statf_fH=
+statf_i='%d:%i'
+statf_fi='%l:%T'
+statf_I=
+statf_fI='%i'
+
+# Read individual path names from standard input.
+TD=`mktemp -d -- "${TMPDIR:-/tmp}/$APPLICATION_NAME.XXXXXXXXXX"`
+LC_COLLATE=C sort -u > "$TD"/paths
+if $debug_hash
+then
+	nothing='HASH(NOTHING)'
+else
+	nothing=`true | hash_stdin`
+fi
+attr_chars=`expr $attr_bits / 8`
+: ${selected:="-"}
+while IFS= read -r fso
+do
+	if test -L "$fso"
+	then
+		ind=L
+		h=`readlink -- "$fso" | hash_stdin`
+	elif test -f "$fso"
+	then
+		ind=F
+		if $debug_hash
+		then
+			h="HASH(READ_FILE('$fso'))"
+		else
+			h=`hash_stdin < "$fso"`
+		fi
+	elif test -d "$fso"
+	then
+		continue
+	elif test -S "$fso"
+	then
+		ind=S
+		h=$nothing
+	elif test -p "$fso"
+	then
+		ind=P
+		h=$nothing
+	elif test -c "$fso"
+	then
+		ind=C
+		h=`stat_fso $statf_majmin "$fso" | hash_stdin`
+	elif test -b "$fso"
+	then
+		ind=B
+		h=`stat_fso $statf_majmin "$fso" | hash_stdin`
+	else
+		die "Unsupported type of filesystem object: '$fso'!"
+	fi
+	st_fmt=
+	st_f_fmt=
+	IFS='| '
+	for opt in $indicators
+	do
+		if eval \$opt_$opt
+		then
+			eval 'st_fmt_opt=$statf_'$opt
+			if test -n "$st_fmt_opt"
+			then
+				st_fmt=$st_fmt${st_fmt:+:}$st_fmt_opt
+			fi
+			eval 'st_f_fmt_opt=$statf_f'$opt
+			if test -n "$st_f_fmt_opt"
+			then
+				st_f_fmt=$st_f_fmt${st_f_fmt:+:}$st_f_fmt_opt
+			fi
+		fi
+	done
+	IFS=$oldIFS
+	if $debug_stat
+	then
+		if test -n "$st_fmt"
+		then
+			dinfo "stat format '$st_fmt' for '$fso'"
+		fi
+		if test -n "$st_f_fmt"
+		then
+			dinfo "stat -f format '$st_f_fmt' for '$fso'"
+		fi
+	fi
+	if test -n "$st_fmt"
+	then
+		a=`stat_fso "$st_fmt" "$fso"`
+	else
+		a=
+	fi
+	if test -n "$st_f_fmt"
+	then
+		a=$a${a:+:}`stat_fso -f "$st_f_fmt" "$fso"`
+	fi
+	a=`echo "$a" | hash_stdin`
+	if $debug_hash
+	then
+		:
+	else
+		a=`echo $a | head -c $attr_chars`
+	fi
+	printf '%s\n' "$selected:$a $ind:$h $fso"
+done < "$TD"/paths
