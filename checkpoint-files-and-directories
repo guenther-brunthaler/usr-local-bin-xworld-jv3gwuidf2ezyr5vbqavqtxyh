@@ -10,6 +10,8 @@ Distribution is permitted under the terms of the GPLv3.
 EOF
 }
 APPLICATION_NAME=${0##*/}
+ATTRIBUTE_SCHEMA=A:2017.161
+BASE_SCHEMA=B:2017.161
 
 exit_help() {
 	wr << EOF
@@ -136,14 +138,18 @@ EOF
      indicators are present. In this case only, another dash ("-") will also
      be shown instead of an actual hash.
    The attribute hash does not include the path name or anything covered by
-   the content hash (see below).
+   the content hash (see below). This hash is also dependent on a schema
+   version. The current ATTRIBUTE_SCHEMA version is '$ATTRIBUTE_SCHEMA'.
 
 * content hash:
    An object type indicator followed by a colon and a 256 bit SHA-2 hash over
    the binary contents of the file, the target of the symlink, or the relevant
    attributes of the special file. The following type indicators are used: F
    for normal file, S for UNIX-domain socket, P for e FIFO, L for a symlink, C
-   for a character device node, B for a block device node.
+   for a character device node, B for a block device node. This hash is also
+   dependent on a schema version (except for files ans symlinks). The current
+   BASE_SCHEMA version is '$BASE_SCHEMA'.
+
 
 * path name:
    This is the absolute or relative path name of the current file system
@@ -335,7 +341,7 @@ stat_fso() {
 	done
 	TZ=UTC0 LC_NUMERIC=C stat${opts:+ $opts} -c "$1" -- "$2"
 }
-statf_majmin=%t:%T
+statf_majmin=$BASE_SCHEMA:%t:%T
 statf_C='%.Z'
 statf_fC=
 statf_M='%.Y'
@@ -363,9 +369,9 @@ statf_fI='%i'
 LC_COLLATE=C sort -u > "$TD"/paths
 if $debug_hash
 then
-	nothing='HASH(NOTHING)'
+	nothing="HASH(NOTHING, SCHEMA='$BASE_SCHEMA')"
 else
-	nothing=`true | hash_stdin`
+	nothing=`echo "$BASE_SCHEMA" | hash_stdin`
 fi
 attr_chars=`expr $attr_bits / 8`
 if test -f "$TD"/selected
@@ -385,7 +391,7 @@ do
 		ind=F
 		if $debug_hash
 		then
-			h="HASH(READ_FILE('$fso'))"
+			h="HASH(READ_FILE('$fso')"
 		else
 			h=`hash_stdin < "$fso"`
 		fi
@@ -454,7 +460,7 @@ do
 	fi
 	if test -n "$a"
 	then
-		a=`echo "$selected:$a" | hash_stdin`
+		a=`echo "$ATTRIBUTE_SCHEMA:$selected:$a" | hash_stdin`
 	else
 		a='-'
 	fi
