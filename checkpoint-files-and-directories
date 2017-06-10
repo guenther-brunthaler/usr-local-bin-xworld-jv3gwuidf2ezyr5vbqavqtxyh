@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << EOF; exit
-$APPLICATION_NAME version 2017.160
+$APPLICATION_NAME version 2017.161
 
 Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
 
@@ -133,8 +133,8 @@ EOF
      This indicator will be present if no actual indicators have been selected
      for inclusion. Unlike the other indicators, this cannot be selected by a
      command line option and will be enabled automatically of no other
-     indicators are present. The attribute hash will be that of an empty
-     string, which will be the same value for all entries.
+     indicators are present. In this case only, another dash ("-") will also
+     be shown instead of an actual hash.
    The attribute hash does not include the path name or anything covered by
    the content hash (see below).
 
@@ -221,13 +221,13 @@ indicators='A | C | D | E | H | i | I | M | N | O | P'
 attr_bits=112
 avail=
 enab=
-selected=
 oldIFS=$IFS; IFS='| '
 for opt in $indicators
 do
 	avail=$avail$opt
 	eval opt_$opt=false
 done
+TD=`mktemp -d -- "${TMPDIR:-/tmp}/$APPLICATION_NAME.XXXXXXXXXX"`
 IFS=$oldIFS
 DEBUG=
 while getopts d:hV$avail opt
@@ -236,7 +236,7 @@ do
 	case $opt in
 		A | C | D | E | H | i | I | M | N | O | P)
 			# Keep in sync with "indicators=" above!
-			selected=$selected$opt
+			echo "$opt" >> "$TD"/selected
 			eval opt_$opt=true
 			;;
 		h) exit_help;;
@@ -360,7 +360,6 @@ statf_I=
 statf_fI='%i'
 
 # Read individual path names from standard input.
-TD=`mktemp -d -- "${TMPDIR:-/tmp}/$APPLICATION_NAME.XXXXXXXXXX"`
 LC_COLLATE=C sort -u > "$TD"/paths
 if $debug_hash
 then
@@ -369,7 +368,12 @@ else
 	nothing=`true | hash_stdin`
 fi
 attr_chars=`expr $attr_bits / 8`
-: ${selected:="-"}
+if test -f "$TD"/selected
+then
+	selected=`LC_COLLATE=C sort -u -- "$TD"/selected | paste -sd ''`
+else
+	selected="-"
+fi
 while IFS= read -r fso
 do
 	if test -L "$fso"
@@ -448,12 +452,17 @@ do
 	then
 		a=$a${a:+:}`stat_fso -f "$st_f_fmt" "$fso"`
 	fi
-	a=`echo "$a" | hash_stdin`
+	if test -n "$a"
+	then
+		a=`echo "$selected:$a" | hash_stdin`
+	else
+		a='-'
+	fi
 	if $debug_hash
 	then
 		:
 	else
-		a=`echo $a | head -c $attr_chars`
+		a=`echo "$a" | head -c $attr_chars`
 	fi
 	printf '%s\n' "$selected:$a $ind:$h $fso"
 done < "$TD"/paths
