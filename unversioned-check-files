@@ -105,7 +105,7 @@ verify() {
 	then
 		if $verbose
 		then
-			echo "MATCH $f" >& 2
+			echo "OK $f" >& 2
 		fi
 	else
 		if expr x"$ock" : x'[0-9a-f]\{64\}$' = 0 > /dev/null
