@@ -1,0 +1,191 @@
+#! /bin/sh
+# Version 2017.180
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+# Checksum files will have this extension.
+ck_suffix=.sha2
+# Backups are only supported if this subdirectory (can also be a symlink) is
+# found in the current directory or one if its parent directories. Backups
+# will then be checked for in this directory (using relative paths) if they
+# exist. The -b option enforces creation or verification of backups.
+backups_dir=.unversioned_backups-l4h2jxiv8zvjaffmqcygdw1k3.d
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+check_only=false
+update_only=false
+backup=false
+abs_backup_dir=false
+verbose=true
+while getopts qbcuB: opt
+do
+	case $opt in
+		b) backup=true;;
+		c) check_only=true;;
+		u) update_only=true;;
+		q) verbose=false;;
+		B)
+			test "$OPTARG"
+			case $OPTARG in
+				*/*)
+					backup_dir=`readlink -f -- "$OPTARG"`
+					test -d "$backups_dir"
+					abs_backup_dir=true
+					;;
+				*) backups_dir=$OPTARG
+			esac
+			backup=true
+			;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+if $backup
+then
+	echo "Backup support has not been implemented yet!"
+	false || exit
+fi
+
+if $check_only && $update_only
+then
+	echo "Options -c and -u are mutually exclusive!" >& 2
+	false || exit
+fi
+
+no_sha2=true
+while IFS= read -r impl
+do
+	eval "sha2() { $impl; }"
+	if test "`echo test | sha2 2> /dev/null | cksum`" = '2774572630 65'
+	then
+		no_sha2=false
+		break
+	fi
+done << 'EOF'
+	sha256sum -b | cut -c -64
+	openssl sha256 | cut -d ' ' -f 2
+	busybox sha256sum -b | cut -c -64
+EOF
+if $no_sha2
+then
+	echo "No SHA-2 implementation!" >& 2
+	false || exit
+fi
+
+# updates: $success
+error() {
+	success=false
+	echo "ERROR: $*" >& 2
+}
+
+# in: $f, $c
+create() {
+	if $verbose
+	then
+		echo "CREATE $c" >& 2
+	fi
+	cp -p -- "$f" "$c"
+	sha2 < "$f" > "$c"
+}
+
+# in: $f, $c; may update: $success
+# Also writes failed files to stdout, but not if it is a terminal.
+verify() {
+	local ock nck
+	IFS= read -r ock < "$c"
+	nck=`sha2 < "$f"`
+	if test "$nck" = "$ock"
+	then
+		if $verbose
+		then
+			echo "MATCH $f" >& 2
+		fi
+	else
+		if expr x"$ock" : x'[0-9a-f]\{64\}$' = 0 > /dev/null
+		then
+			error "Corrupted check file '$c'!"
+		else
+			echo "BAD $f"
+			success=false
+		fi
+		if test ! -t 1
+		then
+			printf '%s\n' "$f"
+		fi
+	fi
+}
+
+process_stdin() {
+	while IFS= read -r f
+	do
+		printf '%s\n' "${f%"$ck_suffix"}"
+	done | LC_COLLATE=C sort -u \
+	| {
+		success=true
+		while IFS= read -r f
+		do
+			if test -L "$f"
+			then
+				error "Symlinks are not yet supported: '$f'!"
+				continue
+			elif test ! -f "$f"
+			then
+				error "Missing file '$f'!"
+				continue
+			fi
+			c=$f$ck_suffix
+			if test -e "$c"
+			then
+				if $update_only
+				then
+					rm -- "$c"
+					create
+				elif test -L "$c"
+				then
+					error "Check file must not be a" \
+						"symlink: '$c'!"
+				elif test ! -f "$c"
+				then
+					error "Check object is not a file:" \
+						"'$c'!"
+				else
+					verify
+				fi
+			else
+				if $check_only
+				then
+					error "MISSING check file '$c'!"
+				else
+					create
+				fi
+			fi
+		done
+		$success || return
+	}
+}
+
+case $# in
+	0)
+		if $update_only
+		then
+			process_stdin
+		fi
+		find . -xdev -name "*$ck_suffix" -type f | sed 's:^./::' \
+			| process_stdin
+		exit
+		;;
+	1)
+		if test "$1" = '-'
+		then
+			process_stdin
+		fi
+esac
+for arg
+do
+	printf '%s\n' "$arg"
+done | process_stdin
