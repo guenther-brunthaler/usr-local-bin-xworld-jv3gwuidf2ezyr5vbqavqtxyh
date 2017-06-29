@@ -21,13 +21,15 @@ update_only=false
 backup=false
 abs_backup_dir=false
 verbose=true
-while getopts qbcuB: opt
+force=false
+while getopts fqbcuB: opt
 do
 	case $opt in
 		b) backup=true;;
 		c) check_only=true;;
 		u) update_only=true;;
 		q) verbose=false;;
+		f) force=true;;
 		B)
 			test "$OPTARG"
 			case $OPTARG in
@@ -165,15 +167,25 @@ process_stdin() {
 				fi
 			fi
 		done
-		$success || return
-	}
+		$success || exit
+	} && exit || exit
 }
 
 case $# in
 	0)
 		if $update_only
 		then
-			process_stdin
+			if $force
+			then
+				:
+			else
+				# -u without arguments is too dangerous to
+				# update all checksums unless -f has been
+				# specified. By default -u reads the files to
+				# be updated from stdin, typically provided by
+				# "find".
+				process_stdin
+			fi
 		fi
 		find . -xdev -name "*$ck_suffix" -type f | sed 's:^./::' \
 			| process_stdin
