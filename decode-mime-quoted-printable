@@ -1,0 +1,34 @@
+#! /bin/sh
+# Primitive decode filter for MIME "quoted-printable" input text. Does not
+# attempt character-set conversion or MIME header-parsing. Just feed the
+# contents of a quoted-printable section as standard input to the script.
+#
+# Hint: MIME quoted-printable text looks like this: "H=45llo=20world", i. e.
+# hex pairs preceded by "=", and "=" at EOL may be used for line folding.
+#
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+while IFS= read -r line
+do
+	test "$line" != "${line%=}" && continue # Folded line.
+	inp=$line; line=
+	while :
+	do
+		sfx=${inp#*=[0-9A-F][0-9A-F]}
+		if test "$sfx" = "$inp"
+		then
+			line=$line$inp
+			break
+		fi
+		pfx=${inp%"$sfx"}; inp=$sfx
+		ppfx=${pfx%=??}; line=$line$ppfx
+		hex=${pfx#"$ppfx="}
+		hex=`printf "\\\\\`printf %03o 0x$hex\`:"`
+		line=$line${hex%:}
+	done
+	printf '%s\n' "$line"
+done
