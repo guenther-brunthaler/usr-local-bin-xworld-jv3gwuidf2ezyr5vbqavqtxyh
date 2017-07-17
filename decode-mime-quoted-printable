@@ -14,7 +14,16 @@ set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 while IFS= read -r line
 do
-	test "$line" != "${line%=}" && continue # Folded line.
+	while pfx=${line%=}; test "$pfx" != "$line"
+	do
+		if IFS= read -r line
+		then
+			line=$pfx$line
+		else
+			line=$pfx
+			break
+		fi
+	done
 	inp=$line; line=
 	while :
 	do
