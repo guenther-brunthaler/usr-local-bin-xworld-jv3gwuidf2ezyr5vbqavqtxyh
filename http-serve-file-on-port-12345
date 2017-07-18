@@ -1,0 +1,35 @@
+#! /bin/sh
+# Serve a file via HTTP on the local machine without requiring any installed
+# web server.
+#
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+test -f "${1:?Usage: $0 <file_to_upload>}"
+port=`expr x"$0" : x'.*[^0-9]\([1-9][0-9]*\)[^0-9]*$'`
+nc=
+for tool in nc netcat nc6 netcat6 "busybox nc"
+do
+	if command -v $tool > /dev/null 2>& 1
+	then
+		nc=$tool
+		break
+	fi
+done
+test "$nc"
+
+out() {
+	printf '%s\012\015' "$*"
+}
+
+fsize=`stat -c '%s' -- "$1"`
+{
+	out HTTP/1.0 200 OK
+	out Content-Type: application/octet-stream
+	out Content-Length: $fsize
+	out
+	cat < "$1"
+} | $nc -l -p $port
