@@ -37,11 +37,12 @@ done
 test "$nc"
 
 out() {
-	printf '%s\012\015' "$*"
+	printf '%s\015\012' "$*"
 }
 
 echo "Serving file '$1' as http://0.0.0.0:$port/" >& 2
-echo "For receiving, replace 0.0.0.0 with any IP address of THIS host." >& 2
+echo "For downloading that file from another host on the same LAN/WLAN," >& 2
+echo "replace 0.0.0.0 with any IP address of THIS host (`hostname`)." >& 2
 fsize=`stat -c '%s' -- "$1"`
 {
 	out HTTP/1.0 200 OK
