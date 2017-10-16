@@ -1,0 +1,38 @@
+#! /bin/sh
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+dry_run=false
+while getopts n opt
+do
+	case $opt in
+		n) dry_run=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+ws=`printf '+AKAAWw:space:+AF0AWw:cntrl:+AF0-x' | iconv -f UTF-7`; ws=${ws%x}
+for f
+do
+	while :
+	do
+		n=${f%/}
+		if test "$n" != "$f"
+		then
+			f=$n
+		else
+			break
+		fi
+	done
+	test -e "$f"
+	n=`printf '%s\n' "$f" | sed 's/['"$ws"']\{1,\}/ /g'`
+	if test "$f" != "$n"
+	then
+		echo "Rename '$f' into '$n'..."
+		if $dry_run
+		then
+			:
+		else
+			mv -- "$f" "$n"
+		fi
+	fi
+done
