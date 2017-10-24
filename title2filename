@@ -1,0 +1,29 @@
+#! /bin/sh
+# Invoke "sed" (passing through any -i option) with predefined string
+# transformation which normalizes a UNICODE text title into a proper file
+# name.
+set -e
+trap 'test $? = 0 || echo "$APP failed in line $lnum!" >& 2' 0
+opts=
+while getopts i opt
+do
+	case $opt in
+		i) opts="$opts -$opt";;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+substs=`
+iconv -f UTF-7 << 'EOF'
+s/?/ /g
+s/:/ -/g
+s/+AFsAWw:space:+AF0AoABdAFwAew-1,+AFwAfQ-/ /g+ADs s/+AF4 //+ADs s/ +ACQ-//
+s/+AF4.+ACQ-/.../
+s/+ICY-/.../g
+y/+IDogOQCrALsgHSAcIB4gEyAZIBg-/+ACIAIgAiACIAIgAiACI--''/
+y/+IAY-/ /
+y/+A7w-/+ALU-/
+y/+AUIBGQEfAQ0BRA-/legcn/
+EOF
+`
+sed$opts "$substs" "$@"
