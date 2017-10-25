@@ -35,6 +35,7 @@ my @out;
 {
    my(@distances, $i, $best_i, $smallest_dist, $to);
    foreach my $from (sort {length($b) <=> length($a) or $a cmp $b} @ARGV) {
+      last unless @replacements;
       @distances= distance($from, @replacements);
       undef $best_i;
       for ($i= 0; $i < @distances; ++$i) {
