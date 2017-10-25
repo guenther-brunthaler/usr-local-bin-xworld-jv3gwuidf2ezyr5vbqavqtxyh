@@ -1,0 +1,57 @@
+#! /usr/bin/perl
+#
+# Reads a file list from standard input and writes a shell script to standard
+# output which will rename every file specified as an argument into the best
+# matching file name from the list. The number of entries in the list does not
+# need to match the number of arguments. Excess entries on either side will
+# silently be ignored.
+#
+# Version 2017.298
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+use warnings qw(all);
+use autodie qw(:all);
+use Text::Levenshtein qw(distance);
+
+my @replacements= <STDIN>;
+chomp foreach @replacements;
+if (@ARGV && !@replacements) {
+   die "Please provide a list of replacement filenames via standard input"
+}
+
+sub qin($) {
+   my($s)= @_;
+   if ($s =~ /[[:space:][:cntrl:]\\"']/) {
+      $s =~ s/[\\"]/\\$&/g;
+      $s= qq'"$s"';
+   }
+   return $s;
+}
+
+my @out;
+{
+   my(@distances, $i, $best_i, $smallest_dist, $to);
+   foreach my $from (sort {length($b) <=> length($a) or $a cmp $b} @ARGV) {
+      @distances= distance($from, @replacements);
+      undef $best_i;
+      for ($i= 0; $i < @distances; ++$i) {
+         if (!defined($best_i) || $distances[$i] < $smallest_dist) {
+            $smallest_dist= $distances[$best_i= $i];
+         }
+      }
+      $to= splice @replacements, $best_i, 1;
+      push @out, {from => $from, to => $to} if $from ne $to;
+   }
+}
+{
+   my $cmd;
+   foreach (sort {$a->{from} cmp $b->{from}} @out) {
+      $cmd='mv -i ';
+      $cmd.= '-- ' if $_->{from} =~ /^-/;
+      print $cmd . qin($_->{from}) . " " . qin($_->{to}) . "\n";
+   }
+}
+close STDOUT; # Flush output to detect any write errors.
