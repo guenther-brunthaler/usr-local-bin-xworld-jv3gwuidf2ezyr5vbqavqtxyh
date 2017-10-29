@@ -31,6 +31,14 @@ convert() {
 	then
 		rest=${temp%??}; frac=${temp#"$rest"}
 		temp=$rest$decimal_point$frac
+		while :
+		do
+			case $temp in
+				*0) temp=${temp%0};;
+				*"$decimal_point") temp=${temp%?}; break;;
+				*) break
+			esac
+		done
 	else
 		temp=0
 	fi
