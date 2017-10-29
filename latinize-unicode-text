@@ -1,0 +1,28 @@
+#! /bin/sh
+# Invoke "sed" (passing through any -i option) with predefined string
+# transformation which tries to substitute non-LATIN9 UNICODE characters with
+# LATIN9 replacement characters. Also, sequences of non-breaking space,
+# horizontal tabulation and similar whitespace characters will be replaced by
+# a single space character.
+set -e
+trap 'test $? = 0 || echo "$APP failed in line $lnum!" >& 2' 0
+opts=
+while getopts i opt
+do
+	case $opt in
+		i) opts="$opts -$opt";;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+substs=`
+iconv -f UTF-7 << 'EOF'
+s/+AFsAWw:space:+AF0AoABdAFwAew-1,+AFwAfQ-/ /g+ADs s/+AF4 //+ADs s/ +ACQ-//
+s/+ICY-/.../g
+y/+IDogOQCrALsgHSAcIB4gEyAZIBgAtA-/+ACIAIgAiACIAIgAiACI--'''/
+y/+IAY-/ /
+y/+A7w-/+ALU-/
+y/+AUIBGQEfAQ0BRA-/legcn/
+EOF
+`
+sed$opts "$substs" "$@"
