@@ -42,7 +42,7 @@ convert() {
 	else
 		temp=0
 	fi
-	$verbose && temp="$1 °F = $temp °C"
+	$verbose && temp="$1 ${degrees}F = $temp ${degrees}C"
 	printf '%s\n' "$temp"
 }
 
@@ -63,6 +63,7 @@ shift `expr $OPTIND - 1 || :`
 
 eval `locale -k LC_NUMERIC | grep ^decimal_point=`
 : ${decimal_point:=.}
+degrees=`echo +ALA- | iconv -f UTF-7 2> /dev/null || echo 'degrees '`
 
 case $# in
 	0)
