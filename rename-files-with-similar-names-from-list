@@ -6,7 +6,7 @@
 # need to match the number of arguments. Excess entries on either side will
 # silently be ignored.
 #
-# Version 2017.298
+# Version 2017.303
 # Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -14,7 +14,6 @@
 
 use warnings qw(all);
 use autodie qw(:all);
-use Text::Levenshtein qw(distance);
 
 my @replacements= <STDIN>;
 chomp foreach @replacements;
@@ -29,6 +28,38 @@ sub qin($) {
       $s= qq'"$s"';
    }
    return $s;
+}
+
+use constant W => 4;
+
+sub genset($) {
+   my($text)= @_;
+   my(%set, $i, $last);
+   if (($last= length($text)) >= W) {
+      $last-= W;
+      for ($i= 0; $i <= $last; ++$i) {
+         $set{substr $text, $i, W}= 0;
+      }
+   }
+   return \%set;
+}
+
+# W-Shingling.
+sub distance($@) {
+   my($target, @names)= @_;
+   my $ts= genset $target;
+   my($ns, $k, $isect, $union, @result);
+   foreach my $name (@names) {
+      $ns= genset $name;
+      $isect= 0;
+      foreach $k (keys %$ts) {
+         ++$isect if exists $ns->{$k};
+         $ns->{$k}= 0;
+      }
+      $union= scalar keys %$ns;
+      push @result, 1 - ($union ? $isect / $union : $name eq $target);
+   }
+   return @result;
 }
 
 my @out;
