@@ -14,6 +14,14 @@
 
 use warnings qw(all);
 use autodie qw(:all);
+use Getopt::Std;
+
+getopts('f:') or die;
+if (defined $opt_f) {
+   open IN, '<', $opt_f;
+   splice @ARGV, scalar(@ARGV), 0, map {chomp, $_} <IN>;
+   close IN;
+}
 
 my @replacements= <STDIN>;
 chomp foreach @replacements;
