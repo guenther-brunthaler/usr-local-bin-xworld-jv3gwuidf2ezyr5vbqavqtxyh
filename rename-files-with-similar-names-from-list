@@ -13,7 +13,7 @@
 # Distribution is permitted under the terms of the GPLv3.
 
 use warnings qw(all);
-use autodie qw(:all);
+use autodie;
 use Getopt::Std;
 
 getopts('f:') or die;
@@ -91,7 +91,7 @@ my @out;
    foreach (sort {$a->{from} cmp $b->{from}} @out) {
       $cmd='mv -i ';
       $cmd.= '-- ' if $_->{from} =~ /^-/;
-      print $cmd . qin($_->{from}) . " " . qin($_->{to}) . "\n";
+      print $cmd . qin($_->{from}) . " " . qin($_->{to}) . "\n" or die $!;
    }
 }
 close STDOUT; # Flush output to detect any write errors.
