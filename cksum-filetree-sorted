@@ -1,0 +1,27 @@
+#! /bin/sh
+# Run either from base directory containing all the downloaded stuff, then
+# $outfile will be created in the parent directory. Or specify the path to a
+# base directory as the only argument, then $outfile will be created in the
+# current directory.
+#
+# Version 2017.311
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+outfile=have.cks
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+if test $# = 0
+then
+	outfile=../$outfile
+else
+	test $# = 1
+	outfile=`readlink -f .`/$outfile
+	cd -- "$1"
+fi
+find . -type f | LC_COLLATE=C sort | cut -c 3- | while IFS= read -r f
+do
+	cksum -- "$f"
+done | tee -- "$outfile"
