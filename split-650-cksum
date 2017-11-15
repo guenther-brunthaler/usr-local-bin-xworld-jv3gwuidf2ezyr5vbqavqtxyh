@@ -1,0 +1,42 @@
+#! /bin/sh
+# The number of parts to split into by default. Even though POSIX defines 676
+# combinations from 'aa' through 'zz' should be generated, GNU split does not
+# do this. It only goes up to 'yz', and switches to 4-letter names (starting
+# with 'zaaa' after that). Therefore, 'yz' will not be followed by 'za', as
+# would be expected. In other words, GNU split is not POSIX compliant.
+#
+# Version 2017.319
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+parts=650
+subdir_suffix=.parts
+ckfile_suffix=.cks
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+while getopts n: opt
+do
+	case $opt in
+		n) parts=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test $# = 1
+test -f "$1"
+total=`stat -Lc %s -- "$1"`
+test $total -ge "$parts"
+part=`expr \( $total + $parts - 1 \) / $parts`
+out=$1$subdir_suffix
+ckfile=$1$ckfile_suffix
+test ! -e "$out"
+test ! -e "$ckfile"
+mkdir -- "$out"
+split -b $part -- "$1" "$out"/
+(export LC_COLLATE=C && cd -- "$out" && cksum *) > "$ckfile"
+echo "Created '$ckfile' for files in directory '$out'!" >& 2
