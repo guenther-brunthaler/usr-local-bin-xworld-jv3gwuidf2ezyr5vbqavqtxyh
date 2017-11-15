@@ -21,7 +21,7 @@ else
 	outfile=`readlink -f .`/$outfile
 	cd -- "$1"
 fi
-find . -type f | LC_COLLATE=C sort | cut -c 3- | while IFS= read -r f
+find -L . -type f | LC_COLLATE=C sort | cut -c 3- | while IFS= read -r f
 do
 	cksum -- "$f"
 done | tee -- "$outfile"
