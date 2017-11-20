@@ -1,0 +1,21 @@
+#! /bin/sh
+# "Close" the specified git branch in the current repository by creating a tag
+# (augmented with UTC timestamp of closing) for it and then removing the
+# branch. This allows the branch to be "reopened" and closed again later
+# without tag conflicts.
+#
+# Version 2017.324
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+test 1 = $#
+test -n "$1"
+git rev-parse -- "$1" > /dev/null
+tag=`date -u +%Y%m%d_%H%M%S`
+tag=closed_branch_${1}_as_of_${tag}z
+echo "New tag '$tag'"
+git tag "$tag" "$1"
+git branch -D "$1"
