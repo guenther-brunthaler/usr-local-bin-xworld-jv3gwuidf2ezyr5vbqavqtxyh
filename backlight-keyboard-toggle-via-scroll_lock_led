@@ -1,0 +1,23 @@
+#! /bin/sh
+# Toggles the backlight of (USB) keyboards on/off which use the ScrollLock key
+# to toggle the backlight under the console - which does not work under X11,
+# however. Then optionally assign any X11 keyboard accelerator shortcut to
+# invoke this script.
+#
+# Version 2017.327
+#
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+case `
+	LC_MESSAGES=C xset -q | sed 's/.*Scroll Lock: \([onf]*\).*/\1/; t; d'
+` in
+	on) sw=-;;
+	off) sw=;;
+	*) false || exit
+esac
+xset ${sw}led named "Scroll Lock"
