@@ -1,0 +1,165 @@
+#! /bin/sh
+VERSION=2017.327
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+exit_version() {
+	reflow 5<& 0 << .; exit
+$APP version $VERSION
+
+Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+
+This script is free software.\n
+Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+exit_help() {
+	reflow 5<& 0 << .; echo; exit_version
+$APP - convert flowtext to HTML
+
+Usage: $APP [ <options> ... ] <file_1>.txt ...
+
+$APP converts plain text files into HTML version 4 encoded as UTF-8.
+
+The output files will have the same name as the input files but use .html as
+the filename extension.
+
+The input files are assumed to be encoded according to the current locale's
+LC_CTYPE setting.
+
+While converting a file, it is assumed that every physical line represents a
+paragraph of flowtext rather than an individual output line, and that
+paragraphs are separated by empty lines.
+
+If an empty line is missing between two adjacent non-empty lines of text, they
+will be assumed to belong to the same paragraph with a forced line break
+between them.
+
+Options:\n
+-V: Show version information and exit.\n
+-h: Display this help and exit.\n
+.
+}
+
+reflow() {
+	local w max line sep
+	max=66
+	test -t 5 && w=`tput cols || echo $max` || w=$max
+	test $w -gt $max && w=$max
+	sep=
+	while IFS= read -r line
+	do
+		if expr x"$line" : 'x[[:space:]]*$' > /dev/null
+		then
+			test "$sep" && echo
+			echo
+			sep=
+		elif test x"${line%\\n}" != x"$line"
+		then
+			printf '%s\n' "$sep${line%\\n}"
+			sep=
+		else
+			printf '%s' "$sep$line"
+			sep=' '
+		fi
+	done | fold -sw $w | sed 's/ $//'
+}
+
+while getopts Vh opt
+do
+	case $opt in
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+header() {
+	cat << EOF
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0//EN">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta name="generator" content="$generator">
+<meta name="date" content="$date">
+<title>$title</title>
+</head>
+<body>
+EOF
+}
+
+footer() {
+	cat << EOF
+</body>
+</html>
+EOF
+}
+
+tohtml() {
+	iconv -t UTF-8 | sed '
+		s/[[:space:]]\{1,\}$//;
+		s/&/\&amp/g;
+		s/</\&lt;/g;
+		s/>/\&gt;/g;
+	'
+}
+
+toattr() {
+	sed 's/"/\&quot;/g;' \
+	| iconv -f UTF-8 -t UTF-32BE \
+	| od -vA n -t x1 | sed 's/^ //; s/ /\n/g' \
+	| while read x1
+	do
+		read x2; read x3; read x4
+		case $x1$x2$x3$x4 in
+			000000[0-7]*)
+				o=`printf '\%03o' 0x$x4`
+				printf $o
+				;;
+			*) printf '&#%u;' 0x$x1$x2$x3$x4
+		esac
+	done
+}
+
+para_end() {
+	if $inpara
+	then
+		echo '</p>'
+		inpara=false
+	fi
+}
+
+generator=`printf '%s\n' "$APP v$VERSION" | tohtml | toattr`
+for txt
+do
+	test -f "$txt"
+	date=`stat -c %Y -- "$txt"`
+	date=`date -d @$date +%Y-%m-%dT%H:%M:%S%:z`
+	title=`printf '%s\n' "${txt%.txt}" | tohtml | toattr`
+	{
+		header
+		tohtml < "$txt" | {
+			inpara=false
+			while IFS= read -r line
+			do
+				case $line in
+					'') para_end;;
+					*)
+						if $inpara
+						then
+							echo "<br>$line"
+						else
+							echo "<p>$line"
+							inpara=true
+						fi
+				esac
+			done
+			para_end
+		}
+		footer
+	} > "${txt%.txt}.html"
+done
