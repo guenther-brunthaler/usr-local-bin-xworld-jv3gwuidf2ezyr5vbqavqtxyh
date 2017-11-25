@@ -1,5 +1,5 @@
 #! /bin/sh
-VERSION=2017.327
+VERSION=2017.329
 
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
@@ -108,23 +108,6 @@ tohtml() {
 	'
 }
 
-toattr() {
-	sed 's/"/\&quot;/g;' \
-	| iconv -f UTF-8 -t UTF-32BE \
-	| od -vA n -t x1 | sed 's/^ //; s/ /\n/g' \
-	| while read x1
-	do
-		read x2; read x3; read x4
-		case $x1$x2$x3$x4 in
-			000000[0-7]*)
-				o=`printf '\%03o' 0x$x4`
-				printf $o
-				;;
-			*) printf '&#%u;' 0x$x1$x2$x3$x4
-		esac
-	done
-}
-
 para_end() {
 	if $inpara
 	then
@@ -133,13 +116,13 @@ para_end() {
 	fi
 }
 
-generator=`printf '%s\n' "$APP v$VERSION" | tohtml | toattr`
+generator=`printf '%s\n' "$APP v$VERSION" | tohtml`
 for txt
 do
 	test -f "$txt"
 	date=`stat -c %Y -- "$txt"`
 	date=`date -d @$date +%Y-%m-%dT%H:%M:%S%:z`
-	title=`printf '%s\n' "${txt%.txt}" | tohtml | toattr`
+	title=`printf '%s\n' "${txt%.txt}" | tohtml`
 	{
 		header
 		tohtml < "$txt" | {
