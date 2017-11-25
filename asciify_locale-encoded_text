@@ -1,0 +1,45 @@
+#! /usr/bin/perl
+# Convert text in current locale encoding into escaped ASCII text or back
+# again (with option -u).
+#
+# Version 2017.329
+#
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+use strict;
+use warnings;
+use charnames ':full';
+use open ':locale';
+use Getopt::Std;
+
+our $opt_u;
+getopts('u') or die;
+
+if ($opt_u) {
+   while (defined($_= <>)) {
+      s/<([^<>]+)>/charnames::string_vianame($1)/ge;
+      print $_ or die $!;
+   }
+} else {
+   my %goodness= map {$_, 0} qw/< >/;
+   {
+      my($i, $c);
+      for ($i= 0; $i < 128; ++$i) {
+         if (exists $goodness{$c= chr $i}) {
+            delete $goodness{$c}
+         } else {
+            $goodness{$c}= 0;
+         }
+      }
+   }
+   while (defined($_= <>)) {
+      s/./
+         exists($goodness{$&}) ? $& : '<' . charnames::viacode(ord $&) . '>'
+      /ge;
+      print $_ or die $!;
+   }
+}
+STDOUT->flush() or die $!;
