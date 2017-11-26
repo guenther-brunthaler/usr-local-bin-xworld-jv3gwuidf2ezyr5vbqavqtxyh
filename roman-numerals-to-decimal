@@ -10,17 +10,17 @@
 # Distribution is permitted under the terms of the GPLv3.
 
 awk '
-	# Globals: alphabet, largest_digit, d2v[]
+	# Globals: romdigs, largest_digit, d2v[]
 
 	function init_decoder(    digit_value, digit, factor, i, digit_char) {
-		alphabet="IVXLCDM"; digit_value= 0.5; factor= 5
-		for (i= 1; i <= length(alphabet); ++i) {
-			digit_char= substr(alphabet, i, 1)
+		romdigs= "IVXLCDM"; digit_value= 0.5; factor= 5
+		for (i= 1; i <= length(romdigs); ++i) {
+			digit_char= substr(romdigs, i, 1)
 			largest_digit \
 				= d2v[digit_char]= d2v[tolower(digit_char)] \
 				= digit_value*= factor= 7 - factor
 		}
-		alphabet= alphabet tolower(alphabet)
+		romdigs= "^[" romdigs tolower(romdigs) "]*$"
 	}
 
 	function decode(roman    , n, i, total, partial, last_digit) {
@@ -50,7 +50,7 @@ awk '
 		}
 	}
 
-	$0 ~ "^[" alphabet "]*$" {
+	$0 ~ romdigs {
 		decode($0)
 	}
 ' "$@" || echo "$0 failed!" >& 2
