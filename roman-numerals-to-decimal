@@ -13,14 +13,12 @@ awk '
 	# Globals: alphabet, largest_digit, d2v[]
 
 	function init_decoder(    digit_value, digit, factor, i, digit_char) {
-		alphabet="IVXLCDM"; digit_value= 1; factor= 5
+		alphabet="IVXLCDM"; digit_value= 0.5; factor= 5
 		for (i= 1; i <= length(alphabet); ++i) {
 			digit_char= substr(alphabet, i, 1)
 			largest_digit \
 				= d2v[digit_char]= d2v[tolower(digit_char)] \
-				= digit_value
-			digit_value*= factor
-			factor= 7 - factor
+				= digit_value*= factor= 7 - factor
 		}
 		alphabet= alphabet tolower(alphabet)
 	}
@@ -28,8 +26,7 @@ awk '
 	function decode(roman    , n, i, total, partial, last_digit) {
 		n= length(roman); total= partial= 0; last_digit= largest_digit
 		for (i= 1; i <= n; ++i) {
-			digit= d2v[substr(roman, i, 1)]
-			if (digit > last_digit) {
+			if ((digit= d2v[substr(roman, i, 1)]) > last_digit) {
 				partial= digit - partial
 			} else if (digit < last_digit) {
 				total+= partial; partial= digit
