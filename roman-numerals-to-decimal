@@ -1,0 +1,59 @@
+#! /bin/sh
+# Convert roman numerals (in either letter case) into decimal values. All
+# variants mentioned in the Wikipedia article are supported.
+#
+# Version 2017.330
+#
+# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+awk '
+	# Globals: alphabet, largest_digit, d2v[]
+
+	function init_decoder(    digit_value, digit, factor, i, digit_char) {
+		alphabet="IVXLCDM"; digit_value= 1; factor= 5
+		for (i= 1; i <= length(alphabet); ++i) {
+			digit_char= substr(alphabet, i, 1)
+			largest_digit \
+				= d2v[digit_char]= d2v[tolower(digit_char)] \
+				= digit_value
+			digit_value*= factor
+			factor= 7 - factor
+		}
+		alphabet= alphabet tolower(alphabet)
+	}
+
+	function decode(roman    , n, i, total, partial, last_digit) {
+		n= length(roman); total= partial= 0; last_digit= largest_digit
+		for (i= 1; i <= n; ++i) {
+			digit= d2v[substr(roman, i, 1)]
+			if (digit > last_digit) {
+				partial= digit - partial
+			} else if (digit < last_digit) {
+				total+= partial; partial= digit
+			} else {
+				partial+= digit
+			}
+			last_digit= digit
+		}
+		print total + partial
+	}
+
+	function process_arguments(    i) {
+		for (i= 1; i < ARGC; ++i) decode(ARGV[i])
+	}
+
+	BEGIN {
+		init_decoder()
+		if (ARGC > 1) {
+			process_arguments()
+			exit
+		}
+	}
+
+	$0 ~ "^[" alphabet "]*$" {
+		decode($0)
+	}
+' "$@" || echo "$0 failed!" >& 2
