@@ -31,8 +31,8 @@ if (@ARGV && !@replacements) {
 
 sub qin($) {
    my($s)= @_;
-   if ($s =~ /[[:space:][:cntrl:]\\"']/) {
-      $s =~ s/[\\"]/\\$&/g;
+   if ($s =~ /[[:space:][:cntrl:]\$`\\"']/) {
+      $s =~ s/[\$`\\"]/\\$&/g;
       $s= qq'"$s"';
    }
    return $s;
