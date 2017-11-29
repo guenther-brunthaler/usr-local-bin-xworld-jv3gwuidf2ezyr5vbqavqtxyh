@@ -19,8 +19,16 @@ our $opt_u;
 getopts('u') or die;
 
 if ($opt_u) {
+   sub getchar($) {
+      my $n= $_[0];
+      charnames::string_vianame($n)
+         || $n =~ /^[[:xdigit:]]{1,6}$/
+            && chr eval '0x' . $n
+         || die "Invalid escape '<$n>'"
+      ;
+   }
    while (defined($_= <>)) {
-      s/<([^<>]+)>/charnames::string_vianame($1)/ge;
+      s/<([^<>]+)>/getchar($1)/ge;
       print $_ or die $!;
    }
 } else {
@@ -35,10 +43,15 @@ if ($opt_u) {
          }
       }
    }
+   sub getname($) {
+      my $c= $_[0];
+      exists($goodness{$c})
+         ? $c
+         : '<' . (charnames::viacode($c= ord $c) || sprintf '%X', $c) . '>'
+      ;
+   }
    while (defined($_= <>)) {
-      s/./
-         exists($goodness{$&}) ? $& : '<' . charnames::viacode(ord $&) . '>'
-      /ge;
+      s/./getname($&)/ge;
       print $_ or die $!;
    }
 }
