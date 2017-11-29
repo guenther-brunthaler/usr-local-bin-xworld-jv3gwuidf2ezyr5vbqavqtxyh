@@ -21,9 +21,9 @@ getopts('u') or die;
 if ($opt_u) {
    sub getchar($) {
       my $n= $_[0];
-      charnames::string_vianame($n)
-         || $n =~ /^[[:xdigit:]]{1,6}$/
+      $n =~ /^[[:xdigit:]]{1,6}$/
             && chr eval '0x' . $n
+         || charnames::string_vianame($n)
          || die "Invalid escape '<$n>'"
       ;
    }
