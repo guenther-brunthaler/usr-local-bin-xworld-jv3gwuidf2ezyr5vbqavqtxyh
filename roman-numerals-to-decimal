@@ -2,22 +2,21 @@
 # Convert roman numerals (in either letter case) into decimal values. All
 # variants mentioned in the Wikipedia article are supported.
 #
-# Version 2017.346
+# Version 2017.346.1
 #
 # Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
-awk -f /dev/fd/5 5<< 'EOF' -- "$@" || printf '%s\n' "$0 failed!" >& 2
+awk -f /dev/fd/5 5<< 'EOF' -- "$@" || printf '%s\n' "$0 failed!" >& 2 && false
 	# Globals: romdigs, largest_digit, d2v[]
 
 	function init_decoder(    value, digit, factor, i, rl, char) {
 		romdigs= "IVXLCDM"; rl= length(romdigs); value= 0.5; factor= 5
 		for (i= 1; i <= rl; ++i) {
 			char= substr(romdigs, i, 1)
-			largest_digit \
-				= d2v[char]= d2v[tolower(char)] \
+			largest_digit= d2v[char]= d2v[tolower(char)] \
 				= value*= factor= 7 - factor
 		}
 		romdigs= "^[" romdigs tolower(romdigs) "]*$"
