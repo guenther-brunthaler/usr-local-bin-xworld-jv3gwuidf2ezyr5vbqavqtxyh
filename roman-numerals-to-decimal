@@ -9,7 +9,7 @@
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
-awk '
+awk -f /dev/fd/5 5<< 'EOF' -- "$@" || printf '%s\n' "$0 failed!" >& 2
 	# Globals: romdigs, largest_digit, d2v[]
 
 	function init_decoder(    value, digit, factor, i, rl, char) {
@@ -48,4 +48,4 @@ awk '
 	}
 
 	$0 ~ romdigs { decode($0) }
-' "$@" || echo "$0 failed!" >& 2
+EOF
