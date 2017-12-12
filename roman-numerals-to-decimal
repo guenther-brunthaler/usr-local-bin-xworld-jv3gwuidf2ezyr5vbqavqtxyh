@@ -2,12 +2,12 @@
 # Convert roman numerals (in either letter case) into decimal values. All
 # variants mentioned in the Wikipedia article are supported.
 #
-# Version 2017.346.1
+# Version 2017.346.2
 #
 # Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
-# Distribution is permitted under the terms of the GPLv3.
+# Distribution is permitted under the terms of the LGPLv3.
 
 awk -f /dev/fd/5 5<< 'EOF' -- "$@" || printf '%s\n' "$0 failed!" >& 2 && false
 	# Globals: romdigs, largest_digit, d2v[]
