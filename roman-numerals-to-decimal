@@ -2,7 +2,7 @@
 # Convert roman numerals (in either letter case) into decimal values. All
 # variants mentioned in the Wikipedia article are supported.
 #
-# Version 2017.330
+# Version 2017.346
 #
 # Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
 #
@@ -12,13 +12,13 @@
 awk '
 	# Globals: romdigs, largest_digit, d2v[]
 
-	function init_decoder(    digit_value, digit, factor, i, digit_char) {
-		romdigs= "IVXLCDM"; digit_value= 0.5; factor= 5
-		for (i= 1; i <= length(romdigs); ++i) {
-			digit_char= substr(romdigs, i, 1)
+	function init_decoder(    value, digit, factor, i, rl, char) {
+		romdigs= "IVXLCDM"; rl= length(romdigs); value= 0.5; factor= 5
+		for (i= 1; i <= rl; ++i) {
+			char= substr(romdigs, i, 1)
 			largest_digit \
-				= d2v[digit_char]= d2v[tolower(digit_char)] \
-				= digit_value*= factor= 7 - factor
+				= d2v[char]= d2v[tolower(char)] \
+				= value*= factor= 7 - factor
 		}
 		romdigs= "^[" romdigs tolower(romdigs) "]*$"
 	}
@@ -38,19 +38,14 @@ awk '
 		print total + partial
 	}
 
-	function process_arguments(    i) {
-		for (i= 1; i < ARGC; ++i) decode(ARGV[i])
+	function process_arguments(    i, v) {
+		for (i= 1; i < ARGC; ++i) if ((v= ARGV[i]) ~ romdigs) decode(v)
 	}
 
 	BEGIN {
 		init_decoder()
-		if (ARGC > 1) {
-			process_arguments()
-			exit
-		}
+		if (ARGC > 1) { process_arguments(); exit }
 	}
 
-	$0 ~ romdigs {
-		decode($0)
-	}
+	$0 ~ romdigs { decode($0) }
 ' "$@" || echo "$0 failed!" >& 2
