@@ -3,14 +3,15 @@ QR_BYTES_MAX=190
 QR_WANTS_CODEPAGE=WINDOWS-1252
 SEPARATOR_CHAR='-'
 SEPARATOR_CHARS_IN_SEPARATOR=5
+QR_SIZE=6
 
 set -e
 
 exit_version() {
 	wr -s <<- EOF; exit
-	$APP version 2016.282
+	$APP version 2017.356
 
-	Copyright (c) 2015-2016 Guenther Brunthaler. All rights reserved.
+	Copyright (c) 2015-2017 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -48,6 +49,9 @@ exit_help() {
 	-c <charset>:
 	   The character set to be used within the QR code. Defaults to
 	   "$QR_WANTS_CODEPAGE".
+	-s <pixels>:
+	   The width/height (in pixels) of a QR-code element. Use to enlarge
+	   the code on-screen. Defaults to $QR_SIZE.
 	-h:
 	   Display this help and exit.
 	-V:
@@ -89,9 +93,10 @@ sep=`
 		2> /dev/null \
 	| tr -c -- "$SEPARATOR_CHAR" "$SEPARATOR_CHAR"
 `
-while getopts b:c:hV opt
+while getopts s:b:c:hV opt
 do
 	case $opt in
+		s) QR_SIZE=$OPTARG;;
 		b) QR_BYTES_MAX=$OPTARG;;
 		c) QR_WANTS_CODEPAGE=$OPTARG;;
 		h) exit_help;;
@@ -128,6 +133,6 @@ do
 	test ! -s "$T1" && break
 	skip=`expr $skip + 1`
 	echo "Displaying output block # $skip." >& 2
-	qrencode -o - < "$T1" | display
+	qrencode -s "$QR_SIZE" -o - < "$T1" | display
 done
 echo "Finished." >& 2
