@@ -12,9 +12,11 @@ cleanup() {
 trap cleanup 0
 trap 'exit $?' HUP INT TERM QUIT
 
-while getopts qR:L: opt
+checkbox=x
+while getopts dqR:L: opt
 do
 	case $opt in
+		d) checkbox=' ';;
 		q) verbose=false;;
 		L) local_dir=$OPTARG;;
 		R) remote_dir=$OPTARG;;
@@ -34,7 +36,7 @@ esac
 command -v adb > /dev/null
 
 flist() {
-	echo "[x] $1"
+	echo "[$checkbox] $1"
 }
 
 rline() {
