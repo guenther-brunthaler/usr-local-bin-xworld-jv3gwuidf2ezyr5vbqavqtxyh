@@ -1,0 +1,153 @@
+#! /bin/sh
+exit_version() {
+	wr << EOF; exit
+$APP version 2017.365
+Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+EOF
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << EOF; echo
+$APP - display QR code scaled for your display resolution
+
+Usage:
+
+$APP [ <options> ... ] [ -- ] <text>
+
+$APP [ <options> ... ] [ -- ] <line_1> <line_2> ...
+
+$APP [ <options> ... ] < /path/to/some/file
+EOF
+	wr --reflow << EOF; echo; exit_version
+Supported options:
+
+-A: Use this option if the QR-code shall be decoded with Android's "Barcode
+Scanner" app. It uses a non-standard QR character set encoding (raw UTF-8) as
+expected by that app. The option only matters if non-ASCII characters (such as
+Umlauts of the EURO sign) are present in the text.
+
+-V: Display version information and exit
+
+-h: Display this help and exit
+
+$APP displays a QR code magnified to approximately 95% (5% will be reserved
+for window decorations) of your current desktop's client area size (the part
+not reserved for taskbar and panels).
+
+The text to be displayed will either be taken from the only command line
+argument.
+
+If more than one command line argument was given, multi-line text will be
+encoded. Every argument will be made another line of that text.
+
+Without arguments, $APP reads lines of text from standard input, and outputs
+them as a QR-code containing multi-line text.
+EOF
+}
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+wr() {
+	case $# in
+		0) fold -sw $WRAP_WIDTH | sed 's/[[:space:]]*$//';;
+		*)
+			local line para
+			para=
+			while IFS= read -r line
+			do
+				case ${#line} in
+					0)
+						printf '%s\n\n' "$para" | wr
+						para=
+						;;
+					*) para=$para${para:+ }$line
+				esac
+			done
+			test "$para" && printf '%s\n' "$para" | wr
+	esac
+}
+test -t 0 && WRAP_WIDTH=`tput cols 2> /dev/null` || WRAP_WIDTH=66
+test $WRAP_WIDTH -gt 132 && WRAP_WIDTH=72
+
+android=false
+while getopts AhV opt
+do
+	case $opt in
+		A) android=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+client_area_or_current_desktop() {
+	xprop -root | sed '
+		s/^_NET_\([^(]*\)([^=]*=/\1/; t expected_format
+		d
+		: expected_format
+		s/^WORKAREA //; t interesting
+		s/^CURRENT_DESKTOP //; t interesting
+		d
+		: interesting
+		s/[^0-9,]//g
+		y/,/ /
+	' | {
+		desktop=
+		areas=
+		while read line
+		do
+			case $line in
+				*' '*) areas=$line;;
+				*) desktop=$line
+			esac
+		done
+		i=`expr "$desktop" \* 4 + 1`
+		echo "$areas" | cut -d ' ' -f $i-`expr $i + 3`
+	}
+}
+
+max_client_square() {
+	set -- `client_area_or_current_desktop`
+	if test $3 -le $4
+	then
+		echo $3
+	else
+		echo $4
+	fi
+}
+
+qre() {
+	qrencode -o - -8 "$@"
+}
+
+xset q > /dev/null
+max=`max_client_square`
+if test $# = 0
+then
+	nl=`printf '\012:'`; nl=${nl%:}
+	s=
+	while IFS= read -r line
+	do
+		s=$s${s:+"$nl"}$line
+	done
+	test "$s"
+else
+	s=$*
+fi
+s=`
+	printf '%s\n' "$s" | {
+		cs=LATIN9; $android && cs=UTF-8
+		iconv -t $cs
+	}
+`
+set -- `qre -s 1 -- "$s" | identify -format "%w %h" -`
+test $# = 2; test "$1" = "$2"
+mag=`expr $max \* 95 / \( 100 \* $1 \)` || mag=1
+echo $mag
+qre -s $mag -- "$s" | display -

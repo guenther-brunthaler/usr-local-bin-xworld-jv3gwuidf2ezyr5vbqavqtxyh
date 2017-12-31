@@ -3,14 +3,66 @@
 # "keycode ="-lines you want to use and replace the '?' with the raw key to be
 # mapped (which has been determined by running 'xev').
 #
-# (c) 2012 by Guenther Brunthaler.
+# Version 2017.365
+#
+# Copyright (c) 2012-2017 Guenther Brunthaler. All rights reserved.
+#
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
-sed -e '
-	s,^ *#define \(XF86\)XK_\([-_.A-Za-z0-9]*\) *\(.*0x[0-9A-Fa-f]*.*/[*] *\(.*[^ ]\) *[*]/\)\?.*,\1\2:\4:,
-	t c
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+cat << 'EOF' # Max line length (for flowtext paragraphs): 72 columns
+! This file must be processed with xmodmap in order to take effect. In
+! some desktop environments and depending on your personal
+! configuration, this might be done automatically by the startup files.
+!
+! Use the "xev"-Tool to find out the required keycodes.
+!
+! Run script "xmodmap-template-generator" to generate a template for
+! this file which contains all symbolic names available for mapping.
+!
+! Alternatively, to do this manually, look into the Files
+!
+! /usr/include/X11/XF86keysym.h
+! /usr/include/X11/keysym.h
+!
+! to find the symbolic names, like for instance the line
+!
+! #define XF86XK_AudioLowerVolume 0x1008FF11   /* Volume control down */
+!
+! Remove the "XK_"-substring from the symbolic #define name in order to
+! determine the symbolic name to use in the .Xmodmap file:
+!
+! Undesired acceleration for keys can be disabled with a command like
+!
+! $ xset -r 174 -r 176
+!
+! After xmodmap has successfully processed the assignments, use the
+! Xfce4 keyboard shortcurtcut editor in order to assign a function to
+! the multimedia key, such as executing an arbitrary program.
+!
+! If your desktop Environment or Windows Manager does not support such
+! hotkey handling, the package xbindkeys can be installled for this as
+! a stand-alone solution.
+!
+! Note that xmodmap can only modify the existing keyboard
+! configuration, but it cannot reset it back to some defaults. Use
+! "setxkbmap -layout de" to reset the bindings if needed (replace the
+! "de" in this example with your preferred layout).
+
+EOF
+
+rx='^ *#define \(XF86\)XK_'
+rx=$rx'\([-_.A-Za-z0-9]*\) *\('
+rx=$rx'.*0x[0-9A-Fa-f]*.*/[*] *\(.*[^ ]\) *[*]/'
+rx=$rx'\)\{0,1\}.*'
+sed '
+	s|'"$rx"'|\1\2:\4:|
+	t cont
 	d
-	:c
-	s,^\([^:]*\):\(.*\):$,! \2\n!keycode ? = \1\n,
-' /usr/include/X11/XF86keysym.h \
-| sed -e '/^!\( *[?]*\)\? *$/ d'
+	: cont
+	s|^\([^:]*\):\(.*\):$|! \2\n!keycode ? = \1\n|
+' /usr/include/X11/XF86keysym.h /usr/include/X11/keysym.h \
+| sed '/^!\( *[?]*\)\{0,1\} *$/ d'
