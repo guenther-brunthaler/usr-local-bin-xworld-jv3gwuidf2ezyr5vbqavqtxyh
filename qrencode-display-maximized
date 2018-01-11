@@ -86,7 +86,7 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
-client_area_or_current_desktop() {
+client_area_of_current_desktop() {
 	xprop -root | sed '
 		s/^_NET_\([^(]*\)([^=]*=/\1/; t expected_format
 		d
@@ -113,7 +113,7 @@ client_area_or_current_desktop() {
 }
 
 max_client_square() {
-	set -- `client_area_or_current_desktop`
+	set -- `client_area_of_current_desktop`
 	if test $3 -le $4
 	then
 		echo $3

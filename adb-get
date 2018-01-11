@@ -46,17 +46,34 @@ rline() {
 	#eval printf '%s' "\$$1" | hexdump -C
 }
 
+qstr() {
+	printf '%s\n' "$*" | sed 's|'\''|'\'\\\\\'\''|g; s/.*/'\'\&\''/'
+}
+
+# $1 options; $2 ...: path named
+als() {
+	local t a
+	a=$1; shift
+	t=
+	while test $# != 0
+	do
+		t=$t${t:+ }`qstr "$1"`
+		shift
+	done
+	adb shell "ls${a:+ }$a $t"
+}
+
 rlist() {
 	local st entry nlv dir
 	nlv=${2-0}; dir=$TD/dir$nlv; nlv=`expr $nlv + 1`
 	#echo examine:
 	#printf '%s' "$1" | hexdump -C
-	st=`adb shell ls -ld \""$1"\"`
+	st=`als -ld "$1"`
 	#echo result:
 	#printf '%s' "$st" | hexdump -C
 	case $st in
 		[dl]*)
-			adb shell ls \""$1"\" > "$dir"
+			als "" "$1" > "$dir"
 			while :
 			do
 				case $st in
@@ -74,7 +91,7 @@ rlist() {
 				# Symlink is most likely not a directory.
 				# Make sure, though.
 				entry=$1/$entry
-				case `adb shell ls -ld \""$entry"\"` in
+				case `als -ld "$entry"` in
 					[-dl]*) rlist "$entry" $nlv;;
 					*) flist "$1"
 				esac
