@@ -25,11 +25,14 @@ qarx='s|'\''|'\\\''|g; s/.*/'\''&'\''/'
 
 ho=
 subcmd=add
-path=`pwd`
-while getopts suUPC:p:l: opt
+pull=`pwd`
+push=$pull
+execute=false
+while getopts xsuUPC:p:l: opt
 do
 	case $opt in
-		s) subcmd=seturl;;
+		x) execute=true;;
+		s) subcmd=set-url;;
 		p | C | l) qarg; ho="$ho -$opt $OPTARG";;
 		U | P | u) ho="$ho -$opt";;
 		*) false || exit
@@ -50,22 +53,47 @@ then
 		&& test "$url"
 	then
 		case $url in
-			/*) path=/${url##/};;
-			file://*) url=/${url##file://}; path=/${url##/}
+			/*) push=/${url##/};;
+			file://*) url=/${url##file://}; push=/${url##/}
 		esac
 	fi
 	if
-		test "${path%.git}" = "$path" \
-		&& test -d "$path" \
-		&& test "`cd "$path" && git config --local core.bare`" = true
+		test "${push%.git}" = "$push" \
+		&& test -d "$push" \
+		&& test "`cd "$push" && git config --local core.bare`" = true
 	then
-		path=$path.git
+		push=$push.git
 	fi
 fi
-t=${path#"$HOME"}; test "$t" != "$path" && path="/~$t"
+for vn in push pull
+do
+	eval var=\$$vn
+	t=${var#"$HOME"}; test "$t" != "$var" && var="/~$t"
+	eval $vn=\$var
+done
+
+process() {
+	set git remote "$@"
+	if $execute
+	then
+		"$@"
+	else
+		echo "$@"
+	fi
+}
+
+first=true
 "$helper"$ho -- "$@" \
 | while IFS=: read -r name user host port
 do
-	echo "git remote $subcmd" \
-		"ssh://$user${user:+"@"}$host${port:+:}$port$path"
+	if $first
+	then
+		first=false
+	else
+		echo
+	fi
+	url="ssh://$user${user:+"@"}$host${port:+:}$port"
+	set +f; process $subcmd "$name" "$url$pull"; set -f
+	test "$push" = "$pull" && continue
+	set +f; process set-url --push "$name" "$url$push"; set -f
 done
