@@ -25,12 +25,13 @@ T=
 trap cleanup 0
 trap 'exit $?' HUP INT QUIT TERM
 
+invoking_user=`logname || id -un`
 default_user=
 always_show_user=false
 always_show_port=false
 unset kw
 sep=$default_output_separator
-while getopts UPC:Td:ku:p:l: opt
+while getopts UPC:Td:kup:l: opt
 do
 	case $opt in
 		p) default_port=$OPTARG;;
@@ -40,7 +41,8 @@ do
 		k) kw=;;
 		U) always_show_user=true;;
 		P) always_show_port=true;;
-		l | u) default_user=$OPTARG;;
+		u) default_user=$invoking_user;;
+		l) default_user=$OPTARG;;
 		*) false || exit
 	esac
 done
@@ -139,7 +141,7 @@ do
 done
 
 i=0
-default_user=`logname || id -un`
+default_user=$invoking_user
 path=`pwd`
 while eval \$valid_$i
 do
@@ -151,6 +153,6 @@ do
 	test -z "$host" && host=$selector
 	test -z "$port" && $always_show_port && port=$default_port
 	printf '%s%s\n' "${kw+name=}$name$sep${kw+user=}$user" \
-		"$sep${kw+host=}$host$sep${kw+port=}$port"
+			"$sep${kw+host=}$host$sep${kw+port=}$port"
 	i=`expr $i + 1`
 done
