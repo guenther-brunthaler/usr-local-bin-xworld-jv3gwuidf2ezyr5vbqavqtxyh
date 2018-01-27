@@ -1,0 +1,156 @@
+#! /bin/sh
+# Accept a list of arguments for the host/alias-argument of "ssh", looks up
+# the resulting hostname, user and port for each argument in parallel from
+# ~/.ssh/config, and prints the result. Does not actually invoke "ssh" or
+# access the network in any way.
+#
+# Version 2018.27
+#
+# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+config_file=~/.ssh/config
+default_port=22
+default_output_separator=:
+
+set -e
+cleanup() {
+	rc=$?
+	test "$T" && rm -- "$T"
+	test $rc = 0 || echo "$0 failed!" >& 2
+}
+T=
+trap cleanup 0
+trap 'exit $?' HUP INT QUIT TERM
+
+default_user=
+always_show_user=false
+always_show_port=false
+unset kw
+sep=$default_output_separator
+while getopts UPC:Td:ku:p:l: opt
+do
+	case $opt in
+		p) default_port=$OPTARG;;
+		C) config_file=$OPTARG;;
+		d) sep=$OPTARG;;
+		T) sep=`printf '\t:'`; sep=${sep%:};;
+		k) kw=;;
+		U) always_show_user=true;;
+		P) always_show_port=true;;
+		l | u) default_user=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test -f "$config_file"
+T=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
+
+sed '
+	s/[^[:graph:]]\{1,\}/ /g; s/^ //; s/ $//; s/^#.*//
+	/^$/ d
+' < "$config_file" | awk -F ' ' '{$1= tolower($1); print}' > "$T"
+
+i=0
+reparse_config=false
+for selector
+do
+	reparse_config=true
+	user=$default_user
+	rest=${selector%%"@"*}
+	if test "$rest" != "$selector"
+	then
+		selector=${selector#"$rest@"}
+		user=$rest
+	fi
+	eval name_$i=\$selector
+	eval selector_$i=\$selector
+	unset host_$i port_$i
+	eval user_$i=\$user
+	eval valid_$i=true
+	eval matches_$i=false
+	i=`expr $i + 1`
+done
+eval valid_$i=false
+
+oldIFS=$IFS
+while $reparse_config
+do
+	reparse_config=false
+	while IFS=' ' read -r cmd rest
+	do
+		IFS=' '; set -- $rest; IFS=$oldIFS
+		case $cmd in
+			host)
+				i=0
+				while eval \$valid_$i
+				do
+					eval selector=\$selector_$i
+					matches=false
+					for pattern
+					do
+						case $selector in
+							$pattern)
+								matches=true
+								break
+								;;
+						esac
+					done
+					eval matches_$i=$matches
+					i=`expr $i + 1`
+				done
+				;;
+			hostname)
+				i=0
+				while eval \$valid_$i
+				do
+					if eval \$matches_$i
+					then
+						eval host=\$host_$i
+						if test -z "$host"
+						then
+							eval host_$i=$1
+						fi
+						eval selector_$i=$1
+						reparse_config=true
+					fi
+					i=`expr $i + 1`
+				done
+				;;
+			user | port)
+				i=0
+				while eval \$valid_$i
+				do
+					if eval \$matches_$i
+					then
+						eval item=\$${cmd}_$i
+						if test -z "$item"
+						then
+							eval ${cmd}_$i=$1
+						fi
+					fi
+					i=`expr $i + 1`
+				done
+		esac
+	done < "$T"
+done
+
+i=0
+default_user=`logname || id -un`
+path=`pwd`
+while eval \$valid_$i
+do
+	for item in name selector user host port
+	do
+		eval $item=\$${item}_$i
+	done
+	test -z "$user" && $always_show_user && user=$default_user
+	test -z "$host" && host=$selector
+	test -z "$port" && $always_show_port && port=$default_port
+	printf '%s%s\n' "${kw+name=}$name$sep${kw+user=}$user" \
+		"$sep${kw+host=}$host$sep${kw+port=}$port"
+	i=`expr $i + 1`
+done
