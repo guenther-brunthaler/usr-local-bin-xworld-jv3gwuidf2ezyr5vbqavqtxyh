@@ -77,13 +77,12 @@ done
 eval valid_$i=false
 
 oldIFS=$IFS
-set -f # Disable interpretation of wildcards by "set --".
 while $reparse_config
 do
 	reparse_config=false
 	while IFS=' ' read -r cmd rest
 	do
-		IFS=' '; set -- $rest; IFS=$oldIFS
+		set -f; IFS=' '; set -- $rest; IFS=$oldIFS; set +f
 		case $cmd in
 			host)
 				i=0
