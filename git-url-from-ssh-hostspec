@@ -1,0 +1,71 @@
+#! /bin/sh
+helper=ssh-config-alias-resolver
+# Accept a list of arguments for the host/alias-argument of "ssh", looks up
+# the resulting hostname, user and port for each argument in parallel from
+# ~/.ssh/config, and prints the result as "git remote add"-commands. Does not
+# actually invoke "ssh" or access the network in any way. The actual work is
+# done by $helper. All options which make sense for passing through will be
+# accepted and passed through to $helper.
+#
+# Version 2018.27
+#
+# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+# Quote $OPTARG.
+qarg() {
+	OPTARG=`printf '%s\n' "$OPTARG" | sed "$qarx"`
+}
+qarx='s|'\''|'\\\''|g; s/.*/'\''&'\''/'
+
+ho=
+subcmd=add
+path=`pwd`
+while getopts suUPC:p:l: opt
+do
+	case $opt in
+		s) subcmd=seturl;;
+		p | C | l) qarg; ho="$ho -$opt $OPTARG";;
+		U | P | u) ho="$ho -$opt";;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+if command -v git > /dev/null 2>& 1
+then
+	if
+		head=`git symbolic-ref HEAD 2> /dev/null` \
+		&& test "$head" \
+		&& branch=${head#refs/heads/} \
+		&& test "$branch" != "$head" \
+		&& remote=`git config --local "branch.$branch.remote"` \
+		&& test "$remote" \
+		&& url=`git config --local remote.local.url` \
+		&& test "$url"
+	then
+		case $url in
+			/*) path=/${url##/};;
+			file://*) url=/${url##file://}; path=/${url##/}
+		esac
+	fi
+	if
+		test "${path%.git}" = "$path" \
+		&& test -d "$path" \
+		&& test "`cd "$path" && git config --local core.bare`" = true
+	then
+		path=$path.git
+	fi
+fi
+t=${path#"$HOME"}; test "$t" != "$path" && path="/~$t"
+"$helper"$ho -- "$@" \
+| while IFS=: read -r name user host port
+do
+	echo "git remote $subcmd" \
+		"ssh://$user${user:+"@"}$host${port:+:}$port$path"
+done
