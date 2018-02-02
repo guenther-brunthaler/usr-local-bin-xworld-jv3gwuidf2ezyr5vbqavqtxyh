@@ -1,0 +1,47 @@
+#! /bin/sh
+# Remove DRM restrictions and encryption from the specified PDF documents.
+#
+# IMPORTANTE: This is only intended to remove DRM restrictions applied
+# previously by yourself. Never ever abuse this script to remove DRM
+# restrictions of copyright holders other than yourself, as this would be
+# illegal!
+#
+# Version 2018.33
+#
+# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+tool=qpdf
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "$0 failed!" >& 2
+}
+TF=
+trap cleanup 0
+trap 'exit $?' INT HUP QUIT TERM
+
+while getopts "" opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+command -v "$tool" > /dev/null
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+
+for pdf
+do
+	case $pdf in
+		-*) pdf=./$pdf
+	esac
+	"$tool" --decrypt "$pdf" "$TF"
+	cmp -s -- "$TF" "$pdf" && continue
+	echo "Re-writing $pdf..."
+	cat < "$TF" > "$pdf"
+done
