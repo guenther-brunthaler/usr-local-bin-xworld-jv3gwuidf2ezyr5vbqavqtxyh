@@ -1,2 +1,3 @@
 #! /bin/sh
-exec xclock -digital -update 1 -strftime %T -face "Times New Roman-50"
+cd /
+xclock -digital -update 1 -strftime %T -face "Times New Roman-50" &
