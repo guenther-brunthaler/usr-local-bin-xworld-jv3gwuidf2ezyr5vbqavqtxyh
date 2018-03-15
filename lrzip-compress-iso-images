@@ -1,0 +1,27 @@
+#! /bin/sh
+#
+# Version 2018.74
+#
+# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+# 
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+for f
+do
+	echo "Compressing '$f'..."
+	ionice -c3 lrzip -U -L 8 -- "$f" || {
+		echo "*** ERROR!!! ***" >& 2
+	}
+done
