@@ -3,7 +3,7 @@
 # amount of whitespace except for newlines) with the added bonus feature that
 # it will not execute the command if the input file is empty.
 #
-# Version 2018.76.1
+# Version 2018.76.3
 #
 # Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 #
@@ -18,5 +18,5 @@ then
 	{
 		printf '%s\n' "$first"
 		cat
-	} | sed "s/./\\\\&/g" | xargs ${1+"$@"}
+	} | sed 's/./\\&/g' | xargs ${1+"$@"}
 fi
