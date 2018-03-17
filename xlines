@@ -1,0 +1,22 @@
+#! /bin/sh
+# Line-based version of "xargs" (one pathname per line which may contain any
+# amount of whitespace except for newlines) with the added bonus feature that
+# it will not execute the command if the input file is empty.
+#
+# Version 2018.76.1
+#
+# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+if IFS= read -r first
+then
+	{
+		printf '%s\n' "$first"
+		cat
+	} | sed "s/./\\\\&/g" | xargs ${1+"$@"}
+fi
