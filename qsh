@@ -23,8 +23,8 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 case $mode in
-	quote) sx='s/[$`\\"]/\\&/g';;
-	unqote) sx='s/\\\([$`\\"]\)/\1/g';;
+	quote) sx='s/[$`\\"]/\\&/g; s/.*/"&"/';;
+	unqote) sx='s/"\(.*\)"/\1/; s/\\\([$`\\"]\)/\1/g';;
 	*) false || exit
 esac
 exec sed -- "$sx"
