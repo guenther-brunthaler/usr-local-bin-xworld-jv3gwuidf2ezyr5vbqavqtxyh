@@ -1,9 +1,10 @@
 #! /bin/sh
 version() {
 	cat << .
-$APP version 15.203
+$APP version 2018.77
 
-Copyright (c) 2013-2015 Guenther Brunthaler. All rights reserved.
+Copyright (c) 2013-2018 Guenther Brunthaler. All rights reserved.
+
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 .
@@ -1008,7 +1009,7 @@ do
 	test -z "$cmd" || die "Exactly one command is required!"
 	cmd=$nc
 done
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 test -n "$ITARGET"
 if test x"${ITARGET#/}" = x"$ITARGET"
 then

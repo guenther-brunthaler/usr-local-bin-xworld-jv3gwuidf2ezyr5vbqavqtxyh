@@ -14,7 +14,10 @@
 # "libnotify-bin" package. (Those package names refer to Debian-based
 # distributions).
 #
-# (c) 2013 by Guenther Brunthaler.
+# Version 2018.77
+#
+# Copyright (c) 2013-2018 Guenther Brunthaler. All rights reserved.
+#
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
@@ -36,7 +39,7 @@ do
 		*) false
 	esac
 done
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 if test -n "$WINDOW"
 then
 	m="Screenshot: Select a window by clicking into it!"

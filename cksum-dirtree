@@ -12,7 +12,9 @@
 # archive their contents as a normal symlink archive file before running this
 # script.
 #
-# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# Version 2018.77
+#
+# Copyright (c) 2017-2018 Guenther Brunthaler. All rights reserved.
 # 
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -49,7 +51,7 @@ do
 		*) false || exit
 	esac
 done
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 
 save=
 case $1 in

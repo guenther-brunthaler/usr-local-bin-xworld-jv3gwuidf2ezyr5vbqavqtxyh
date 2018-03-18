@@ -1,9 +1,11 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 10.206
+	$APP version 2018.77
 
-	(c) 2010 by Guenther Brunthaler.\n
+	Copyright (c) 2010-2018 Guenther Brunthaler. All rights reserved.
+
+	This script is free software.\n
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -221,7 +223,7 @@ do
 		*) false; exit;;
 	esac
 done
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 test -z "$LOCALE_SORT" && { LC_ALL=C; export LC_ALL; }
 LAST_FILE=; TAGS=
 for SERIES

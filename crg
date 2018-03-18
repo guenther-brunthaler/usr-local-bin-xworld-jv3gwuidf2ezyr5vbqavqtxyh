@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$SCRIPT version 2016.45
+	$SCRIPT version 2018.77
 
-	Copyright (c) 2008-2016 Guenther Brunthaler. All rights reserved.
+	Copyright (c) 2008-2018 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -43,6 +43,11 @@ show_help() {
 	--name <name>: The name to be used in the generated copyright message.
 	Defaults to whatever has been set using "chfn" or to the current login
 	name if no name has been set via "chfn".
+	
+	--script, -s: The document is a script rather than a "source file".
+
+	--text, -t: The document is a text document rather than a "source
+	file".
 
 	--help, -h, --usage: Display this help.
 
@@ -71,7 +76,7 @@ notice() {
 	run cat <<-.
 	Copyright (c) `date '+%Y'` $NAME. All rights reserved.
 	
-	This source file is free software.
+	This $DOCTYPE is free software.
 	Distribution is permitted under the terms of the GPLv3.
 	.
 }
@@ -84,7 +89,8 @@ run() {
 
 
 wr() {
-	if test $# -gt 0; then
+	if test $# -gt 0
+	then
 		printf '%s\n' "$*" | wr
 	else
 		fmt -w `tput cols`
@@ -94,7 +100,8 @@ wr() {
 
 wrL() {
 	local LINE
-	while IFS= read -r LINE; do
+	while IFS= read -r LINE
+	do
 		printf "%s\n" "$LINE" | wr
 	done
 }
@@ -105,9 +112,10 @@ wrL() {
 parse_ws() {
 	local STRIPPED
 	WS=
-	while true; do
+	while :
+	do
 		STRIPPED="${TEXT#[ 	]}"
-		test x"$STRIPPED" = x"$TEXT" && break
+		test "$STRIPPED" = "$TEXT" && break
 		WS=$WS${TEXT%$STRIPPED}
 		TEXT=$STRIPPED
 	done
@@ -119,9 +127,10 @@ parse_ws() {
 backparse_ws() {
 	local STRIPPED
 	WS=
-	while true; do
+	while :
+	do
 		STRIPPED="${TEXT%[ 	]}"
-		test x"$STRIPPED" = x"$TEXT" && break
+		test "$STRIPPED" = "$TEXT" && break
 		WS=$WS${TEXT#$STRIPPED}
 		TEXT=$STRIPPED
 	done
@@ -132,9 +141,10 @@ backparse_ws() {
 quote() {
 	local STRIPPED OUT
 	OUT=
-	while true; do
+	while :
+	do
 		STRIPPED=${PATTERN#?}
-		test x"$STRIPPED" = x"$PATTERN" && break
+		test "$STRIPPED" = "$PATTERN" && break
 		OUT=$OUT\\${PATTERN%$STRIPPED}
 		PATTERN=$STRIPPED
 	done
@@ -144,17 +154,21 @@ quote() {
 
 # Define presets.
 NAME=
+DOCTYPE='source file'
 # Start of command line processing.
 SCRIPT=${0##*/}
 COPTS=
-while true; do
-	if test -z "$COPTS"; then
+while :
+do
+	if test -z "$COPTS"
+	then
 		case $1 in
 			-?*) COPTS=$1; shift;;
 			*) break;;
 		esac
 	fi
-	if test x"${COPTS#--}" = x"$COPTS"; then
+	if test "${COPTS#--}" = "$COPTS"
+	then
 		TAIL=${COPTS#-?}; # Switch clustering.
 		COPT=${COPTS%$TAIL}; COPTS=${TAIL:+-}$TAIL
 	else
@@ -164,14 +178,17 @@ while true; do
 	case $COPT in
 		--) break;; # Must be first!
 		--name) NAME=$1; shift;;
+		--text | -t) DOCTYPE='text document';;
+		--script | -s) DOCTYPE='script';;
 		--help | -h | --usage) show_help; exit;;
 		--version | -V) show_version; exit;;
 		*) die "Unknown option '$COPT'!";; # Must be last!
 	esac
 done
 # Process remaining non-option arguments.
-if test $# -eq 0; then
-	IFS="" read TPL
+if test $# -eq 0
+then
+	IFS= read -r TPL
 else
 	TPL=$*
 fi
@@ -190,7 +207,8 @@ case $TPL in
 esac
 # Try to parse "open comment" token off the template.
 PATTERN=$OC; quote
-if test x"${TPL#$PATTERN}" = x"$TPL"; then
+if test "${TPL#$PATTERN}" = "$TPL"
+then
 	# Not possible, assume template is plain text and no comment.
 	OC=$PREFIX
 	CC=
@@ -215,13 +233,15 @@ else
 	# Clear closing whitespace if there is no "close comment" token.
 	test -z "$CC" && CWS=
 fi
-if test -z "$NAME"; then
+if test -z "$NAME"
+then
 	# Get user name.
 	LOGNAME="`run id -un`"
 	NAME="`grep "^$LOGNAME:" /etc/passwd | cut -d: -f5 | cut -d, -f1`"
 	test -n "$NAME" || NAME=$LOGNAME
 fi
 # Print notice.
-notice | while IFS="" read LINE; do
+notice | while IFS= read -r LINE
+do
 	run printf "%s\n" "$OC$LINE${LINE+$CWS}$CC"
-done
+done | sed 's/[[:space:]]\{1,\}$//'

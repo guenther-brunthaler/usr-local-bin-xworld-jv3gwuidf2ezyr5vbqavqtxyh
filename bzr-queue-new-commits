@@ -5,8 +5,10 @@
 #
 # The merge directive will be named like the branch nick.
 #
-# Copyright (c) 2012-2015 Günther Brunthaler. All rights reserved.
-# This source file is free software.
+# Version 2018.77
+#
+# Copyright (c) 2012-2018 Günther Brunthaler. All rights reserved.
+# This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
 
@@ -67,7 +69,7 @@ do
 		*) exit;
 	esac
 done
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 
 test -d .bzr || die "Run this from a bzr checkout/branch root dir!"
 system bzr nick; BNAME=$REPLY

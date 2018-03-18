@@ -1,9 +1,11 @@
 #! /bin/sh
 exit_version() {
 	wr -s <<- .; exit
-	$APP Version 15.213
+	$APP Version 2018.77
 
-	Copyright (c) 2013-2015 Guenther Brunthaler. All rights reserved.
+	Copyright (c) 2013-2018 Guenther Brunthaler. All rights reserved.
+
+	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -165,7 +167,7 @@ do
 		*) false; exit;;
 	esac
 done
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 QUERY_EXISTING=
 if test -n "$UNCONDITIONAL_REBUILD"
 then

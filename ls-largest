@@ -1,9 +1,11 @@
 #! /bin/sh
 show_version() {
 	wr -s <<- .
-	$APP Version 13.111.1
+	$APP Version 2018.77
 
-	(c) 2013 by Guenther Brunthaler.
+	Copyright (c) 2013-2018 Guenther Brunthaler. All rights reserved.
+
+	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -86,7 +88,7 @@ do
 		*) false
 	esac
 done
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 test $# = 0 && set .
 # Ensure POSIX compatibility even on GNU systems.
 unset DF_BLOCK_SIZE BLOCK_SIZE BLOCKSIZE

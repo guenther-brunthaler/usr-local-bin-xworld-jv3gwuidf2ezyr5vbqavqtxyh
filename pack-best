@@ -1,9 +1,11 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 12.288
+	$APP version 2018.77
 
-	Copyright (c) 2010-2012 Guenther Brunthaler. All rights reserved.\n
+	Copyright (c) 2010-2018 Guenther Brunthaler. All rights reserved.
+
+	This script is free software.\n
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -213,7 +215,7 @@ do
 		*) false; exit;;
 	esac
 done
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 have lzop && HAVE_LZO=Y
 have gzip && HAVE_GZ=Y
 have bzip2 && HAVE_BZ2=Y

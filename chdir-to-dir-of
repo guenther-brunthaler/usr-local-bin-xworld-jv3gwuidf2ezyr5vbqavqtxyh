@@ -1,9 +1,11 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 10.365
+	$APP version 2018.77
 
-	(c) 2010 by Guenther Brunthaler.\n
+	Copyright (c) 2010-2018 Guenther Brunthaler. All rights reserved.
+
+	This script is free software.\n
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -122,7 +124,7 @@ USR=
 USR_SHELL=
 WS_CD_OPTS=
 RESOLVE=
-while getopts Ps:u:l OPT
+while getopts Ps:u:lhV OPT
 do
 	case $OPT in
 		l) RESOLVE=Y;;
@@ -134,7 +136,7 @@ do
 		*) false; exit;;
 	esac
 done
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 test -z "$USR" && { system whoami; USR=$REPLY; }
 test -z "$USR_SHELL" && { system default_shell "$USR"; USR_SHELL=$REPLY; }
 test -f "$USR_SHELL" && test -x "$USR_SHELL" \

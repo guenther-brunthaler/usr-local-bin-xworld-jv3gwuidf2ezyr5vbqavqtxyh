@@ -1,9 +1,11 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 15.213
+	$APP version 2018.77
 
-	(c) 2011 -  2015 by Guenther Brunthaler.\n
+	Copyright (c) 2011-2018 Guenther Brunthaler. All rights reserved.
+
+	This source file is free software.\n
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -798,7 +800,7 @@ do
 	esac
 done
 handle_niceties
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 test -n "$MUTEX" && test $MUTEX != x && {
 	die "More than a single operation mode has been specified!"
 }

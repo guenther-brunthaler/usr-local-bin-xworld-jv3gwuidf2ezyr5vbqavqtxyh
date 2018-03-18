@@ -49,8 +49,11 @@ $APP supports the following options:
 -h
    Display this text.
 
-(c) 2013 by Guenther Brunthaler.
-This script file is free software.
+$APP version 2018.77
+
+Copyright (c) 2013-2018 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -106,7 +109,7 @@ do
 		*) false; exit;;
         esac
 done
-shift `expr $OPTIND - 1`
+shift `expr $OPTIND - 1 || :`
 test -n "$b" && test -d "$b" || exit
 if test x"$basedir" != x"$b"
 then
