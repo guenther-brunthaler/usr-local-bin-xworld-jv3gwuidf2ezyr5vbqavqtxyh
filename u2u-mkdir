@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 15.214
-	Copyright (c) 2008-2015 Guenther Brunthaler. All rights reserved.
+	$APP Version 2018.90
+	Copyright (c) 2008-2018 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -448,6 +448,7 @@ have() {
 }
 
 U2UBASE="/home/exchange"
+U2UBASE_ALT="/home/world_exchange"
 UUID_SOURCE="/proc/sys/kernel/random/uuid"
 UUID_CMD="uuidgen -r"
 DEFAULT_NAME="u2u"
@@ -505,6 +506,7 @@ test $# -ge 1 && { SYMLINK="$1"; shift; }
 # Check for excess arguments.
 test $# = 0 || die "Unexpected excess arguments: $*"
 # End of command line processing.
+test ! -w "$U2UBASE" && U2UBASE=$U2UBASE_ALT
 run test -d "$U2UBASE"
 SYMNAME=${SYMLINK##*/}
 if test -n "$SYMLINK"
