@@ -1,0 +1,41 @@
+#! /bin/sh
+set -e
+cleanup() {
+	rc=$?
+	test "$t" && test -e "$t" && rm -- "$t"
+	test $rc = 0 || echo "$0 failed!" >& 2
+}
+t=
+trap cleanup 0
+trap 'exit $?' HUP INT QUIT TERM
+
+set_passphrase=false
+while getopts p opt
+do
+	case $opt in
+		p) set_passphrase=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+for n
+do
+	test "$n"
+	if $set_passphrase
+	then
+		echo "Changing pass phrase for key '$n'..."
+		ssh-keygen -pf "$n".prv
+	else
+		echo "Generating key '$n'..."
+		t=`mktemp -u tmp.XXXXXXXXXX`
+		openssl genrsa -out "$t" -rand /dev/random 4096
+		chmod 600 -- "$t"
+		ssh-keygen -yf "$t" > "$n".pub
+		mv -i -- "$t" "$n".prv
+		tr -d '\n' < "$n".pub > "$t"
+		printf ' %s\n' "$n" >> "$t"
+		sed -i 's| \([^@]*\)@| \1_indirect@|' "$t"
+		mv -- "$t" "$n".pub
+	fi
+done
