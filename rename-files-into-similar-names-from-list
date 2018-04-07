@@ -43,6 +43,7 @@ use constant W => 4;
 sub genset($) {
    my($text)= @_;
    my(%set, $i, $last);
+   $text= lc $text;
    if (($last= length($text)) >= W) {
       $last-= W;
       for ($i= 0; $i <= $last; ++$i) {
