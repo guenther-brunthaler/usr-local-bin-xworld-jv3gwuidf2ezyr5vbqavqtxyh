@@ -1,19 +1,125 @@
 #! /bin/sh
+exit_version() {
+	wr -s << . && exit
+$APP version 2018.91
+
+Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+default_bits=4096
+exit_help() {
+	wr << . && echo && echo && exit_version
+$APP - a safer ssh-keygen
+
+Usage: $APP [ <options> ... ] <keyname_1> ...
+
+$APP does the same job like "ssh-keygen", only safer: ssh-keygen gets its
+random numbers from /dev/urandom, which does not provide any guarantee about
+quality.
+
+Depending on the implementation and the current state of the system, "random"
+numbers from /dev/urandom may be of poor quality, deterministic or even be
+completely predictable.
+
+$APP emulates ssh-keygen's behaviour regarding key generation, but uses
+/dev/random for gathering the required random bytes. Contrary to /dev/urandom,
+/dev/random always returns high-quality random numbers with sufficient entropy
+- which is exactly what one usually wants for cryptographic keys.
+
+However, there is a caveat when using /dev/random: If will block as long as it
+takes to generate high-quality random numbers, which may be a really long
+time.
+
+Therefore it is recommended to install package "rng-tools" (for feeding data
+from a hardware random number generator into /dev/random), "haveged" (if no
+hardware RNG is available, it feeds CPU/cache timing variations into
+/dev/random), or some other kind of entropy gathering daemon before running
+$APP.
+
+Options:
+
+-b <bits>: Generate <bits> RSA keys rather than the default of $default_bits
+bits.
+
+-u: Don't ask for pass phrases and store all the private keys unencrypted.
+Obviously you need to trust that your filesystem is secure in this case.
+
+-V: Display version information and exit.
+
+-h: Display this help and exit.
+
+$APP creates the key in two phases: First it creates all the keys as temporary
+files, which might take some time.
+
+In the second phase it asks for pass phrases for all the keys, unless the u
+-option has been specified to skip this step. Only after that, the private
+keys are copied to their requested locations.
+
+$APP creates its temporary files in /tmp by default. But you can set the
+environment variable \$TMPDIR in order to override this and specify another
+directory where $APP shall create its temporary files.
+
+For instance, you could set \$TMPDIR to point to a temporarily mounted
+filesystem of type "ramfs", which (contrary to "tmpfs") will never be swapped
+out to disk (except when executing hibernate-to-disk, obviously).
+.
+}
+
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+MAXWITH=110
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+test $LINEWIDTH -le $MAXWITH || LINEWIDTH=$MAXWITH
+
 set -e
 cleanup() {
 	rc=$?
-	test "$t" && test -e "$t" && rm -- "$t"
+	test "$TDIR" && rm -r -- "$TDIR"
 	test $rc = 0 || echo "$0 failed!" >& 2
 }
-t=
+TDIR=
 trap cleanup 0
 trap 'exit $?' HUP INT QUIT TERM
 
-set_passphrase=false
-while getopts p opt
+set_passphrase=true
+bits=$default_bits
+while getopts ub:Vh opt
 do
 	case $opt in
-		p) set_passphrase=true;;
+		b) bits=$OPTARG;;
+		u) set_passphrase=false;;
+		h) exit_help;;
+		V) exit_version;;
 		*) false || exit
 	esac
 done
@@ -22,20 +128,41 @@ shift `expr $OPTIND - 1 || :`
 for n
 do
 	test "$n"
-	if $set_passphrase
-	then
+	test -d "`dirname -- "$n"`"
+done
+
+TDIR=`mktemp -d "${TMPDIR:-/tmp}/$APP".XXXXXXXXXX`
+
+i=1
+for n
+do
+	t=$TDIR/$i
+	echo "Generating key '$n'..."
+	openssl genrsa -out "$t".prv -rand /dev/random "$bits"
+	chmod 600 -- "$t".prv
+	ssh-keygen -yf "$t".prv > "$t".tmp
+	tr -d '\n' < "$t".tmp > "$t".pub
+	rm -- "$n".tmp
+	printf ' %s\n' "$n" >> "$t.pub"
+	sed -i 's| \([^@]*\)@| \1_indirect@|' "$t.pub"
+	i=`expr $i + 1`
+done
+if $set_passphrase
+then
+	i=1
+	for n
+	do
+		t=$TDIR/$i
 		echo "Changing pass phrase for key '$n'..."
-		ssh-keygen -pf "$n".prv
-	else
-		echo "Generating key '$n'..."
-		t=`mktemp -u tmp.XXXXXXXXXX`
-		openssl genrsa -out "$t" -rand /dev/random 4096
-		chmod 600 -- "$t"
-		ssh-keygen -yf "$t" > "$n".pub
-		mv -i -- "$t" "$n".prv
-		tr -d '\n' < "$n".pub > "$t"
-		printf ' %s\n' "$n" >> "$t"
-		sed -i 's| \([^@]*\)@| \1_indirect@|' "$t"
-		mv -- "$t" "$n".pub
-	fi
+		ssh-keygen -pf "$t".prv
+		i=`expr $i + 1`
+	done
+fi
+i=1
+for n
+do
+	t=$TDIR/$i
+	mv -i -- "$t".prv "$n.prv"
+	mv -i -- "$t".pub "$n.pub"
+	i=`expr $i + 1`
 done

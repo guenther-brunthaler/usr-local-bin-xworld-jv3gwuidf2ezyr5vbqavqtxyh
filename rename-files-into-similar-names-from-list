@@ -94,4 +94,4 @@ my @out;
       print $cmd . qin($_->{from}) . " " . qin($_->{to}) . "\n" or die $!;
    }
 }
-close STDOUT; # Flush output to detect any write errors.
+close STDOUT or die $!; # Flush output to detect any write errors.
