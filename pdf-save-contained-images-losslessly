@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << . && exit
-$APP version 2018.101
+$APP version 2018.101.1
 
 Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 
@@ -29,8 +29,9 @@ losslessly without any quality loss as individual image files.
 number and an image-format specific file extension will be added in order to
 form the names of the output files.
 
-When <output_prefix> is not specified, the name of the PDF file minus its file
-extension will be used instead.
+When <output_prefix> is not specified, the output files will be saved in the
+current directory, using the filename part of <pdf_file> minus its file
+extension as <output_prefix>.
 
 Options:
 
@@ -121,7 +122,8 @@ if test $# != 0
 then
 	obase=$1; shift;
 else
-	obase=${pdf%.*}
+	obase=`basename -- "$pdf"`
+	obase=${obase%.*}
 	test "$obase" != "$pdf"
 	test "$obase"
 fi
