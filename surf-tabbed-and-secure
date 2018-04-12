@@ -1,0 +1,39 @@
+#! /bin/sh
+# Version 2018.102
+#
+# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test $# = 0 && set file:///
+tabbed -c -r 2 surf -ispe '' -- "$@" < /dev/null > /dev/null 2>& 1 &
+cat << EOF
+The most important shortcuts:
+
+[Shift]+[Ctrl]+[Return] or middle-clicking on link opens a new tab
+[Ctrl]+[q] closes current tab (middle-clicking on a tab also closes it)
+[Ctrl]+[g] prompts for URL
+[Esc] stop loading current page
+
+[Ctrl]+[y] copy URI
+[Shift]+[Ctrl]+[i] enables/toggles auto image loading
+[Shift]+[Ctrl]+[s] enables/toggles JavaScript
+[Shift]+[Ctrl]+[v] enables/toggles plugins
+[Shift]+[Ctrl]+[o] examine current web page
+[Ctrl]+[o] show source code of current web page
+[F11] toggle full-screen mode
+
+See "man tabbed" and "man surf" for more keyboard shortcuts.
+EOF
