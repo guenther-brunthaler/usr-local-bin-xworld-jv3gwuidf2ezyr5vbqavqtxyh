@@ -1,0 +1,205 @@
+#! /bin/sh
+exit_version() {
+	wr -s << . && exit
+$APP version 2018.111
+
+Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << . && echo && echo && exit_version
+$APP - Batch-convert between many audio formats, preferably losslessly
+
+Usage: $APP [ <options> ... ] [ <source_1> ... ]
+
+$APP is a wrapper around "avconv" or "ffmpeg", converting by default all
+.$from files in the current directory into the ./$out_dir directory as .$to
+files.
+
+Note that the output directory must already exist, $APP will not create it
+automatically in order to avoid the risk of the user not knowing about the
+output directory.
+
+However, those are just the defaults. $APP can in fact convert between all
+audio formats supported by acvonv/ffmpeg by specifying additional options -
+see below.
+
+If any arguments <source_1> ... are specified, those are used either as
+individual files to be used as candidates for conversion, or they must be
+directories and all files contained within them (directly - there is no
+recursive search) will be used as candidates for conversion.
+
+"candidates for conversion" means here that the resulting files will still be
+checked for having the expected input file extension, which is .$from by
+default (option -f can change this). Candidate files which have different file
+extensions will be silently ignored, even if they have been specified directly
+as arguments.
+
+The backend-utility which will be used for the actual conversions will be
+auto-detected, but the -x option can be used to override this and specify a
+specific utility. (Option -n can be used to show which commands would be
+executed, and thus which utility would be used.)
+
+Some examples:
+
+# Convert all .aac files in the current directory into .mp3 files:
+
+\$ $APP -f aac -t mp3 -C -o .
+
+
+Options:
+
+-C: Do not try to copy the exiting audio data losslessly from the old file
+format container into the new file format container. This is required for all
+conversions that do not just copy the audio data between different container
+types, but rather have to re-encode it. Avoid this option if possible, because
+transcoding always incurs some quality loss (unless both source and
+destination auto codecs are lossless).
+
+-f <ext>: Define the file extension for the input files (without the ".").
+Defaults to "$from".
+
+-t <ext>: Define the file extension for the output files (without the ".").
+Defaults to "$to". This implicitly also selects the output file format.
+
+-o <out_dir>: Select the directory where the output files shall be put.
+Defaults to "$out_dir". Can be "." as long as the input and output file
+extensions are different.
+
+-x <program>: Use <program> rather than "avconv" or "ffmpeg" as converters.
+This is useful if one has installed custom builds of those programs with
+different names and wants to use them.
+
+-n: Show what would be done, but don't actually do anything.
+
+-V: Display version information and exit.
+
+-h: Display this help and exit.
+.
+}
+
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+MAXWITH=110
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+test $LINEWIDTH -le $MAXWITH || LINEWIDTH=$MAXWITH
+
+die() {
+	echo "ERROR: $*" >& 2
+	false || exit
+}
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+from=aac
+to=m4a
+dry_run=false
+out_dir=out
+copy=true
+conv=avconv; command -v $conv > /dev/null 2>& 1 || conv=ffmpeg
+while getopts Cno:f:t:hVx: opt
+do
+	case $opt in
+		x) conv=$OPTARG;;
+		C) copy=false;;
+		f) from=$OPTARG;;
+		t) to=$OPTARG;;
+		o) out_dir=$OPTARG;;
+		n) dry_run=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test "$conv"
+command -v -- "$conv" > /dev/null 2>& 1 || die "Cannot find back-end utility" \
+	"'$conv'! Please install 'avconv' or 'ffmpeg' or specify a" \
+	"compatible utility with option '-x'!"
+
+test -d "$out_dir" || die "Output-directory '$out_dir' does not exist!" \
+	"Please create it or specify a different directory with" \
+	"option '-o'."
+expr x"$from" : x'[[:alnum:]]\{1,\}$' > /dev/null
+expr x"$to" : x'[[:alnum:]]\{1,\}$' > /dev/null
+
+# Normalize/defuse path name $f.
+norm() {
+	while :
+	do
+		case $f in
+			./*) f=${f#.}; f=${f##/};;
+			*) break
+		esac
+	done
+	case $f in
+		-*) f=./$f;;
+	esac
+}
+
+test $# = 0 && set .
+a=0
+while test $a != $#
+do
+	f=$1; shift
+	norm
+	set -- "$@" "$f"
+	a=`expr $a + 1`
+done
+
+find "$@" ! -path . -prune -name "*.$from" -type f \
+| sort \
+| while IFS= read -r f
+do
+	norm; i=$f
+	o=$out_dir/${i%.*}.$to
+	set -- "$conv" -i "$i"
+	$copy && set -- "$@" -codec:a copy
+	set -- "$@" "$o"
+	if $dry_run
+	then
+		a=0
+		while test $a != $#
+		do
+			f=$1; shift
+			f=`printf '%s\n' "$f" | sed 's|[\`\\\\$"]|\\\\&|g'`
+			set -- "$@" \""$f"\"
+			a=`expr $a + 1`
+		done
+		echo "SIMULATION: $*" >& 2
+	else
+		"$@"
+	fi
+done
