@@ -10,9 +10,11 @@
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 
-while getopts '' opt
+opts=' -q'
+while getopts v opt
 do
 	case $opt in
+		v) opts=;;
 		*) false || exit
 	esac
 done
@@ -21,7 +23,7 @@ shift `expr $OPTIND - 1 || :`
 for f
 do
 	echo "Compressing '$f'..."
-	ionice -c3 lrzip -U -L 8 -- "$f" || {
+	ionice -c3 lrzip$opts -U -L 8 -- "$f" || {
 		echo "*** ERROR!!! ***" >& 2
 	}
 done
