@@ -1,4 +1,9 @@
 #! /bin/sh
+# Version 2018.134
+# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 local_dir=
 remote_dir=/storage/sdcard1/Downloads
 verbose=true
@@ -9,6 +14,7 @@ cleanup() {
 	test "$TD" && rm -r -- "$TD"
 	test $rc = 0 || echo "$0 failed" >& 2
 }
+TD=
 trap cleanup 0
 trap 'exit $?' HUP INT TERM QUIT
 
