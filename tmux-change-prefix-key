@@ -6,6 +6,16 @@ current_prefix() {
 	tmux show -g | sed 's/^prefix C-\([a-z]\)$/\1/; t; d'
 }
 
+screenify=false
+while getopts s opt
+do
+	case $opt in
+		s) screenify=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
 if test -z "$TMUX"
 then
 	echo 'Must be run from within a tmux session!' \
@@ -19,13 +29,52 @@ op=`current_prefix`
 if test "$np" = "$op"
 then
 	echo "New prefix key '$np' is already the current tmux prefix key!"
-	exit
+	$screenify || { true; exit; }
+else
+	echo "Changing tmux prefix key from '$op' to '$np'!"
+	tmux set -g -q prefix C-$np
+
+	echo "[ctrl]+[$np],[$np] sends literal [ctrl]+[$np]."
+	tmux bind-key $np send-prefix
+
+	tmux unbind C-$op
+	echo "[ctrl]+[$np],[ctrl]+[$np] switches to previous window."
+	tmux bind C-$np last-window
 fi
-echo "Changing tmux prefix key from '$op' to '$np'!"
-tmux set -g -q prefix C-$np
-tmux unbind C-$op
-# [ctrl]+[PREFIX], [PREFIX] sends literal [ctrl]+[PREFIX].
-tmux bind-key $np send-prefix
-# [ctrl]+[PREFIX], [ctrl]+[PREFIX] switches to previous window.
-tmux bind C-$np last-window
+if $screenify
+then
+	# Make tmux as GNU "screen" compatible as possible.
+	tmux set -g -q status off
+	tmux setw -g -q mode-keys vi
+
+	# Enable ctrl-cursor_keys support in X11 terminal emulators.
+	tmux setw -g -q xterm-keys on
+
+	test "$np" != b && tmux unbind C-b
+	tmux unbind l
+
+	tmux unbind ,
+	echo "[ctrl]+[$np],[shift]+[a] renames current window."
+	tmux bind A command-prompt -I '#W' "rename-window '%%'"
+
+	tmux unbind '"'
+	tmux bind S split-window
+	echo "[ctrl]+[$np],[-] splits current pane vertically."
+	tmux bind - split-window
+
+	tmux unbind w
+	echo "[ctrl]+[$np],[shift]+[2] shows a menu for selecting a window" \
+		"to switch to."
+	tmux bind '"' choose-window
+
+	echo "[ctrl]+[$np],[|] splits current pane horizontally."
+	tmux bind "|" split-window -h
+
+	echo "[ctrl]+[$np],[Esc] enters copy/scrollback mode."
+	tmux bind Escape copy-mode
+
+	echo "[ctrl]+[$np],[shift]+[x] removes the current pane" \
+		"without confirmation."
+	tmux bind X kill-pane
+fi
 echo "Done."
