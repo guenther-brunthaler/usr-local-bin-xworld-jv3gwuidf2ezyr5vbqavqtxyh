@@ -3,15 +3,14 @@ set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 
 current_prefix() {
-    tmux list-keys | sed '
-        s/.*C-\([a-z]\)[[:space:]]\{1,\}last-window$/\1/; t; d
-    '
+	tmux show -g | sed 's/^prefix C-\([a-z]\)$/\1/; t; d'
 }
 
 if test -z "$TMUX"
 then
-    echo 'Must be run from within a tmux session! ($TMUX is not valid.)' >& 2
-    exit
+	echo 'Must be run from within a tmux session!' \
+		'($TMUX is not valid.)' >& 2
+	exit
 fi
 np=${1:?Prefix letter key}
 expr x"$np" : x'[a-z]$' > /dev/null
@@ -19,11 +18,11 @@ test $# = 1
 op=`current_prefix`
 if test "$np" = "$op"
 then
-    echo "New prefix key '$np' is already the current tmux prefix key!"
-    exit
+	echo "New prefix key '$np' is already the current tmux prefix key!"
+	exit
 fi
 echo "Changing tmux prefix key from '$op' to '$np'!"
-tmux set -g prefix C-$np
+tmux set -g -q prefix C-$np
 tmux unbind C-$op
 # [ctrl]+[PREFIX], [PREFIX] sends literal [ctrl]+[PREFIX].
 tmux bind-key $np send-prefix
