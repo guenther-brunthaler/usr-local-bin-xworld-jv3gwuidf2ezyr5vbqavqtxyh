@@ -63,7 +63,7 @@ then
 	tmux bind - split-window
 
 	tmux unbind w
-	echo "[ctrl]+[$np],[shift]+[2] shows a menu for selecting a window" \
+	echo "[ctrl]+[$np],[\"] shows a menu for selecting a window" \
 		"to switch to."
 	tmux bind '"' choose-window
 
