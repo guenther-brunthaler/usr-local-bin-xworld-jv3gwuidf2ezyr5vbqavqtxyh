@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << EOF;  exit
-$APP version 2018.178
+$APP version 2018.178.1
 
 Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 
@@ -29,7 +29,7 @@ reconfigure the currently active tmux server instance in order to act
 
 * With option -g, display a tmux configuration file which will make tmux
 behave "GNU screen"-compatible. Typically, this output will be redirected to
-(or merged with the current contents of) "$HOME/.tmux.conf" or
+(or merged with the current contents of) "\$HOME/.tmux.conf" or
 "/etc/tmux.conf".
 
 $APP is a POSIX shell script and is intended to run on all POSIX systems
