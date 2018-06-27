@@ -1,80 +1,517 @@
 #! /bin/sh
+exit_version() {
+	wr -s << EOF;  exit
+$APP version 2018.178
+
+Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+EOF
+}
+APP=${0##*/}
+
+exit_help() {
+wr << EOF
+$APP - tmux "GNU screen"-compatibility reconfiguration utility
+
+Usage: $APP [ <options> ... ] [ <lowercase_letter> ]
+
+$APP can do three things:
+
+* Change the current tmux command-prefix key to the provided
+<lowercase_letter>. This means that pressing the [Ctrl]-key and the key for
+that letter simultaneously will start all tmux command key sequences.
+
+* With option -s, in addition of changing the command prefix key it will
+reconfigure the currently active tmux server instance in order to act
+"GNU screen"-compatible.
+
+* With option -g, display a tmux configuration file which will make tmux
+behave "GNU screen"-compatible. Typically, this output will be redirected to
+(or merged with the current contents of) "$HOME/.tmux.conf" or
+"/etc/tmux.conf".
+
+$APP is a POSIX shell script and is intended to run on all POSIX systems
+which privide a tmux implementation. (If it does not, please contact the
+author to fix the problem for your platform.)
+
+
+Options:
+
+-g: Generate a configuration file. Writes a ".tmux.conf"-compatible
+configuration file to standard output, containing commands to map the provided
+letter key (or "a" if none has been specified) as the new tmux command prefix
+key. (This letter key then needs to be pressed simultaneously with the [Ctrl]
+key for actually taking effect.) Also include commands to remap the tmux
+default key bindings to the default key bindings of GNU "screen". As GNU
+"screen" has hundreds of less-frequently used key bindings, no attempt is made
+to remap all of them. Just the most frequently used or important ones are
+re-mapped. The idea is that someone used to the GNU "screen" key combinations
+should feel right at home with tmux most of the time. For more obscure key
+mappings, consult the online display of current tmux key bindings which can be
+displayed by pressing the command prefix key followed by "?" (exactly the same
+as in GNU "screen").
+
+-s: "screenify" the currently running tmux server instance. Generates the same
+configuration as explained for the -g option, but instead of displaying it,
+apply it immediately to the currently active tmux server (as identified by the
+\$TMUX variable). Use this when you do not want to keep a customized tmux
+configuration file around, but just want to reconfigure the already-running
+tmux instance to become (mostly) GNU "screen"-compatible. In other words, -s
+will reconfigure a running tmux instance in-place "without leaving any traces"
+in currently existing tmux configuration files. There is one other difference
+between -s and -g though: -g always assumes the current prefix key to be
+changed is [Ctrl]+[b], which is the hard-coded tmux default. -s on the other
+hand obtains the actual current prefix key from the running tmux instance, and
+remaps the specified new prefix key from this as the old prefix.
+
+-V: Display version information and exit.
+
+-h: Display this help and exit.
+
+
+Special topic - "Nested tmux server instances":
+
+Sometimes you want to work logged in as different users on different machines
+and also as different users on the local machine (typically as "root" and as your
+normal user account), all at the same time, and using only a single terminal
+window.
+
+This can be achieved by nesting 3 different tmux server instances:
+
+* An "outer" instance for switching between the local machine and the various
+remote machines. I usually name this instance "worlds" and use [Ctrl]+[w] as
+the tmux command prefix to switch between the available machines. This tmux
+instance always runs on the local machine.
+
+* A "middle" instance for switching beween the different users on the machine
+currently selected by [Ctrl]+[w]. I use this primarily for switching between a
+root shell and my normal user account on the machine. This tmux server
+instance is named like the name machine it refers to and also runs on that
+machine.
+
+* An "inner" instance which handles the normal work of the user selected by
+[Ctrl]+[e] on the machine selected by [Ctrl]+[w]. This instance is named after
+the user under whose identity it runs and runs on the same machine as the
+middle instance.
+
+Such a setup can be established with $APP as follows:
+
+* First, $APP needs to be copied to all machines which shall take part in
+the overall setup. Obviously, tmux also needs to be installed there.
+
+* Optionally, run
+
+\$ $APP -g > ~/.tmux.conf # just for the currently logged-in user
+
+or 
+
+\$ $APP -g > /etc/tmux.conf # for all users
+
+to generate a GNU "screen" compatible tmux-configuration on the different
+machines. Changing the configuration for all users might be a bad idea,
+because not all tmux users might like GNU "screen" compatibility.
+
+If you skip this step and do not create GNU "screen"-compatible configuration
+files for tmux on all of the machines, add the -s option to all invocations of
+the $APP script shown below in order to achieve the same effect in-place
+without modifying a configuration file.
+
+* Open a fresh terminal window
+
+This will be the only physical windows you will ever need. You will control
+all your user accounts on all of your machines from this single terminal
+window.
+
+* Create the outermost "worlds" layer of nested tmux server instances
+
+\$ TMUX= exec tmux -L worlds
+
+This creates the instance using the local tmux configuration, but we want
+a different command prefix key. Reconfigure it by running
+
+\$ $APP w
+
+This will reconfigure the current tmux server instance (running on the local
+machine) to use [Ctrl]+[w] as its command prefix.
+
+Note that you might want to insert option "-s" into the above command line
+if you did not want to install a GNU "screen" compatible tmux configuration
+file as explained before.
+
+* Create a middle tmux instance for switching user accounts
+
+\$ TMUX= exec tmux -L \`hostname\`
+EOF
+wr << EOF
+\$ $APP e
+
+Now this middle instance can be controlled with [Ctrl]+[e] as its prefix key.
+
+* Create an inner tmux instance for your logged-in user account
+
+\$ TMUX= exec tmux -L \`logname\`
+
+This assumes your local tmux configuration file already defines [Ctrl]+[a]
+to be the command prefix key. Otherwise, run
+
+\$ $APP a
+
+to make it so.
+
+* Create a superuser tmux instance for user "root"
+
+Press [Ctrl]+[e],[c] to create a new shell window in the middle tmux instance
+which switches between users. In that new shell, execute
+
+\$ exec sudo -i # or "exec su -" if preferred
+
+to get a root shell and take ownership of the tty
+
+\$ chown root:root \`tty\`
+
+which is important for security reasons. Then launch another tmux
+server instance for normal work by user "root":
+
+\$ TMUX= exec tmux -L root
+
+Now you can work as usual using [Ctrl]+[a] as the command prefix in the
+GNU "screen"-compatible tmux instance, provided you have set up the
+tmux configuration for user "root" accordingly before. Otherwise, run
+
+\$ $APP -s a
+
+to make it so.
+
+Now you can switch between your normal user account and user "root" on the
+local machine by pressing [Ctrl]+[e] twice.
+
+You can add tmux-access to more user accounts in a similar way, e. g.:
+
+* Create a tmux instance for user "guest"
+
+Press [Ctrl]+[e],[c] to create a new shell window in the middle tmux instance
+which switches between users. In that new shell, execute
+
+\$ exec sudo -i # or "exec su -" if preferred
+
+to get a root shell and give ownership of the tty to the user to be
+impersonated:
+
+\$ chown guest:guest \`tty\`
+
+which is important for security reasons. Then impersonate the user
+
+\$ exec su - guest
+
+and launch another tmux server instance for normal work by that user:
+
+\$ TMUX= exec tmux -L guest
+
+Now you can work as usual using [Ctrl]+[a] as the command prefix in the
+GNU "screen"-compatible tmux instance, provided you have set up the
+tmux configuration for user "guest" accordingly before. Otherwise, run
+
+\$ $APP -s a
+
+to make it so.
+
+Now you can cycle through the "tmux" instance for user "guest" and the other
+two instances on the local machine by [Ctrl]+[e],[n].
+
+* Add a tmux server instance for a remote machine
+
+Press [Ctrl]+[w],[c] to create a new shell window in the outer tmux instance
+which switches between machines.
+
+If you want to use a separate instance of ssh-agent for this remote machine
+(which might be a good idea considering that too many keys in a single agent
+can result in the ssh-login being rejected after trying too many loaded keys),
+execute this optional command:
+
+\$ exec ssh-agent \$SHELL
+
+In that new shell, execute
+
+\$ ssh ruser@rmachine
+
+or whatever sequence of commands is necessary to connect to the remote machine
+using ssh. After the connection has been established, start another "middle"
+tmux instance for controlling the various user accounts on that machine:
+
+\$ TMUX= tmux -L \`hostname\`
+EOF
+wr << EOF
+\$ $APP e
+
+Now you have another "middle" tmux instance, running on the remote machine,
+which will handle switching between the various tmux server instances for
+different users on the same remote machine.
+
+Start by creating an "inner" tmux instance for the user as which you have
+logged into the remote machine:
+
+\$ TMUX= exec tmux -L \`logname\`
+EOF
+wr << EOF
+\$ $APP -s a
+
+As before, the last command can be skipped if a GNU "screen" compatible
+configuration file has already been installed for the current user on the
+remote machine before.
+
+Now you can repeat exactly the same steps as decribed before for creating
+more "inner" tmux instances on the remote machine for additional users,
+especially for "root" (if required).
+
+* What can you do after all this setup work?
+
+Press [Ctrl]+[w],[n] to cycle through all connected machines (including the
+local one).
+
+Press [Ctrl]+[e],[n] to cycle through all connected users on the current
+machine.
+
+Press [Ctrl]+[a],[n] to cycle through all shells controlled by tmux for
+the currently selected user on the currently selected machine.
+
+* How to temporarily disconnect from a remote machine
+
+First, cycle trought the available remote machines with [Ctrl]+[e],[n]
+until you see the one you want to disconnect from.
+
+Then press [Ctrl]+[e],[d] to detach the "middle" tmux instance of that
+machine. Then enter
+
+\$ exit
+
+to close the ssh connection.
+
+* How to re-connect to a remote machine
+
+Do the following to re-connect to a remote machine from which you have
+detached before, of to a machine for which the ssh-connection has died:
+
+First, cycle trought the available remote machines with [Ctrl]+[e],[n]
+until you see the one you want to reconnect to. Execute
+
+\$ ssh ruser@rmachine
+
+or whatever sequence of commands is necessary to reconnect to the remote
+machine using ssh. After the connection has been established, execute
+
+\$ tmux attach -L \`hostname\`
+
+to re-attach to the "middle" tmux session controlled by [Ctrl]+[e] on that
+machine.
+
+* How can I enter [Ctrl]+[a], [Ctrl]+[e] or [Ctrl]+[w] literally?
+
+Sometimes, the programs running inside any of the three nested tmux server
+instances might need some of those key combinations for their own purposes,
+but tmux would be interpreting them as its command prefix, stealing them away
+from the programs.
+
+The configuration generated by "$APP -s" and "$APP -g" binds a special key
+sequence for exactly this purpose: When pressing the command prefix followed
+by the same letter (but without the [Ctrl]) will put the command prefix
+through to the program literally.
+
+For instance, for passing the key combination [Ctrl]+[w] through to the
+programm running in any of the nested tmux server instances, enter the
+key combination [Ctrl]+[w],[w] instead.
+
+In this case, the outer tmux instance will catch the [Ctrl]+[w], but the
+following [w] will make it send a literal [Ctrl]+[w] to the programs running
+under its control (including the other nested tmux instances).
+
+EOF
+	echo; exit_version
+}
+
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+MAXWITH=110
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+test $LINEWIDTH -le $MAXWITH || LINEWIDTH=$MAXWITH
+
+println() {
+	printf '%s\n' "$*"
+}
 
 current_prefix() {
 	tmux show -g | sed 's/^prefix C-\([a-z]\)$/\1/; t; d'
 }
 
+validate_np() {
+	expr x"$np" : x'[a-z]$' > /dev/null
+}
+
+qin() {
+	local arg out
+	for arg
+	do
+		case $arg in
+			\#* | *\"* | *\'* | *" "* | *\|*)
+				case $arg in
+					*\'*) arg=\"$arg\";;
+					*) arg="'$arg'"
+				esac
+		esac
+		out=$out${out:+ }$arg
+	done
+	println "$out"
+}
+
+tdsc() {
+	if $gen_config
+	then
+		echo "# $*"
+	else
+		echo "$@"
+	fi
+}
+
+ereal() {
+	$gen_config && return
+	echo "$@"
+}
+
+dsc() {
+	$gen_config || { true; return; }
+	if test -z "$1"
+	then
+		echo
+	else
+		echo "# $*"
+	fi
+}
+
+tmx() {
+	if $gen_config
+	then
+		echo "`qin "$@"`"
+	else
+		tmux "$@"
+	fi
+}
+
 screenify=false
-while getopts s opt
+gen_config=false
+while getopts sghV opt
 do
 	case $opt in
+		g) gen_config=true; screenify=true;;
 		s) screenify=true;;
+		h) exit_help;;
+		V) exit_version;;
 		*) false || exit
 	esac
 done
 shift `expr $OPTIND - 1 || :`
 
-if test -z "$TMUX"
+if $gen_config
 then
-	echo 'Must be run from within a tmux session!' \
-		'($TMUX is not valid.)' >& 2
-	exit
-fi
-np=${1:?Prefix letter key}
-expr x"$np" : x'[a-z]$' > /dev/null
-test $# = 1
-op=`current_prefix`
-if test "$np" = "$op"
-then
-	echo "New prefix key '$np' is already the current tmux prefix key!"
-	$screenify || { true; exit; }
+	np=${1:-a}
+	validate_np
+	test $# -le 1
+	op=b
 else
-	echo "Changing tmux prefix key from '$op' to '$np'!"
-	tmux set -g -q prefix C-$np
-
-	echo "[ctrl]+[$np],[$np] sends literal [ctrl]+[$np]."
-	tmux bind-key $np send-prefix
-
-	tmux unbind C-$op
-	echo "[ctrl]+[$np],[ctrl]+[$np] switches to previous window."
-	tmux bind C-$np last-window
+	if test -z "$TMUX"
+	then
+		echo 'Must be run from within a tmux session!' \
+			'($TMUX is not valid.)' >& 2
+		exit
+	fi
+	np=${1:?Prefix letter key}
+	validate_np
+	test $# = 1
+	op=`current_prefix`
 fi
 if $screenify
 then
-	# Make tmux as GNU "screen" compatible as possible.
-	tmux set -g -q status off
-	tmux setw -g -q mode-keys vi
-
-	# Enable ctrl-cursor_keys support in X11 terminal emulators.
-	tmux setw -g -q xterm-keys on
-
-	test "$np" != b && tmux unbind C-b
-	tmux unbind l
-
-	tmux unbind ,
-	echo "[ctrl]+[$np],[shift]+[a] renames current window."
-	tmux bind A command-prompt -I '#W' "rename-window '%%'"
-
-	tmux unbind '"'
-	tmux bind S split-window
-	echo "[ctrl]+[$np],[-] splits current pane vertically."
-	tmux bind - split-window
-
-	tmux unbind w
-	echo "[ctrl]+[$np],[\"] shows a menu for selecting a window" \
-		"to switch to."
-	tmux bind '"' choose-window
-
-	echo "[ctrl]+[$np],[|] splits current pane horizontally."
-	tmux bind "|" split-window -h
-
-	echo "[ctrl]+[$np],[Esc] enters copy/scrollback mode."
-	tmux bind Escape copy-mode
-
-	echo "[ctrl]+[$np],[shift]+[x] removes the current pane" \
-		"without confirmation."
-	tmux bind X kill-pane
+	dsc "Make tmux as GNU "screen" compatible as possible."
+	d=`date +'%Y-%m-%d %H:%M:%S %Z'`; d=${d% }
+	dsc "(Config generated by `qin "$APP"` on $d.)"
+	dsc
 fi
-echo "Done."
+if test "$np" = "$op"
+then
+	ereal "New prefix key '$np' is already the current tmux prefix key!"
+	$screenify || { true; exit; }
+else
+	tdsc "Change tmux prefix key from '$op' to '$np'."
+	tmx set -g -q prefix C-$np
+	dsc
+	tdsc "[ctrl]+[$np],[$np] sends literal [ctrl]+[$np]."
+	tmx unbind $op
+	tmx bind-key $np send-prefix
+	dsc
+	tdsc "[ctrl]+[$np],[ctrl]+[$np] switches to previous window."
+	tmx unbind l
+	tmx unbind C-$op
+	tmx bind C-$np last-window
+fi
+if $screenify
+then
+	dsc
+	tmx set -g -q status off
+	tmx setw -g -q mode-keys vi
+	dsc
+	dsc "Enable ctrl-cursor_keys support in X11 terminal emulators."
+	tmx setw -g -q xterm-keys on
+	dsc
+	tdsc "[ctrl]+[$np],[shift]+[a] renames current window."
+	tmx bind A command-prompt -I '#W' "rename-window '%%'"
+	tmx unbind ,
+	dsc
+	tdsc "[ctrl]+[$np],[-] splits current pane vertically."
+	tmx bind - split-window
+	tmx unbind '"'
+	tmx bind S split-window
+	dsc
+	tdsc "[ctrl]+[$np],[\"] shows a menu for selecting a window" \
+		"to switch to."
+	tmx bind '"' choose-window
+	tmx unbind w
+	dsc
+	tdsc "[ctrl]+[$np],[|] splits current pane horizontally."
+	tmx bind "|" split-window -h
+	dsc
+	tdsc "[ctrl]+[$np],[Esc] enters copy/scrollback mode."
+	tmx bind Escape copy-mode
+	dsc
+	tdsc "[ctrl]+[$np],[shift]+[x] removes the current pane" \
+		"without confirmation."
+	tmx bind X kill-pane
+fi
+ereal "Done."
