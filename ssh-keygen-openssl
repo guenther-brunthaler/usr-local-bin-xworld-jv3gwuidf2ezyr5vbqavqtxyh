@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << . && exit
-$APP version 2018.91
+$APP version 2018.183
 
 Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 
@@ -46,8 +46,18 @@ Options:
 -b <bits>: Generate <bits> RSA keys rather than the default of $default_bits
 bits.
 
--u: Don't ask for pass phrases and store all the private keys unencrypted.
-Obviously you need to trust that your filesystem is secure in this case.
+-e: Ask for individual pass phrases for all the private keys. By default, the
+keys are stored unencrypted. Obviously, the default requires/assumes that the
+filesystem of the current directory (where the generated keys will be stored)
+is secure/encrypted. When in doubt, better use -e.
+
+-p: In addition to generating OpenSSH private/public key files, also create a
+copy of the private key in PuTTY format as a .ppk file. This requires the
+program "puttygen" to be installed. Note that if you also selected option -e,
+you will have to enter an encryption pass phrase for OpenSSH and another
+(possible different one) one for PuTTY. Because every pass phrase needs to be
+repeated for verification, this means a total of 4 pass phrases needs to be
+entered for every key to be generated.
 
 -V: Display version information and exit.
 
@@ -111,13 +121,16 @@ TDIR=
 trap cleanup 0
 trap 'exit $?' HUP INT QUIT TERM
 
-set_passphrase=true
+set_passphrase=false
 bits=$default_bits
-while getopts ub:Vh opt
+security_margin=50 # Overhead % added to the entropy actually required.
+ppk_gen=false
+while getopts peb:Vh opt
 do
 	case $opt in
+		p) command -v puttygen > /dev/null; ppk_gen=true;;
 		b) bits=$OPTARG;;
-		u) set_passphrase=false;;
+		e) set_passphrase=true;;
 		h) exit_help;;
 		V) exit_version;;
 		*) false || exit
@@ -133,18 +146,64 @@ done
 
 TDIR=`mktemp -d "${TMPDIR:-/tmp}/$APP".XXXXXXXXXX`
 
+# Calculate additional bytes of entropy to provide for the last openssl
+# invocation. This will be used to "re-charge" openssl's randomness seeding
+# files to full entropy, making the entropy available to future invocations of
+# openssl when no additional entropy sources might be available (such as
+# immediately after reboot on a diskless system).
+recharge_seeding_bytes=1024 # Assumed mininum size of openssl seeding file.
+for i in "$HOME"/.rnd .rnd
+do
+	test -f "$i" || continue
+	i=`stat -c %s -- "$i"`
+	# Don't believe an unreasonably large file to be a seeding file.
+	# Otherwise, a DoS attack might be possible by starving the system out
+	# of entropy while waiting for /dev/openssl to yield enough entropy,
+	# which can be a slow process.
+	test "$i" -gt 150000 && continue
+	test "$i" -le $recharge_seeding_bytes && continue
+	recharge_seeding_bytes=$i
+done
+# Theoretically, only random starting positions for the sequential search of
+# two primes would be required, $bits bits for both together. But we also add
+# a security margin for overhead, expecting that openssl might internally
+# consume entropy for other things than generating primes, too. For instance,
+# it might generate random temporary filenames. Note that the optional
+# encryption of the private key file is performed as a separate step using
+# openssh-keygen and optionally puttygen later, not by openssl. So we do not
+# need to provide entropy for private key encryption to openssl.
+entropy_bytes=`expr \( $bits + 7 \) / 8 \* \( 100 + $security_margin \) / 100`
 i=1
 for n
 do
 	t=$TDIR/$i
 	echo "Generating key '$n'..."
-	openssl genrsa -out "$t".prv -rand /dev/random "$bits"
+	e=$entropy_bytes
+	if test $i = $#
+	then
+		# This will be the last invocation of openssl by this script.
+		e=`expr $e + $recharge_seeding_bytes`
+	fi
+	echo "Collecting $e bytes of entropy..." >& 2
+	dd if=/dev/random bs=1 count="$e" of="$TDIR"/rnd
+	openssl genrsa -out "$t".prv -rand "$TDIR"/rnd "$bits"
 	chmod 600 -- "$t".prv
 	ssh-keygen -yf "$t".prv > "$t".tmp
 	tr -d '\n' < "$t".tmp > "$t".pub
-	rm -- "$n".tmp
+	rm -- "$t".tmp
 	printf ' %s\n' "$n" >> "$t.pub"
-	sed -i 's| \([^@]*\)@| \1_indirect@|' "$t.pub"
+	if $ppk_gen
+	then
+		(
+			# Change temporarily to temporary directory in order
+			# to avoid passing path names to puttygen which might
+			# look like options (puttygen's non-standard syntax
+			# makes it possible to misinterpret strange path names
+			# as options).
+			cd -- "$TDIR"
+			puttygen $i.prv -C "$n" -o $i.ppk -O private
+		)
+	fi
 	i=`expr $i + 1`
 done
 if $set_passphrase
@@ -153,8 +212,16 @@ then
 	for n
 	do
 		t=$TDIR/$i
-		echo "Changing pass phrase for key '$n'..."
+		echo "Changing OpenSSH pass phrase for key '$n'..."
 		ssh-keygen -pf "$t".prv
+		if $ppk_gen
+		then
+			echo "Changing PuTTY pass phrase for key '$n'..."
+			(
+				cd -- "$TDIR" # See last comment about "cd".
+				puttygen "$i".ppk -P
+			)
+		fi
 		i=`expr $i + 1`
 	done
 fi
@@ -164,5 +231,9 @@ do
 	t=$TDIR/$i
 	mv -i -- "$t".prv "$n.prv"
 	mv -i -- "$t".pub "$n.pub"
+	if $ppk_gen
+	then
+		mv -i -- "$t".ppk "$n.ppk"
+	fi
 	i=`expr $i + 1`
 done
