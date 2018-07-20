@@ -1,0 +1,317 @@
+#! /bin/sh
+exit_version() {
+	wr -s << EOF;  exit
+$APP version 2018.201
+
+Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+EOF
+}
+APP=${0##*/}
+
+exit_help() {
+wr << EOF
+$APP - Update a list of files by filtering their contents through a command
+
+Usage: $APP [ <options> ... ] [--] <command> <arguments>...
+
+By default, $APP reads a list of file names from its standard input, one file
+per line.
+
+Then it replaces the old contents of the files by the new contents produced by
+the command specified in $APP's command line.
+
+When the command is run for every file in the list, it gets the contents of
+the old file fed as its standard input and shall write the
+new/updated/filtered version of the file contents to its standard output.
+
+Example: Convert the contents of all *.txt files in the current directory into
+uppercase.
+
+\$ ls *.txt | $APP tr '[:lower:]' '[:upper:]'  
+
+Note that $APP takes care of checking whether the command completed its runs
+successfully or not and transparently handles creation and removal of
+temporary files.
+
+Except for severe errors like files that could not be read or written, $APP
+does not stop when the specified command failed processing a file. Instead, it
+saves the name of the unsuccessful file to a list and continues processing the
+remaining files.
+
+If the list of unsuccessfully processed files is not empty before $APP exits,
+the list will be presented to the user with a warning message.
+
+Options:
+
+-l: Enable special processing for large files. Normally, $APP assumes all
+processed files will be small enough for first creating a temporary copy in
+the directory specified by \$TMPDIR (or in /tmp otherwise), and only after
+this copying the files to their final destinations if necessary. With -l, the
+temporary files are not created in /tmp (or \$TMPDIR) any more, but rather in
+the same directory where the original files exist. This has the advantage that
+even very large files can be processed which would not fit into /tmp or
+\$TMPDIR. But it has the disadvantage that actual files will take place in the
+destination directories, even when no updates are necessary. Without -l, files
+which will not need updating will not write anything to their destination
+directories. This can extend the life of your flash drive, assuming /tmp is
+actually a RAM disk or tmpfs but the destination directories are on a flash
+drive. In addition, -l changes the way how $APP checks whether files are
+already up to date and will not be touched. Without -l, the "cmp" utility is
+used to compare the original version of a file with the temporary file
+containing the new version of the contents. With -l, the "openssl" utility is
+used instead to create SHA-256 digests of both versions, and the files are
+assumed to be identical if the SHA-256 digests have the same value. This
+approach is more efficient for large files (at least on conventional hard
+disks), because it avoids excessive movement of the disk heads.
+
+-u <list_file>: $APP saves the names of files to be processed for which the
+filter command failed to a list file instead of stopping. This list file will
+be deleted if it is empty, but will otherwise remain and the user can find the
+problematic files (which failed processing) in it. By default, the name of
+this list is generated based on the current date and time in the current
+directory. Option -u can be used to specify a specific file for the list. This
+is especially useful if the current directory shall not be written to and the
+list file shall be created elsewhere.
+
+-f <file>: By default, the list of files to be processed is read from $APP's
+standard input. But if one or more -f options are present, the files will
+alternatively be specified on the command line, using one -f option for every
+individual file.
+
+-v: Be verbose. Normally, only errors and warnings are displayed, but not the
+results of successful operation.
+
+-V: Display version information and exit.
+
+-h: Display this help and exit.
+EOF
+	echo; exit_version
+}
+
+set -e
+
+cleanup() {
+	rc=$?
+	for f in "$TF" "$NF" "$NFT"
+	do
+		test "$f" && rm -- "$f"
+	done
+	$rmu && rm -- "$unprocessed"
+	test $rc = 0 || echo "$0 failed!" >& 2
+}
+TF=
+NF=
+NFT=
+rmu=false
+trap cleanup 0
+trap 'exit $?' HUP QUIT INT TERM
+
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+MAXWITH=110
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+test $LINEWIDTH -le $MAXWITH || LINEWIDTH=$MAXWITH
+
+error() {
+	echo "ERROR: $*" >& 2
+}
+
+die() {
+	error "$@"
+	false || exit
+}
+
+warn() {
+	echo "WARNING: $*" >& 2
+}
+
+println() {
+	printf '%s\n' "$*"
+}
+
+inform() {
+	if $verbose
+	then
+		println "$@" >& 2
+	fi
+}
+
+for f in TF NFT
+do
+	tf=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}.$f"-XXXXXXXXXX`
+	eval $f=\$tf
+done
+
+verbose=false
+unprocessed=`date +'unprocessed_files_%Y%m%d_%H%M%S.txt'`
+large_files=false
+while getopts u:vf:lVh opt
+do
+	case $opt in
+		l) large_files=true;;
+		u) unprocessed=$OPTARG;;
+		f) println "$OPTARG" >& 5;;
+		v) verbose=true;;
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done 5> "$TF"
+shift `expr $OPTIND - 1 || :`
+
+command -v "$1" > /dev/null 2>& 1 || die "Could not locate command '$1'!"
+
+if $large_files
+then
+	# args: varname, pathname
+	getcks() {
+		local digest
+		test -f "$2"
+		digest=`openssl sha256 < "$2" | cut -d ' ' -f 2`
+		test ${#digest} = 64
+		eval $1=\$digest
+	}
+	command -v openssl > /dev/null
+fi
+
+> "$unprocessed" # Ensure it can actually be created.
+rmu=true
+
+if test ! -s "$TF"
+then
+	cat > "$TF"
+fi
+
+ftp=0
+while IFS= read -r file
+do
+	test -f "$file" || die "Could not read file '$file'!"
+	dir=`dirname -- "$file"`
+	test -w "$dir" || die "No write-access to directory '$dir'" \
+		"for replacing '$file' with updated contents!"
+	ftp=`expr $ftp + 1`
+done < "$TF"
+
+# Try to delete file $NF.
+delete_NF() {
+	local t
+	t=$NF; NF=
+	rm -- "$t" && return
+	die "Could not delete temporary copy '$t'" \
+		"(don't forget to also check file '$unprocessed'" \
+		"for unsuccessfully processed files)!"
+}
+
+# $NF could not be used to replace $file. File descriptor 5 is redirected to
+# file "$unprocessed".
+unsuccessful() {
+	error "$@"
+	println "$file" >& 5; rmu=false
+	delete_NF
+}
+
+# Create a new file replacing $file and put its pathname into $NF.
+create_NF() {
+	test -z "$NF"
+	NF=`mktemp -- "$file"-new.XXXXXXXXXX`
+}
+
+fps=0
+while IFS= read -r file
+do
+	if $large_files
+	then
+		create_NF
+		ni=$NF
+	else
+		ni=$NFT
+	fi
+	inform "Processing file '$file'..."
+	if "$@" < "$file" > "$ni"
+	then
+		same=false
+		if $large_files
+		then
+			getcks file_cs "$file"
+			getcks ni_cs "$ni"
+			test $file_cs = $ni_cs && same=true
+		else
+			cmp -s "$file" "$ni" && same=true
+		fi
+		if $same
+		then
+			inform "File is already up to-date!" \
+				"Orginal remains untouched."
+			fps=`expr $fps + 1`
+			if $large_files
+			then
+				delete_NF
+			fi
+		else
+			if $large_files
+			then
+				:
+			else
+				create_NF
+				cat < "$NFT" > "$NF" || die "Could not copy" \
+					"filtered contents as intermediate" \
+					"new file '$NF'!"
+			fi
+			chown --reference="$file" -- "$NF" \
+				|| warn "Could not set owner" \
+					"for new instance" \
+					"of file '$file' (ignored)!"
+			chmod --reference="$file" -- "$NF" \
+				|| warn "Could not set permissions" \
+					"for new instance" \
+					"of file '$file' (ignored)!"
+			if mv -- "$NF" "$file"
+			then
+				NF=
+				fps=`expr $fps + 1`
+			else
+				unsuccessful "Could not replace" \
+					"old file '$file'" \
+					"with its new instance!"
+			fi
+		fi
+	else
+		unsuccessful "Filter command failed for file '$file'!"
+	fi
+done < "$TF" 5> "$unprocessed"
+if test $fps = $ftp
+then
+	inform "All $fps file(s) have been updated successfully!"
+else
+	warn "Only $fps out of $ftp file(s) have been processed successfully!"
+	echo "File '$unprocessed' contains the list of files" \
+		"that could not be updated."
+fi
