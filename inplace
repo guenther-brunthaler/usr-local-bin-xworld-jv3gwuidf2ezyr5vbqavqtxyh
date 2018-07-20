@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << EOF;  exit
-$APP version 2018.201
+$APP version 2018.201.1
 
 Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 
@@ -87,7 +87,34 @@ results of successful operation.
 -V: Display version information and exit.
 
 -h: Display this help and exit.
+
+
+Usage tipps:
+
+$APP only allows a single command to be specified as the filter command. One
+cannot, for instance, specify a pipeline as a command directly.
+
+This can be fixed, however, by specifying "sh -c" as the filter command,
+and specifying the pipeline as the argument of -c as a string.
+
+Let's say, for instance, that one not only wants to convert the contents of 
+all *.txt files into upper case, but also wants to remove any indentation:
+
+\$ ls *.txt | $APP sh -c "sed 's/^[[:space:]]*//' | tr '[:lower:]' '[:upper:]'"
+
+The only problem is that quoting can become tricky. If this becomes a problem,
+one can always write the pipeline without additional quoting in a text file,
+and then use this file as a script:
+
 EOF
+	wr -s << EOF2
+\$ cat << 'EOF' > cmd.sh
+sed 's/^[[:space:]]*//' | tr '[:lower:]' '[:upper:]'
+EOF
+\$ ls *.txt | $APP sh cmd.sh
+\$ rm cmd.sh
+
+EOF2
 	echo; exit_version
 }
 
