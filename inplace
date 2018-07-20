@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << EOF;  exit
-$APP version 2018.201.2
+$APP version 2018.201.4
 
 Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 
@@ -274,14 +274,72 @@ create_NF() {
 # Try to set new instance file $2 to the same the attributes as original file
 # $1.
 reconcile_attrs() {
-	chown --reference="$1" -- "$2" \
+	local s d orig w p f rest modes mpart save colset colold
+	orig=$1
+	s=`readlink -f -- "$1"`
+	d=`readlink -f -- "$2"`
+	set -- `command ls -n -- "$s" | cut -d ' ' -f 1-4`
+	chown $3:$4 "$d" \
 		|| warn "Could not set owner" \
 			"for new instance" \
-			"of file '$1' (ignored)!"
-	chmod --reference="$1" -- "$2" \
+			"of file '$orig' (ignored)!"
+	if test "${LC_COLLATE+y}"
+	then
+		colold=$LC_COLLATE
+		colset=true
+	else
+		colset=false
+	fi
+	# This is necessary for "case" to distinguish letter case when
+	# matching no matter what locale is currently set.
+	export LC_COLLATE=C
+	s=${1#?}; save=$s; modes=
+	for w in u g o
+	do
+		mpart=
+		for p in r w x
+		do
+			rest=${s#?}; f=${s%"$rest"}; s=$rest
+			case $f in
+				$p) mpart=$mpart$p;;
+				[a-z]) test $p = x && mpart=$mpart$p
+			esac
+		done
+		modes=$modes${modes:+,}$w=$mpart
+	done
+	chmod $modes "$d" \
 		|| warn "Could not set permissions" \
 			"for new instance" \
-			"of file '$1' (ignored)!"
+			"of file '$orig' (ignored)!"
+	s=$save; modes=
+	for w in u g o
+	do
+		mpart=
+		for p in r w x
+		do
+			rest=${s#?}; f=${s%"$rest"}; s=$rest
+			case $f in
+				$p) ;;
+				[a-z]) test $p = x && mpart=$mpart$f;;
+				[A-Z])
+					f=`println "$f" | tr A-Z a-z`
+					test $p = x && mpart=$mpart$f
+					;;
+			esac
+		done
+		test "$mpart" && modes=$modes${modes:+,}$w+$mpart
+	done
+	if $colset
+	then
+		LC_COLLATE=$colold
+	else
+		unset LC_COLLATE
+	fi
+	test -z "$modes" && return
+	chmod $modes "$d" \
+		|| warn "Could not set SUID/GUID/etc. special permissions" \
+			"for new instance" \
+			"of file '$orig' (ignored)!"
 }
 
 fps=0
@@ -309,7 +367,7 @@ do
 		if $same
 		then
 			inform "File is already up to-date!" \
-				"Orginal remains untouched."
+				"Original remains untouched."
 			fps=`expr $fps + 1`
 			if $large_files
 			then
