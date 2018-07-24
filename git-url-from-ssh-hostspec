@@ -7,7 +7,7 @@ helper=ssh-config-alias-resolver
 # done by $helper. All options which make sense for passing through will be
 # accepted and passed through to $helper.
 #
-# Version 2018.27
+# Version 2018.205
 #
 # Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 # 
@@ -23,14 +23,16 @@ qarg() {
 }
 qarx='s|'\''|'\\\''|g; s/.*/'\''&'\''/'
 
-ho=
+ho= # Options passed through to $helper.
 subcmd=add
 pull=`pwd`
 push=$pull
 execute=false
-while getopts xsuUPC:p:l: opt
+init_remote=false
+while getopts ixsuUPC:p:l: opt
 do
 	case $opt in
+		i) init_remote=true;;
 		x) execute=true;;
 		s) subcmd=set-url;;
 		p | C | l) qarg; ho="$ho -$opt $OPTARG";;
@@ -72,14 +74,18 @@ do
 	eval $vn=\$var
 done
 
-process() {
-	set git remote "$@"
+show_or_exec() {
 	if $execute
 	then
+		echo "EXECUTING: $@"
 		"$@"
 	else
-		echo "$@"
+		echo "SIMULATION: $@"
 	fi
+}
+
+process() {
+	show_or_exec git remote "$@"
 }
 
 first=true
@@ -88,9 +94,18 @@ first=true
 do
 	if $first
 	then
-		first=false
+		set -f; first=false
 	else
 		echo
+	fi
+	if $init_remote
+	then
+		url=${push#"/~/"}
+		set +f
+		show_or_exec ssh${port:+ -p "$port"}${user:+ -l "$user"} \
+			git init --bare "$url"
+		set -f
+		$execute && continue
 	fi
 	url="ssh://$user${user:+"@"}$host${port:+:}$port"
 	set +f; process $subcmd "$name" "$url$pull"; set -f
