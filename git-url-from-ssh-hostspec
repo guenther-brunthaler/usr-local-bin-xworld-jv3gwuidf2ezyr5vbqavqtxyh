@@ -7,7 +7,7 @@ helper=ssh-config-alias-resolver
 # done by $helper. All options which make sense for passing through will be
 # accepted and passed through to $helper.
 #
-# Version 2018.205
+# Version 2018.206
 #
 # Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 # 
@@ -103,6 +103,7 @@ do
 		url=${push#"/~/"}
 		set +f
 		show_or_exec ssh${port:+ -p "$port"}${user:+ -l "$user"} \
+			"$host" \
 			git init --bare "$url"
 		set -f
 		$execute && continue
