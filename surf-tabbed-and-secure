@@ -1,10 +1,13 @@
 #! /bin/sh
-# Version 2018.102
+# Version 2018.207
 #
 # Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
+
+cookies=~/.surf/cookies.txt
+surf_options='-z 1.5 -a '@' -kfdgimnps'
 
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
@@ -17,9 +20,15 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
+mkdir -p -- "`dirname -- "$cookies"`"
+> "$cookies"
+
 test $# = 0 && set file:///
-tabbed -c -r 2 surf -ispe '' -- "$@" < /dev/null > /dev/null 2>& 1 &
-cat << EOF
+tabbed -c -r 2 surf -e '' $surf_options -c "$cookies" -- "$@" \
+	< /dev/null > /dev/null 2>& 1 &
+if test -t 1
+then
+	cat << EOF
 The most important shortcuts:
 
 [Shift]+[Ctrl]+[Return] or middle-clicking on link opens a new tab
@@ -37,3 +46,4 @@ The most important shortcuts:
 
 See "man tabbed" and "man surf" for more keyboard shortcuts.
 EOF
+fi
