@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2018.207
+# Version 2018.207.1
 #
 # Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 #
@@ -7,7 +7,27 @@
 # Distribution is permitted under the terms of the GPLv3.
 
 cookies=~/.surf/cookies.txt
-surf_options='-z 1.5 -a '@' -kfdgimnps'
+
+# Options enabled/set:
+#
+# -a '@' Reject third-party cookies
+# -k not kiosk-mode
+# -f not fullscreen mode
+# -g disable geolocation
+# -i disable image loading
+# -p disable PlugIns (sch as JAVA applet support)
+# -s disable JavaScript
+#
+# Options which might seem to be useful, but aren't because new tabs won't
+# inherit them:
+#
+# -z 1.5 Zoom level
+# -m disable user stylesheets
+# -d disable disk cache
+#
+# The WebInspector is left enabled because it costs neglectible RAM as long as
+# it is not actually being used.
+surf_options='-a @ -kfgips'
 
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
@@ -21,7 +41,7 @@ done
 shift `expr $OPTIND - 1 || :`
 
 mkdir -p -- "`dirname -- "$cookies"`"
-> "$cookies"
+> "$cookies" # Remove all cookies from the last session.
 
 test $# = 0 && set file:///
 tabbed -c -r 2 surf -e '' $surf_options -c "$cookies" -- "$@" \
@@ -35,6 +55,7 @@ The most important shortcuts:
 [Ctrl]+[q] closes current tab (middle-clicking on a tab also closes it)
 [Ctrl]+[g] prompts for URL
 [Esc] stop loading current page
+[Ctrl]+[r] reload page
 
 [Ctrl]+[y] copy URI
 [Shift]+[Ctrl]+[i] enables/toggles auto image loading
