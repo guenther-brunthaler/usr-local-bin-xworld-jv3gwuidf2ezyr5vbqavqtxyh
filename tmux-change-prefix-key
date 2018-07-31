@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr -s << EOF
-$APP version 2018.206
+$APP version 2018.212
 
 Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 
@@ -502,6 +502,10 @@ then
 	dsc
 	dsc "Enable ctrl-cursor_keys support in X11 terminal emulators."
 	tmx setw -g -q xterm-keys on
+	dsc
+	dsc "Disable that \"feature\" which makes \"less\" and \"vim\" erase"
+	dsc "their screen output when they exit."
+	tmx setw -g alternate-screen off
 	dsc
 	tdsc "[ctrl]+[$np],[shift]+[a] renames current window."
 	tmx bind A command-prompt -I '#W' "rename-window '%%'"
