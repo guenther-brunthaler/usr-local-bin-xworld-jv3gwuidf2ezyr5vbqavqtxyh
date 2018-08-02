@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr -s << EOF
-$APP version 2018.212.1
+$APP version 2018.214
 
 Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 
@@ -512,7 +512,6 @@ then
 	dsc "Prefer visual over audible alerts."
 	tmx set -g visual-activity on
 	tmx set -g visual-silence on
-	tmx set -g visual-bell on
 	dsc
 	tdsc "[ctrl]+[$np],[shift]+[a] renames current window."
 	tmx bind A command-prompt -I '#W' "rename-window '%%'"
