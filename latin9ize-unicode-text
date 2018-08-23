@@ -13,38 +13,9 @@
 
 set -e
 
-pipelines_wait() {
-	local worst rc pid timeout
-	worst=0; timeout=${2:-1}
-	for pid in $BG_PIDS
-	do
-		if test "$1"
-		then
-			{
-				sleep $timeout; kill -$1 $pid || :
-				while :
-				do
-					sleep 999
-				done
-			} & timeout=$!
-		fi
-		wait $pid && :
-		rc=$?
-		if test "$1"
-		then
-			kill -TERM $timeout || :
-			wait $timeout || :
-		fi
-		test $rc -gt $worst && worst=$rc
-	done
-	BG_PIDS=
-	return $worst
-}
-
 cleanup() {
 	rc=$?
-	pipelines_wait TERM || :
-	test "$TD" && rm -r -- "$TD"
+	test "$FIFO" && rm -- "$FIFO"
 	case $rc in
 		0) return;;
 		126) how="when attempting to run a non-executable file";;
@@ -55,8 +26,7 @@ cleanup() {
 	esac
 	echo "$0 failed $how!" >& 2
 }
-TD=
-BG_PIDS=
+FIFO=
 trap cleanup 0
 trap 'exit $?' INT TERM QUIT HUP
 
@@ -99,41 +69,6 @@ then
 	exit
 fi
 
-TD=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
-
-get_fifo() {
-	case $2 in
-		"" | +)
-			eval fifo=\$NX_FIFO_$1
-			case $2 in
-				+) fifo=`expr $fifo + 1`
-			esac
-			;;
-		*) fifo=$2
-	esac
-	test "$2" && eval NX_FIFO_$1=\$fifo
-	fifo=$TD/$1_$fifo
-	test -e "$fifo" || mkfifo -- "$fifo"
-}
-
-pipeline_start() {
-	local fifo
-	get_fifo $1 1; shift
-	"$@" > "$fifo" & BG_PIDS="$! $BG_PIDS"
-}
-
-pipeline_cont() {
-	local lfifo fifo
-	get_fifo $1; lfifo=$fifo; get_fifo $1 +; shift
-	"$@" < "$lfifo" > "$fifo" & BG_PIDS="$! $BG_PIDS"
-}
-
-pipeline_complete() {
-	local fifo
-	get_fifo $1; shift
-	"$@" < "$fifo" & BG_PIDS="$! $BG_PIDS"
-}
-
 substs=`
 iconv -f UTF-7 << 'EOF'
 s/+AFsAWw:space:+AF0AoABdAFwAew-1,+AFwAfQ-/ /g
@@ -147,7 +82,51 @@ y/+A7w-/+ALU-/
 y/+AUIBGQEfAQ0BRA-/legcn/
 EOF
 `
-pipeline_start 1 sed$opts "$substs" "$@"
-pipeline_cont 1 iconv -t LATIN9
-pipeline_complete 1 iconv -f LATIN9
-pipelines_wait TERM 5
+
+while :
+do
+	t=`mktemp -u -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+	mkfifo -m 600 "$t" && break
+done
+FIFO=$t
+
+{
+	sed$opts "$substs" "$@" && :
+	echo $? >& 5
+} | {
+	iconv -t LATIN9 && :
+	echo $? >& 5
+} | {
+	iconv -f LATIN9 && :
+	echo $? >& 5
+} 5> "$FIFO" & pid=$?
+
+children=3
+EPIPE=`kill -l PIPE`; EPIPE=`expr $EPIPE + 128`
+worst=0
+while :
+do
+	read rc || rc=$EPIPE
+	if test $rc != 0
+	then
+		if test $worst = 0
+		then
+			timeout=5
+			{
+				sleep $timeout
+				kill $pid || :
+				while :
+				do
+					sleep 999
+				done
+			} & timeout=$!
+		elif test $rc -le $worst
+		then
+			continue
+		fi
+		worst=$rc
+	fi
+	children=`expr $children - 1 && false || :` && break
+done < "$FIFO"
+test $worst != 0 && kill $timeout || :
+wait
