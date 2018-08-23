@@ -14,31 +14,48 @@
 set -e
 
 pipelines_wait() {
-	local worst rc pid
-	worst=0
+	local worst rc pid timeout
+	worst=0; timeout=${2:-1}
 	for pid in $BG_PIDS
 	do
-		wait $pid && continue
+		if test "$1"
+		then
+			{
+				sleep $timeout; kill -$1 $pid || :
+				while :
+				do
+					sleep 999
+				done
+			} & timeout=$!
+			{
+				wait $pid && :
+				rc=$?
+				kill -TERM $timeout || :
+				wait $timeout || :
+				exit $rc
+			} & pid=$!
+		fi
+		wait $pid && :
 		rc=$?
 		test $rc -gt $worst && worst=$rc
 	done
 	BG_PIDS=
-	(exit $worst)
-}
-
-pipelines_kill() {
-	local restore signal
-	restore=`trap`;	signal=${1-TERM}
-	trap '' $signal; kill -$signal 0
-	eval "$restore"
-	pipelines_wait
+	return $worst
 }
 
 cleanup() {
 	rc=$?
-	pipelines_kill || :
+	pipelines_wait TERM || :
 	test "$TD" && rm -r -- "$TD"
-	test $rc = 0 || echo "$0 failed!" >& 2
+	case $rc in
+		0) return;;
+		126) how="when attempting to run a non-executable file";;
+		127) how="because a command was not found";;
+		*)
+			how="with signal `kill -l $rc 2> /dev/null`" \
+			|| how="with return code $rc"
+	esac
+	echo "$0 failed $how!" >& 2
 }
 TD=
 BG_PIDS=
@@ -96,27 +113,26 @@ get_fifo() {
 			;;
 		*) fifo=$2
 	esac
-	eval NX_FIFO_$1=\$fifo
+	test "$2" && eval NX_FIFO_$1=\$fifo
 	fifo=$TD/$1_$fifo
-	test -e "$fifo" && return
-	mkfifo -- "$fifo"
+	test -e "$fifo" || mkfifo -- "$fifo"
 }
 
 pipeline_start() {
 	local fifo
-	get_fifo "$1" 1; shift
+	get_fifo $1 1; shift
 	"$@" > "$fifo" & BG_PIDS="$! $BG_PIDS"
 }
 
 pipeline_cont() {
 	local lfifo fifo
-	get_fifo "$1"; lfifo=$fifo; get_fifo "$1" +; shift
+	get_fifo $1; lfifo=$fifo; get_fifo $1 +; shift
 	"$@" < "$lfifo" > "$fifo" & BG_PIDS="$! $BG_PIDS"
 }
 
 pipeline_complete() {
 	local fifo
-	get_fifo "$1"; shift
+	get_fifo $1; shift
 	"$@" < "$fifo" & BG_PIDS="$! $BG_PIDS"
 }
 
@@ -136,4 +152,4 @@ EOF
 pipeline_start 1 sed$opts "$substs" "$@"
 pipeline_cont 1 iconv -t LATIN9
 pipeline_complete 1 iconv -f LATIN9
-pipelines_wait
+pipelines_wait TERM 5
