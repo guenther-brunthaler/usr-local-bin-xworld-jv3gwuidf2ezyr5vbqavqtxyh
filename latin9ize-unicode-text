@@ -27,16 +27,14 @@ pipelines_wait() {
 					sleep 999
 				done
 			} & timeout=$!
-			{
-				wait $pid && :
-				rc=$?
-				kill -TERM $timeout || :
-				wait $timeout || :
-				exit $rc
-			} & pid=$!
 		fi
 		wait $pid && :
 		rc=$?
+		if test "$1"
+		then
+			kill -TERM $timeout || :
+			wait $timeout || :
+		fi
 		test $rc -gt $worst && worst=$rc
 	done
 	BG_PIDS=
