@@ -4,25 +4,78 @@
 # LATIN9 replacement characters. Also, sequences of non-breaking space,
 # horizontal tabulation and similar whitespace characters will be replaced by
 # a single space character.
+#
+# Version 2018.235
+# Copyright (c) 2017-2018 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
 set -e
 trap 'test $? = 0 || echo "$APP failed in line $lnum!" >& 2' 0
+
+show_pos() {
+	crad=10 # default context radius
+	shift; OPTIND=1
+	pos=
+	while getopts p:c: opt
+	do
+		case $opt in
+			p) pos=$OPTARG;;
+			c) crad=$OPTARG
+		esac
+	done
+	shift $OPTIND
+	test $# = 0 && set /dev/stdin
+	for pint in "$pos" "$crad"
+	do
+		expr x"$pint" : x'[1-9][0-9]*$' > /dev/null
+	done
+	cbef=`expr $crad \& $pos \> $crad \| $pos || :`
+	cdia=`expr $cbef + $crad`
+	rbs=8192
+	while test $rbs -lt $cdia
+	do
+		rbs=`expr $rbs + $rbs`
+	done
+	bo=`expr $pos - $cbef || :`
+	bi=`expr $bo / $rbs || :`; bo=`expr $bo % $rbs || :`
+	lb=`
+		dd if="$1" bs=$rbs skip=$bi count=1 \
+		| dd bs=1 skip=$bo count=$cdia
+	` 2> /dev/null
+	pfx=`printf '%s\n' "$lb" | dd bs=1 count=$cbef` 2> /dev/null
+	echo "<...>$pfx<AFTER_THIS>${lb#"$pfx"}<...>"
+}
+
 opts=
-while getopts i opt
+wrapper=
+while getopts vip:c: opt
 do
 	case $opt in
+		v) wrapper='verify ';;
 		i) opts="$opts -$opt";;
+		[pc]) opts="$opts -$opt $OPTARG"; wrapper='show_pos ';;
 		*) false || exit
 	esac
 done
 shift `expr $OPTIND - 1 || :`
+
+verify() {
+	"$@" | iconv -t LATIN9 > /dev/null
+}
+
 substs=`
 iconv -f UTF-7 << 'EOF'
-s/+AFsAWw:space:+AF0AoABdAFwAew-1,+AFwAfQ-/ /g+ADs s/+AF4 //+ADs s/ +ACQ-//
+s/+AFsAWw:space:+AF0AoABdAFwAew-1,+AFwAfQ-/ /g
+s/+AF4 //
+s/ +ACQ-//
 s/+ICY-/.../g
+s/+IBQ-/ - /g
 y/+IDogOQCrALsgHSAcIB4gEyAZIBgAtA-/+ACIAIgAiACIAIgAiACI--'''/
 y/+IAY-/ /
 y/+A7w-/+ALU-/
 y/+AUIBGQEfAQ0BRA-/legcn/
 EOF
 `
-sed$opts "$substs" "$@"
+${wrapper}sed$opts "$substs" "$@"
