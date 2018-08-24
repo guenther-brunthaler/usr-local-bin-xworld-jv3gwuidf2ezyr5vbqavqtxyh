@@ -91,22 +91,23 @@ done
 FIFO=$t
 
 {
-	sed$opts "$substs" "$@" && :
-	echo $? >& 5
-} | {
-	iconv -t LATIN9 && :
-	echo $? >& 5
-} | {
-	iconv -f LATIN9 && :
-	echo $? >& 5
-} 5> "$FIFO" & pid=$?
+	{
+		sed$opts "$substs" "$@" && :
+		echo $? >& 5
+	} | {
+		iconv -t LATIN9 && :
+		echo $? >& 5
+	} | {
+		iconv -f LATIN9 && :
+		echo $? >& 5
+	}
+} 5> "$FIFO" & pid=$!
 
 children=3
-EPIPE=`kill -l PIPE`; EPIPE=`expr $EPIPE + 128`
 worst=0
 while :
 do
-	read rc || rc=$EPIPE
+	read rc
 	if test $rc != 0
 	then
 		if test $worst = 0
@@ -126,7 +127,8 @@ do
 		fi
 		worst=$rc
 	fi
-	children=`expr $children - 1 && false || :` && break
+	children=`expr $children - 1` && continue
+	break
 done < "$FIFO"
 test $worst != 0 && kill $timeout || :
 wait
