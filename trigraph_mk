@@ -1,0 +1,21 @@
+#! /bin/sh
+# Convert normal C source files into identical ones making use of "trigraph"
+# sequences.
+#
+# Version 2018.255
+# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+exec sed -f /dev/fd/5 5<< 'END' -- ${1+"$@"}
+s:#:??=:g
+s:\^:??':g
+s:\[:??(:g
+s:]:??):g
+s:|:??!:g
+s:{:??<:g
+s:}:??>:g
+s:~:??-:g
+s:\\:??/:g
+END
