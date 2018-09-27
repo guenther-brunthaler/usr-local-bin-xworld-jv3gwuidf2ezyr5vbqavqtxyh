@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 2018.90
+	$APP Version 2018.270
 	Copyright (c) 2008-2018 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
@@ -14,17 +14,19 @@ show_help() { wr <<- EOF
 	$APP - create a subdirectory for unrestricted user-to-user data
 	exchange
 
-	$APP creates a new subdirectory within the $U2UBASE directory. That
-	new subdirectory will have a unique secret name which cannot easily be
-	guessed by other users (and the permissions of the $U2UBASE directory
-	also do not allow displaying its directory listing).
+	$APP creates a new subdirectory within the $U2UBASE directory (if the
+	user has no write permissions there, the $U2UBASE_ALT directory will
+	be used instead). That new subdirectory will have a unique secret name
+	which cannot easily be guessed by other users (and the permissions of
+	the $U2UBASE directory also do not allow displaying its directory
+	listing).
 	
-	Note: $U2UBASE will typically have been created by the administrator
-	using one of the two following commands:
+	Note: $U2UBASE and $U2UBASE_ALT will typically have been created by
+	the administrator using the two following commands:
 	
-	\$ mkdir -m1703 $U2UBASE # Everyone is allowed to use $APP.
-	
-	\$ mkdir -m1730 $U2UBASE && chgrp $U2UBASE \$U2U_USERS_GROUP
+	\$ mkdir -m 1730 $U2UBASE && chgrp $U2UBASE \$U2U_USERS_GROUP
+
+	\$ mkdir -m 1703 $U2UBASE_ALT # For all remaining users.
 	
 	Then $APP displays the path to the created subdirectory, and by
 	default also creates a symlink to it in the current directory. (The
