@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 2018.270
+	$APP Version 2018.270.1
 	Copyright (c) 2008-2018 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
@@ -82,6 +82,10 @@ show_help() { wr <<- EOF
 	provided, no symlink will be created but <symlink-name> will still be
 	used in order to synthesize parts of the secret subdirectory name
 	under $U2UBASE. See the DESCRIPTION section for more details on this.
+	
+	--world, -w: Enforce using the $U2UBASE_ALT directory as the base
+	directory for creating the new subdirectory, even if the $U2UBASE
+	directory is writable by the current user.
 	
 	--mode <mode>, -m <mode>: Optional --mode argument to be passed
 	through to the mkdir command when creating the secret directory.
@@ -380,7 +384,7 @@ print_rnd_uuid() {
 }
 
 gen_uuid() {
-	if test -n "$BC"
+	if test "$BC"
 	then
 		{
 			echo "obase=35; ibase=16"
@@ -446,7 +450,7 @@ inform() {
 
 
 have() {
-	which "$1" > /dev/null 2>& 1
+	command -v $1 > /dev/null 2>& 1
 }
 
 U2UBASE="/home/exchange"
@@ -460,7 +464,7 @@ APP=${0##*/}
 # Determine output line width.
 LINEWIDTH=; REPLY=; test -t 1 && system tput cols; LINEWIDTH=${REPLY:-70}
 # We need big integers support.
-BC=`which bc 2> /dev/null` && test -x "$BC" \
+BC=`command -v bc 2> /dev/null` && test -x "$BC" \
 || test x`perl -Mbigint -e 'print 1 << 128' 2> /dev/null | wc -c` = x39 \
 || die "bc or perl with bigint support are required!"
 # Start of command line processing.
@@ -472,6 +476,7 @@ SYMLINK=
 REPORT_AT_END=
 DRY_RUN=
 DIR_MODE=
+enforce_world=false
 #
 COPTS=
 while :
@@ -479,47 +484,48 @@ do
 	if test -z "$COPTS"
 	then
 		case $1 in
-			-?*) COPTS="$1"; shift;;
+			-?*) COPTS=$1; shift;;
 			*) break;;
 		esac
 	fi
-	if test x"${COPTS#--}" = x"$COPTS"
+	if test "${COPTS#--}" = "$COPTS"
 	then
-		TAIL="${COPTS#-?}"; # Switch clustering.
-		COPT="${COPTS%$TAIL}"; COPTS="${TAIL:+-}$TAIL"
+		TAIL=${COPTS#-?}; # Switch clustering.
+		COPT=${COPTS%$TAIL}; COPTS=${TAIL:+-}$TAIL
 	else
-		COPT="$COPTS"; COPTS=
+		COPT=$COPTS; COPTS=
 	fi
 	# Any arguments are at $1 and onwards; must be shifted off.
-	case "$COPT" in
+	case $COPT in
 		--) break;; # Must be first!
 		--no-symlink | -S) NO_SYMLINK=Y;;
 		--mode | -m) DIR_MODE=$1; shift;;
+		--world | -w) enforce_world=true;;
 		--force | -f) FORCE=Y;;
 		--dry-run | -n) DRY_RUN=Y;;
 		--verbose | -v) VERBOSE=Y;;
 		--help | -h) show_help | less --quit-if-one-screen; exit;;
 		--version) show_version; exit;;
-		*) die "Unknown option '$COPT'!";; # Must be last!
+		*) die "Unknown option '$COPT'!" # Must be last!
 	esac
 done
 # Shift off ordinal arguments.
-test $# -ge 1 && { SYMLINK="$1"; shift; }
+test $# -ge 1 && { SYMLINK=$1; shift; }
 # Check for excess arguments.
 test $# = 0 || die "Unexpected excess arguments: $*"
 # End of command line processing.
-test ! -w "$U2UBASE" && U2UBASE=$U2UBASE_ALT
+$enforce_world || test ! -w "$U2UBASE" && U2UBASE=$U2UBASE_ALT
 run test -d "$U2UBASE"
 SYMNAME=${SYMLINK##*/}
-if test -n "$SYMLINK"
+if test "$SYMLINK"
 then
-	test x"${SYMLINK#/}" = x"$SYMLINK" \
+	test "${SYMLINK#/}" = "$SYMLINK" \
 		|| die "Absolute paths are not allowed in '$SYMLINK'!"
 	if test -z "$NO_SYMLINK"
 	then
-		if test -n "$FORCE" && test -L "$SYMLINK"
+		if test "$FORCE" && test -L "$SYMLINK"
 		then
-			shall rm "$SYMLINK"
+			shall rm -- "$SYMLINK"
 		fi
 		if test -L "$SYMLINK" || test -e "$SYMLINK"
 		then
@@ -549,15 +555,15 @@ while :
 do
 	system gen_uuid; TARGET=$U2UBASE/$SYMNAME${SYMNAME:+_}$REPLY
 	set mkdir
-	test -n "$DIR_MODE" && set -- "$@" -m "$DIR_MODE"
+	test "$DIR_MODE" && set -- "$@" -m "$DIR_MODE"
 	shall "$@" -- "$TARGET" && break
 	run sleep 1
 done
 inform "Hidden directory '$TARGET' has been created."
-test -n "$NO_SYMLINK" && REPORT_AT_END=$TARGET
+test "$NO_SYMLINK" && REPORT_AT_END=$TARGET
 if test -z "$NO_SYMLINK"
 then
-	shall ln -s "$TARGET" "$SYMLINK"
+	shall ln -s -- "$TARGET" "$SYMLINK"
 	inform "Symlink '$SYMLINK' has been created."
 	if have "$SYMLINK_OPTIMIZER"
 	then
@@ -565,4 +571,7 @@ then
 		shall "$@" "$SYMLINK"
 	fi
 fi
-test -n "$REPORT_AT_END" && printf '%s\n' "$REPORT_AT_END"
+if test "$REPORT_AT_END"
+then
+	printf '%s\n' "$REPORT_AT_END"
+fi
