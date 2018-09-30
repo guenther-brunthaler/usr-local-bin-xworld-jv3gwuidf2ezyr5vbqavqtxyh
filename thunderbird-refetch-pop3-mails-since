@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << . && exit
-$APP version 2018.273
+$APP version 2018.273.1
 
 Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 
@@ -21,7 +21,11 @@ $APP makes thunderbird forget it ever received POP3 mails younger than the
 specified date/time specification.
 
 This can be useful if Mails vanish due to index file corruptions and you want
-to get them again.
+to get them again after repairing the index files.
+
+It is OK to run $APP while Thunderbird is running, but you need to make sure
+automatic periodic polling for mails will not occur while $APP is executing. A
+simple way to ensure this is to put Thunderbird temporarily into offline mode.
 
 $APP modifies the files where Thunderbird tracks which mails have already been
 downloaded from the POP3 servers and removes tracking entries added since the
