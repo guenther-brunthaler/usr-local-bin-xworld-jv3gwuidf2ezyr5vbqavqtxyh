@@ -1,0 +1,193 @@
+#! /bin/sh
+exit_version() {
+	wr -s << . && exit
+$APP version 2018.273
+
+Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+.
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << . && echo && exit_version
+$APP - fetch some already-fetched mails again in Mozilla Thunderbird
+
+Usage: $APP [ <options> ... ] <date_time_spec>
+
+$APP makes thunderbird forget it ever received POP3 mails younger than the
+specified date/time specification.
+
+This can be useful if Mails vanish due to index file corruptions and you want
+to get them again.
+
+$APP modifies the files where Thunderbird tracks which mails have already been
+downloaded from the POP3 servers and removes tracking entries added since the
+specified date, making Thunderbird forget about those mails.
+
+The next time Thunderbird checks for new mails, the forgotten-about mails will
+be downloaded again and flagged as new mails.
+
+Of course that only works if the mails are still present on the POP3 server,
+which generally means you need to instruct Thunderbird *not* to delete mails
+from the mail server immediately once they have been downloaded for the first
+time.
+
+Be aware that mails which have *not* vanished since the specified date will be
+downloaded as duplicates. It is then your responsibility to detect those
+duplicates and remove them (if you care about something like this).
+
+Options:
+
+-x: Actually perform changes. By default, changes are only displayed but
+the Thunderbird POP3 message state files will not actually be changed.
+
+-h: display this help and exit
+
+-V: display version information and exit
+.
+}
+
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+MAXWITH=110
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+test $LINEWIDTH -le $MAXWITH || LINEWIDTH=$MAXWITH
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TF=
+trap cleanup 0
+trap 'exit $?' INT HUP TERM QUIT
+
+die() {
+	echo "$*" >& 2
+	false || exit
+}
+
+dry_run=true
+while getopts xVh opt
+do
+	case $opt in
+		V) exit_version;;
+		h) exit_help;;
+		x) dry_run=false;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test "`date -u -d @0 +%s_%Y%m%d_%H%M%S_%z`" = 0_19700101_000000_+0000 \
+|| die "A 'date' utility with GNU-extensions -d, %z, %s and @ is required!"
+
+cd
+cd .thunderbird
+test -f profiles.ini
+
+reset_prf() {
+	unset pnm rel pth dfl
+}
+
+eval_prf() {
+	test -z "$dfl" || test "$dfl" = 0 && return
+	echo "Using Thunderbird profile '$pnm'."
+	test "$pth"
+	if test "$rel" && test "$rel" != 0
+	then
+		expr x"$pth" : x'[^/]' > /dev/null \
+			|| die "'$pth' is not a relative path!"
+	else
+		expr x"$pth" : x'/' > /dev/null \
+			|| die "'$pth' is not an absolute path!"
+	fi
+	ppath=$pth
+}
+
+unset ppath
+reset_prf
+while IFS= read -r line
+do
+	case $line in
+		'['*']') eval_prf; reset_prf;;
+		IsRelative=*) rel=${line#*=};;
+		Name=*) pnm=${line#*=};;
+		Path=*) pth=${line#*=};;
+		Default=*) dfl=${line#*=};;
+	esac
+done < profiles.ini
+eval_prf
+test "$ppath" || die "Could not identify Thunderbird profile!"
+test -d "$ppath" || die "Profile path '$ppath' does not exist!"
+cd -- "$ppath"
+
+test $# = 1 && dt=`date -d "$1" +%s` \
+	|| die "'$1' is not a valid date/time specification!"
+fd=`date -d "@$dt" +'%Y-%m-%d %H:%M:%S %z'`
+
+echo "Finding all messages received since $fd"
+
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+
+find . -name popstate.dat -type f \
+| {
+	files=0; changed=0
+	while IFS= read -r popstate
+	do
+		files=`expr $files + 1`
+		awk '
+			NF == 3 && $1 ~ /^[bfkd]$/ \
+			&& $2 ~ /^[[:graph:]]{10,}$/ \
+			&& $3 ~ /^[0-9]+$/ {
+				if ($3 >= '$dt') next
+			}
+			
+			{print}
+		' < "$popstate" > "$TF"
+		if $dry_run
+		then
+			diff -u --  "$popstate" "$TF" || :
+		elif cmp -s -- "$popstate" "$TF"
+		then
+			:
+		else
+			cat < "$TF" > "$popstate"
+			changed=`expr $changed + 1`
+		fi
+	done
+	echo "Changed $changed files out of $files."
+}
+if $dry_run
+then
+	echo "Run again with option -x to actually perform shown changes."
+fi
