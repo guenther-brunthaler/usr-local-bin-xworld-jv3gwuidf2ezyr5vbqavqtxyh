@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2018.207.1
+# Version 2018.345
 #
 # Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 #
@@ -32,9 +32,13 @@ surf_options='-a @ -kfgips'
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 
-while getopts '' opt
+untabbed=false
+dry_run=false
+while getopts un opt
 do
 	case $opt in
+		u) untabbed=true;;
+		n) dry_run=true;;
 		*) false || exit
 	esac
 done
@@ -44,11 +48,18 @@ mkdir -p -- "`dirname -- "$cookies"`"
 > "$cookies" # Remove all cookies from the last session.
 
 test $# = 0 && set file:///
-tabbed -c -r 2 surf -e '' $surf_options -c "$cookies" -- "$@" \
-	< /dev/null > /dev/null 2>& 1 &
-if test -t 1
+set -- $surf_options -c "$cookies" -- "$@"
+$untabbed || set -- -e '' "$@"
+set surf "$@"
+$untabbed || set tabbed -c -r 2 "$@"
+if $dry_run
 then
-	cat << EOF
+	echo "$@"
+else
+	"$@" < /dev/null > /dev/null 2>& 1 &
+	if test -t 1
+	then
+		cat << EOF
 The most important shortcuts:
 
 [Shift]+[Ctrl]+[Return] or middle-clicking on link opens a new tab
@@ -67,4 +78,5 @@ The most important shortcuts:
 
 See "man tabbed" and "man surf" for more keyboard shortcuts.
 EOF
+	fi
 fi
