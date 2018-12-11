@@ -1,0 +1,10 @@
+#! /bin/sh
+# mhWaveEdit and possibly other X11 programs use this command in order to
+# invoke an audio mixer application.
+#
+# Version 2018.338
+for t in xterm x-terminal-emulator xmessage false
+do
+	command -v $t > /dev/null 2>& 1 && break
+done
+exec $t -e alsamixer
