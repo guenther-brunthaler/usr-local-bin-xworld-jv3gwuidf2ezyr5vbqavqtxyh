@@ -1,11 +1,13 @@
 #! /bin/sh
 # Generate a base-64 password: 256 bits without arguments, or 128 bits
 # otherwise. May block until enough entropy becomes available in /dev/random.
+#
+# Version 2018.346
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
-if ssl=`which openssl 2> /dev/null`
+if command -v openssl > /dev/null 2>& 1
 then
-	b64() { "$ssl" base64; }
+	alias b64='openssl base64'
 else
 	alias b64=base64
 fi
