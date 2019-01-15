@@ -2,7 +2,7 @@
 # Bump-revision - filter for incrementing YYYY.JJJ.N revision numbers and
 # updating copyright year or year range.
 #
-# Version 2018.250
+# Version 2019.15
 # Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -11,7 +11,7 @@
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
-today=`date -u +%Y.%j`
+today=`date -u +%Y.%j | sed 's/[.]0/./g'`
 this_year=${today%%.*}
 
 yrx='2[01][0-9][0-9]'
