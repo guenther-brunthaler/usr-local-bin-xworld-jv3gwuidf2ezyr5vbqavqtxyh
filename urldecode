@@ -1,10 +1,10 @@
-#! /usr/bin/env lua-5.2
-assert(_VERSION == 'Lua 5.2')
+#! /usr/bin/env lua5.3
+assert(_VERSION == 'Lua 5.3')
 setmetatable(_ENV, {__newindex= function(_, v) error("global: " .. v, 2) end})
 
 -- Decodes any number of URL-encoded string arguments
 --
--- (c) 2012 by Guenther Brunthaler.
+-- (c) 2012-2019 by Guenther Brunthaler.
 -- This script is free software.
 -- Distribution is permitted under the terms of the GPLv3.
 
