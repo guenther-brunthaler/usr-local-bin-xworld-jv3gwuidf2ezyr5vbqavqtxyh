@@ -1,0 +1,2 @@
+#! /bin/sh
+exec wmctrl -r :ACTIVE: -b toggle,fullscreen
