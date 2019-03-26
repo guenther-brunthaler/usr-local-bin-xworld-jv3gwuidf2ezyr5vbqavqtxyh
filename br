@@ -2,8 +2,8 @@
 # Bump-revision - filter for incrementing YYYY.JJJ.N revision numbers and
 # updating copyright year or year range.
 #
-# Version 2019.15
-# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+# Version 2019.85
+# Copyright (c) 2018-2019 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -16,8 +16,9 @@ this_year=${today%%.*}
 
 yrx='2[01][0-9][0-9]'
 xs2='p\n\1\nyf\n\2\nyt\n\3\nys\n\4'
+s1='\('"$yrx"'\(\.[0-9]\{1,\}\)\{1,2\}\)\(\([^.0-9]*.*\)\{0,1\}\)$'
 sed '
-	s/\(.* \)\('"$yrx"'\(\.[0-9]\{1,\}\)\{1,2\}\)$/p\n\1\nr\n\2/; t
+	s/\(.* \)'"$s1"'/p\n\1\nr\n\2\nt\n\4/; t
 	s/\(.* \)\('"$yrx"'\)-\('"$yrx"'\)\( .*\)$/'"$xs2"'/; t
 	s/\(.* \)\('"$yrx"'\)\( .*\)$/p\n\1\nyf\n\2\nys\n\3/; t
 	s/.*/t\n&/
@@ -37,7 +38,7 @@ do
 			else
 				line=$today
 			fi
-			echo $line
+			printf '%s' "$line"
 			;;
 		yf) yf=$line; yt=$yf;;
 		yt) yt=$line;;
