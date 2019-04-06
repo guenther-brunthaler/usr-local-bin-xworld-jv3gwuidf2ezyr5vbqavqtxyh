@@ -1,0 +1,223 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2019.96
+Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+
+This source file is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << ===; echo; exit_version;
+$APP - convert numbers of unrestricted magnitude between radix bases
+
+Usage: $APP [ <options> ... ] <from_alpha> <to_alpha> [ <from_number_1> ... ]
+
+where
+<from_alpha>,  <to_alpha>: Alphabet specifications
+<from_number_1>: The first number to be converted. If missing, then
+the numbers to be converted will be read from standard input instead.
+In this case, more than one number (separated by whitespace) per input
+line is allowed.
+
+<options>:
+-d: Dump information about input and output alphabets to standard error
+-w <n>: Make output at least <n> digits long (output alphabet zero padding)
+-h: Display this help and exit
+-V: Display version information and exit
+
+Alphabet specifications: A string of character pairs, each one describing
+the next range of characters in the alphabet. Unless the first and last
+character of a range are equal, only characters from the following ranges
+are allowed as the first or last character of a range: 0-9, A-Z, a-z.
+
+Examples of alphabet specifications:
+
+* "01": binary numbers
+* "07": octal numbers
+* "09AH" or "09ah": hexadecimal numbers
+* "..//09AZaz": Numbers used by a64l() and l64a()
+* "09az" or "09AZ": typical base-62 representations
+
+Examples of using this program:
+
+Convert decimal number 255 to hexadecimal:
+
+\$ $APP 09 09af 255
+ff
+
+Convert Hexadecimal 0xAA and 0x55 into binary:
+
+\$ $APP -w8 09AF 01 AA 55
+10101010
+01010101
+
+Display a 128-bit random password as base-62:
+
+\$ dd if=/dev/random bs=1 count=16 2> /dev/null | od -An -vt o1 \\
+  | tr -dc 0-7 | baseconv -w22 07 09AZaz
+RszoNqwvaekkonIEg65VhpjM
+
+Without -w, the numbers will only be output as long as necessary, omitting
+leading zeros (as they would be represented by the output alphabet).
+
+The default is -w 1.
+
+With -w0, leading zeros will be discarded even in the case that this is
+the only digit. In other words, an input value of zero will be output as "".
+Also, empty input strings will be interpreted as the value zero with -w0.
+===
+}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+dump_alphabets=0
+min_width=1
+while getopts w:hVd opt
+do
+	case $opt in
+		w) min_width=$OPTARG;;
+		d) dump_alphabets=1;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+awk -v failure_rc=`false || echo $?` \
+	-v dump_alphabets=$dump_alphabets \
+	-v min_width=$min_width \
+	-f /dev/fd/5 -- ${1+"$@"} 5<< 'AWK_END'
+
+# Set up: r2a[], a2r[]
+function init(    ranges, i, c) {
+	ranges= "0123456789" \
+		",ABCDEFGHIJKLMNOPQRSTUVWXYZ" \
+		",abcdefghijklmnopqrstuvwxyz"
+	for (i= length(ranges); i; --i) {
+		if ((c= substr(ranges, i, 1)) == ",") continue
+		r2a[i]= c; a2r[c]= i
+	}
+}
+
+function die(msg) {
+	print msg > "/dev/stderr"
+	exit(failure_rc)
+}
+
+function ranges2tables(adef, a2dig, dig2a    , i, e, afrom, ato, nto, dig) {
+	if ((e= length(adef)) < 2) {
+		die("No range pairs in alphabet definition!")
+	}
+	if (e-- % 2) die("Missing end of last range in alphabet definition!")
+	dig= 0
+	for (i= 1; i <= e; i+= 2) {
+		afrom= substr(adef, i, 1)
+		nto= a2r[ato= substr(adef, i + 1, 1)]
+		for (;;) {
+			if (afrom in a2dig) {
+				die( \
+					"Symbol \"" afrom "\" defined more" \
+					" than once in alphabet definition" \
+					" \"" adef "\"!" \
+				)
+			}
+			a2dig[afrom]= dig
+			dig2a[dig++]= afrom
+			if (afrom == ato) break
+			if ( \
+				!(afrom= a2r[afrom]) \
+				|| afrom > nto \
+				|| !(++afrom in r2a) \
+			) {
+				die( \
+					"Invalid range \"" \
+					substr(adef, i, 2) "\"!" \
+				)
+			}
+			afrom= r2a[afrom]
+		}
+	}
+	if (dig < 2) die("Alphabet defined by \"" adef "\" is too small!")
+	return dig
+}
+
+function dump(what, radix, dig2a    , i, out) {
+	out= what ": base-" radix " digits \""
+	for (i= 0; i < radix; ++i) out= out dig2a[i]
+	print out "\"" > "/dev/stderr"
+}
+
+function convert(inp    , dig, out, carry, nid, k, i, n) {
+	if (!(nid= length(inp)) && min_width) {
+		die("An empty number has been specified for conversion!")
+	}
+	for (k= 1; k <= nid; ++k) {
+		carry= 0
+		for (i= 0; i < n; ++i) {
+			dig[i]= (carry+= dig[i] * in_base) % out_base
+			carry= int(carry / out_base)
+		}
+		while (carry) {
+			dig[n++]= carry % out_base
+			carry= int(carry / out_base)
+		}
+		# dig += digit
+		if (!((carry= substr(inp, k, 1)) in in_a2dig)) {
+			die( \
+				"Invalid base-" in_base " digit" \
+				" \"" carry "\"" \
+				" in input number \"" inp "\"!" \
+			)
+		}
+		carry= in_a2dig[carry]
+		for (i= 0; i < n; ++i) {
+			dig[i]= (carry+= dig[i]) % out_base
+			carry= int(carry / out_base)
+		}
+		while (carry) {
+			dig[n++]= carry % out_base
+			carry= int(carry / out_base)
+		}
+	}
+	for (i= min_width - n; i > 0; --i) out= out out_dig2a[0]
+	while (n--) out= out out_dig2a[dig[n]]
+	print out
+}
+
+# Set up: in_base, in_a2dig[], out_base, out_dig2a[]
+function main(    i, t) {
+	if (ARGC < 2) die("Missing input alphabet definition!")
+	in_base= ranges2tables(ARGV[1], in_a2dig, t)
+	if (dump_alphabets) dump("Input", in_base, t)
+	for (i in t) delete t[i]
+	if (ARGC < 3) die("Missing output alphabet definition!")
+	out_base= ranges2tables(ARGV[2], t, out_dig2a)
+	for (i in t) delete t[i]
+	if (dump_alphabets) dump("Output", out_base, out_dig2a)
+	if (ARGC >= 4) {
+		for (i= 3; i < ARGC; ++i) convert(ARGV[i])
+		exit(0)
+	}
+	ARGC= 1
+}
+
+BEGIN {
+	init()
+	main()
+}
+
+function process_line(    i) {
+	for (i= 1; i <= NF; ++i) convert($i)
+}
+
+{
+	process_line()
+}
+
+AWK_END
