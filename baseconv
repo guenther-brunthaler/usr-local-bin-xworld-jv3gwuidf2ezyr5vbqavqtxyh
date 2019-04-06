@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2019.96.3
+$APP Version 2019.96.4
 Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 
 This source file is free software.
@@ -33,8 +33,9 @@ is allowed, and empty lines will be interpreted as the number zero.
 
 Alphabet specifications: A string of character pairs, each one describing
 the next range of characters in the alphabet. Unless the first and last
-character of a range are equal, only characters from the following ranges
-are allowed as the first or last character of a range: 0-9, A-Z, a-z.
+character of a range are equal, only characters equivalent to character
+codes 32 through 126 of the ASCII character set (all normal non-control
+characters) are allowed as the first or last character of a range.
 
 Examples of alphabet specifications:
 
@@ -62,8 +63,28 @@ Convert hexadecimal 0xAA and 0x55 into binary:
 Display a 128-bit random password as base-62:
 
 \$ dd if=/dev/random bs=1 count=16 2> /dev/null | od -An -vt o1 \\
-  | tr -dc 0-7 | baseconv -b128 07 09AZaz
+  | tr -dc 0-7 | $APP -b128 07 09AZaz
 RszoNqwvaekkonIEg65VhpjM
+
+Convert a hexadecimal number into base-94:
+
+\$ $APP 09AF '!~' DEADBEEF
+
+Encode a number using the RFC 4648 base-32 alphabet:
+
+\$ $APP 09 AZ27 1000000000
+5ZVSQA
+
+Encode a number using the RFC 1421 base-64 alphabet:
+
+\$ $APP 09 AZaz09++// 1000000000
+7msoA
+
+Encode a number using the RFC 1924 base-85 alphabet:
+
+\$ $APP 09 '09AZaz!!#&(+--;@^\`{~' 1000000000
+JDSP>
+
 
 Without -w, the numbers will only be output as long as necessary, omitting
 leading zeros (as they would be represented by the output alphabet).
@@ -94,12 +115,12 @@ exec awk \
 
 # Set up: r2a[], a2r[]
 function init(    ranges, i, c) {
-	ranges= "0123456789" \
-		",ABCDEFGHIJKLMNOPQRSTUVWXYZ" \
-		",abcdefghijklmnopqrstuvwxyz"
+	ranges= " !\"#$%&'()*+,-./" \
+		"0123456789:;<=>?@" \
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`" \
+		"abcdefghijklmnopqrstuvwxyz{|}~"
 	for (i= length(ranges); i; --i) {
-		if ((c= substr(ranges, i, 1)) == ",") continue
-		r2a[i]= c; a2r[c]= i
+		r2a[i]= c= substr(ranges, i, 1); a2r[c]= i
 	}
 }
 
