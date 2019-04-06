@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2019.96.1
+$APP Version 2019.96.2
 Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 
 This source file is free software.
@@ -14,19 +14,20 @@ exit_help() {
 	cat << ===; echo; exit_version; # Target line width: 75 columns
 $APP - convert numbers of unrestricted magnitude between radix bases
 
-Usage: $APP [ <options> ... ] <from_alpha> <to_alpha> [ <from_number_1> ... ]
+Usage: $APP [ <options> ... ] <from_alpha> <to_alpha> [ <number_1> ... ]
 
 where
 <from_alpha>,  <to_alpha>: Alphabet specifications
-<from_number_1>: The first unsigned number to be converted. If missing,
-then the numbers to be converted will be read from standard input instead.
-In this case, more than one number (separated by whitespace) per input
-line is allowed.
+<number_1>: The first unsigned number to be converted. If missing, then
+the numbers to be converted will be read from standard input instead. In
+this case, more than one number (separated by whitespace) per input line
+is allowed.
 
 <options>:
 -d: Dump information about input and output alphabets to standard error
 -w <n>:
    Make output at least <n> digits long (output alphabet zero padding)
+-b <n>: Like -w, but specify as minimum output bits instead of characters
 -h: Display this help and exit
 -V: Display version information and exit
 
@@ -59,7 +60,7 @@ Convert hexadecimal 0xAA and 0x55 into binary:
 Display a 128-bit random password as base-62:
 
 \$ dd if=/dev/random bs=1 count=16 2> /dev/null | od -An -vt o1 \\
-  | tr -dc 0-7 | baseconv -w22 07 09AZaz
+  | tr -dc 0-7 | baseconv -b128 07 09AZaz
 RszoNqwvaekkonIEg65VhpjM
 
 Without -w, the numbers will only be output as long as necessary, omitting
@@ -79,10 +80,11 @@ trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
 dump_alphabets=0
 min_width=1
-while getopts w:hVd opt
+while getopts b:w:hVd opt
 do
 	case $opt in
 		w) min_width=$OPTARG;;
+		b) min_width=%$OPTARG;;
 		d) dump_alphabets=1;;
 		h) exit_help;;
 		V) exit_version;;
@@ -194,6 +196,12 @@ function convert(inp    , dig, out, carry, nid, k, i, n) {
 
 # Set up: in_base, in_a2dig[], out_base, out_dig2a[]
 function main(    i, t) {
+	if (min_width ~ /^%/) {
+		i= log(substr(min_width, 2)) / log(2)
+		if ((min_width= int(i)) != i) ++min_width
+	} else if (min_width !~ /^(0|[1-9][0-9]*)$/) {
+		die("Invalid output width specification!")
+	}
 	if (ARGC < 2) die("Missing input alphabet definition!")
 	in_base= ranges2tables(ARGV[1], in_a2dig, t)
 	if (dump_alphabets) dump("Input", in_base, t)
