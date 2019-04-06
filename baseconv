@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2019.96.2
+$APP Version 2019.96.3
 Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 
 This source file is free software.
@@ -21,7 +21,7 @@ where
 <number_1>: The first unsigned number to be converted. If missing, then
 the numbers to be converted will be read from standard input instead. In
 this case, more than one number (separated by whitespace) per input line
-is allowed.
+is allowed, and empty lines will be interpreted as the number zero.
 
 <options>:
 -d: Dump information about input and output alphabets to standard error
@@ -39,10 +39,12 @@ are allowed as the first or last character of a range: 0-9, A-Z, a-z.
 Examples of alphabet specifications:
 
 * "01": binary numbers
+* "FFTT": binary numbers with "T" for 1 and "F" for 0
+* "  ..": binary numbers with "." for 1 and " " for 0
 * "07": octal numbers
 * "09AH" or "09ah": hexadecimal numbers
 * "..//09AZaz": Numbers used by a64l() and l64a()
-* "09az" or "09AZ": typical base-62 representations
+* "09AZaz": typical base-62 representations
 
 Examples of using this program:
 
@@ -68,34 +70,26 @@ leading zeros (as they would be represented by the output alphabet).
 
 The default is -w 1.
 
-With -w0, leading zeros will be discarded even in the case that this is
-the only digit. In other words, an input value of zero will be output as
-"". Also, empty input strings will be interpreted as the value zero with
--w0.
+Note that -w0 is also valid. In this case, leading zeros will be discarded
+even in the case that this is the only digit. In other words, an input
+value of zero will then be converted into an empty output line.
 ===
 }
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
-dump_alphabets=0
-min_width=1
-while getopts b:w:hVd opt
+while getopts w:b:dhV opt
 do
 	case $opt in
-		w) min_width=$OPTARG;;
-		b) min_width=%$OPTARG;;
-		d) dump_alphabets=1;;
 		h) exit_help;;
 		V) exit_version;;
-		*) false || exit
+		'?') false || exit
 	esac
 done
-shift `expr $OPTIND - 1 || :`
 
-awk -v failure_rc=`false || echo $?` \
-	-v dump_alphabets=$dump_alphabets \
-	-v min_width=$min_width \
+exec awk \
+	-v failure_rc=`false || echo $?` \
 	-f /dev/fd/5 -- ${1+"$@"} 5<< 'AWK_END'
 
 # Set up: r2a[], a2r[]
@@ -158,9 +152,7 @@ function dump(what, radix, dig2a    , i, out) {
 }
 
 function convert(inp    , dig, out, carry, nid, k, i, n) {
-	if (!(nid= length(inp)) && min_width) {
-		die("An empty number has been specified for conversion!")
-	}
+	nid= length(inp)
 	for (k= 1; k <= nid; ++k) {
 		carry= 0
 		for (i= 0; i < n; ++i) {
@@ -194,27 +186,88 @@ function convert(inp    , dig, out, carry, nid, k, i, n) {
 	print out
 }
 
-# Set up: in_base, in_a2dig[], out_base, out_dig2a[]
-function main(    i, t) {
-	if (min_width ~ /^%/) {
-		i= log(substr(min_width, 2)) / log(2)
-		if ((min_width= int(i)) != i) ++min_width
-	} else if (min_width !~ /^(0|[1-9][0-9]*)$/) {
-		die("Invalid output width specification!")
+# Returns next option character or "" if no more options.
+# Initializes/updates: optpos, optind. References: ARGC, ARGV.
+function getopt(    c) {
+	if (ARGC <= 1) {optind= ARGC; return ""}
+	if (!optind) optind= 1
+	for (;;) {
+		if (optpos == length(ARGV[optind])) {
+			if (!optpos) return ""
+			optpos= 0
+			if (++optind == ARGC) return ""
+			continue
+		}
+		if ((c= substr(ARGV[optind], optpos + 1, 1)) == "-") {
+			if (ARGV[optind] == "-") return ""
+			if (ARGV[optind] == "--") {
+				++optind; return ""
+			}
+			++optpos
+			continue
+		}
+		break
 	}
-	if (ARGC < 2) die("Missing input alphabet definition!")
-	in_base= ranges2tables(ARGV[1], in_a2dig, t)
+	if (!optpos) return ""
+	++optpos
+	return c
+}
+
+# Returns argument for last parsed option or "" if none available.
+# Initializes/updates: optpos, optind. References: ARGC, ARGV.
+function optarg(optional    , arg) {
+	if (optind == ARGC) return ""
+	if (optpos == length(ARGV[optind])) {
+		if (optional) return ""
+		optpos= 0
+		if (++optind == ARGC) return ""
+	}
+	arg= substr(ARGV[optind++], optpos + 1)
+	optpos= 0
+	return arg
+}
+
+function mandarg(desc) {
+	if (optind == ARGC) die("Missing argument: " desc "!")
+	return ARGV[optind++]
+}
+
+function uintarg(    result) {
+	result= optarg()
+	if (result !~ /^(0|[1-9][0-9]*)$/) {
+		die("Invalid non-negative number \"" result "\"!")
+	}
+	return result
+}
+
+# Set up: in_base, in_a2dig[], out_base, out_dig2a[], min_width, dump_alphabets
+function main(    i, t, opt) {
+	min_width=1
+	while (opt= getopt()) {
+		if (opt == "w") {
+			min_width= uintarg()
+		} else if (opt == "b") {
+			i= log(uintarg()) / log(2)
+			if ((min_width= int(i)) != i) ++min_width
+		} else if (opt == "d") {
+			dump_alphabets=1
+		}
+	}
+	in_base= ranges2tables( \
+		mandarg("input alphabet definition"), in_a2dig, t \
+	)
 	if (dump_alphabets) dump("Input", in_base, t)
 	for (i in t) delete t[i]
-	if (ARGC < 3) die("Missing output alphabet definition!")
-	out_base= ranges2tables(ARGV[2], t, out_dig2a)
+	out_base= ranges2tables( \
+		mandarg("output alphabet definition"), t, out_dig2a \
+	)
 	for (i in t) delete t[i]
 	if (dump_alphabets) dump("Output", out_base, out_dig2a)
-	if (ARGC >= 4) {
-		for (i= 3; i < ARGC; ++i) convert(ARGV[i])
+	if (optind < ARGC) {
+		while (optind < ARGC) convert(ARGV[optind++])
 		exit(0)
 	}
-	ARGC= 1
+	if (ARGC > 1) ARGC= 1
 }
 
 BEGIN {
@@ -227,7 +280,7 @@ function process_line(    i) {
 }
 
 {
-	process_line()
+	if (NF)	process_line(); else convert($0)
 }
 
 AWK_END
