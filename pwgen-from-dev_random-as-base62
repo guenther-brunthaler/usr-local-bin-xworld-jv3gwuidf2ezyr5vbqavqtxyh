@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << EOF; exit
-$APPLICATION_NAME version 2019.96
+$APPLICATION_NAME version 2019.105
 
 Copyright (c) 2017-2019 Guenther Brunthaler. All rights reserved.
 
@@ -131,7 +131,7 @@ function convert(inp    , dig, out, carry, nid, k, i, n) {
 			carry= int(carry / out_base)
 		}
 	}
-	for (i= min_width - n; i > 0; --i) out= out out_dig2a[0]
+	for (i= min_width - n; i > 0; --i) out= out_dig2a[0] out
 	while (n--) out= out out_dig2a[dig[n]]
 	print out
 }
@@ -142,7 +142,7 @@ function main(    i, t) {
 	for (i in t) delete t[i]
 	out_base= ranges2tables(ARGV[3], t, out_dig2a)
 	for (i in t) delete t[i]
-	i= log(2 ^ ARGV[1]) / log(out_base)
+	i= log(2 ^ ARGV[1] - 1) / log(out_base)
 	if ((min_width= int(i)) != i) ++min_width
 	ARGC= 1
 }
@@ -183,4 +183,4 @@ wantbits=${1:?"Please specify bit strength of the password, e.g. 256"}
 expr x"$wantbits" : x'[1-9][0-9]*$' > /dev/null
 needbytes=`expr \( $wantbits + $bytebits - 1 \) / $bytebits`
 dd bs=1 count=$needbytes 2> /dev/null | od -vbA n | tr -dc 0-7 \
-| baseconv $wantbits 09 AZaz09
+| baseconv $wantbits 07 AZaz09
