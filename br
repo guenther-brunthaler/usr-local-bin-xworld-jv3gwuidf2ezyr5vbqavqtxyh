@@ -2,7 +2,7 @@
 # Bump-revision - filter for incrementing YYYY.JJJ.N revision numbers and
 # updating copyright year or year range.
 #
-# Version 2019.85
+# Version 2019.126
 # Copyright (c) 2018-2019 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -18,7 +18,7 @@ yrx='2[01][0-9][0-9]'
 xs2='p\n\1\nyf\n\2\nyt\n\3\nys\n\4'
 s1='\('"$yrx"'\(\.[0-9]\{1,\}\)\{1,2\}\)\(\([^.0-9]*.*\)\{0,1\}\)$'
 sed '
-	s/\(.* \)'"$s1"'/p\n\1\nr\n\2\nt\n\4/; t
+	s/^\(\(.* \)\{0,1\}v\{0,1\}\)'"$s1"'/p\n\1\nr\n\3\nt\n\5/; t
 	s/\(.* \)\('"$yrx"'\)-\('"$yrx"'\)\( .*\)$/'"$xs2"'/; t
 	s/\(.* \)\('"$yrx"'\)\( .*\)$/p\n\1\nyf\n\2\nys\n\3/; t
 	s/.*/t\n&/
