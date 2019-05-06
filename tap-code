@@ -1,0 +1,74 @@
+#! /bin/sh
+# Convert input or arguments into "tap code".
+#
+# Version 2019.126
+# Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+process() {
+	awk -v german=$de -f /dev/fd/5 5<< 'EOF'
+
+# Set up: outr[], outc[]
+function init(    al, aln, ch, from, into, r, c) {
+	al= "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	if (german) {from= "J"; into= "I"} else {from= "K"; into= "C"}
+	aln= length(al)
+	for (r= c= i= 1; i <= aln; ++i) {
+		ch= substr(al, i, 1)
+		if (ch == from) continue
+		outr[ch]= r; outc[ch]= c
+		ch= tolower(ch)
+		outr[ch]= r; outc[ch]= c
+		if (++c > 5) {c= 1; ++r}
+	}
+	outr[from]= outr[into]; outc[from]= outc[into]
+	from= tolower(from); into= tolower(into)
+	outr[from]= outr[into]; outc[from]= outc[into]
+}
+
+function tap_number(n    , out, sep) {
+	while (n--) {out= out sep "*"; sep= " "}
+	print out
+}
+
+function tap_word(s    , sl, i, ch) {
+	if (first) print ""; else first= 1
+	sl= length(s)
+	for (i= 1; i <= sl; ++i) {
+		if ((ch= substr(s, i, 1)) in outr) {
+			tap_number(outr[ch])
+			tap_number(outc[ch])
+		}
+	}
+}
+
+BEGIN {init()}
+
+/[[:graph:]]/ {for (i= 1; i <= NF; ++i) tap_word($i)}
+	
+EOF
+}
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+de=`locale | sed 's/^LC_MESSAGES="de_.*/DE/; t; d'`
+
+case $# in
+	0) process;;
+	*)
+		for arg
+		do
+			printf '%s\n' "$arg"
+		done | process
+esac
