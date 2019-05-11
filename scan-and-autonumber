@@ -1,0 +1,50 @@
+#! /bin/sh
+# Version 2019.131
+# Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+counter=scan_counter.txt
+digits=3
+outfmt='infile-%0${digits}u.png'
+dpi=300
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+ck_posint() {
+	expr x"$OPTARG" : x'[1-9][0-9]*$' > /dev/null
+}
+
+dry_run=false
+mode=Color
+n=
+while getopts d:N:gn opt
+do
+	case $opt in
+		d) ck_posint; digits=$OPTARG;;
+		N) ck_posint; n=$OPTARG;;
+		g) mode=Gray;;
+		n) dry_run=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+eval "outfmt=\"$outfmt\""
+
+test "$n" || read n 2> /dev/null < "$counter" || n=1
+outfile=`printf "$outfmt" $n`
+n=`expr $n + 1`
+
+set scanimage --mode=$mode --resolution=$dpi \| convert pnm:- "$outfile"
+
+if $dry_run
+then
+	echo "$@"
+else
+	echo "Scanning to $outfile..."
+	eval "$@"
+	echo $n > "$counter"
+fi
