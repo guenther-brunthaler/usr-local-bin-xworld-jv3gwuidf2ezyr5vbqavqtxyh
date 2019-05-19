@@ -1,0 +1,125 @@
+#! /bin/sh
+# Watch the current directory for .html files which can be updated by asciidoc
+# from corresponding .txt files.
+#
+# Version 2019.139
+# Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+
+reformat() {
+	local line
+	while read -r line
+	do
+		case $line in
+			"") echo; echo;;
+			*) printf ' %s' "$line"
+		esac
+	done \
+	| fold -sw 66 \
+	| sed 's/[[:space:]]/ /g; s/^ *//; s/ *$//'
+}
+
+cleanup() {
+	test $? = 0 || echo "\"$0\" failed!" >& 2
+	if test "$worker"
+	then
+		kill $worker 2> /dev/null || :
+		wait $worker || : # BUG: Hangs for some reason!
+	fi
+	if $x11
+	then
+		exec 2>& 5 5>& -
+		if test -s "$TD"/errors
+		then
+			reformat < "$TD"/errors | iconv -sct LATIN1 \
+			| xmessage -file -
+		fi
+	fi
+	test "$TD" && rm -r -- "$TD"
+}
+x11=false
+worker=
+TD=
+trap cleanup 0
+trap 'exit $?' INT TERM HUP QUIT
+
+TD=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
+
+if xset q > /dev/null 2>& 1
+then
+	exec 5>& 2 2> "$TD"/errors
+	x11=true
+fi
+
+die() {
+	printf '%s\n' "$*" >& 2
+	false || exit
+}
+
+for bb in busybox-pbyqxzl1ktqlk3fjm3arlrclg busybox-localsite busybox false
+do
+	command -v $bb > /dev/null 2>& 1 && break
+done
+test $bb != false || die "BusyBox needs to be installed!"
+
+applet=inotifyd
+$bb $applet --help > /dev/null 2>& 1 \
+|| die "Locally installed $bb does not provide the '$applet' applet!"
+
+command -v asciidoc > /dev/null 2>& 1 || die "asciidoc is not installed!"
+
+is_newer() {
+	local f
+	case $1 in
+		-*) f=./$1;;
+		*) f=$1
+	esac
+	test `find -H "$f" -newer "$2" | wc -l` = 1 || return
+}
+
+$bb $applet - .:w | {
+	ht=`printf '\t:'`; ht=${ht%:}
+	while IFS=$ht read -r f f f
+	do
+		case $f in *.txt)
+			h=${f%.*}.html
+			test -f "$h" || continue
+			if is_newer "$f" "$h"
+			then
+				asciidoc "$f" > "$TD"/out
+				if test -s "$TD"/out
+				then
+					xmessage -file - < "$TD"/out
+				fi
+			fi
+		esac
+	done
+} & worker=$!
+
+if $x11
+then
+	stop='[OK]'
+else
+	stop='[Enter]'
+fi
+{
+	reformat \
+	| if $x11
+	then
+		xmessage -file -
+	else
+		cat
+		read -r anything <& 6
+	fi
+} 6<& 0 << EOF
+"$bb $applet" is watching directory "`pwd`" for changed .txt files for which
+an associated .html file exists.
+
+It will then run asciidoc to update the associated .html files automatically.
+
+Press $stop to stop watching the directory.
+EOF
