@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2019.141
+$APP Version 2019.141.1
 Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -26,11 +26,19 @@ instance, this can be used to edit a text with very long lines like this:
 ===
 	echo; cat << ===
 \$ fold -sw 72 long_lines.txt > rfc3676-flowed.txt
-\$ joe -flow -rmargin 72 rfc3676-flowed.txt
+\$ joe -flowed -wordwrap -rmargin 72 rfc3676-flowed.txt
 \$ $APP rfc3676-flowed.txt > long_lines.txt
 \$ rm rfc3676-flowed.txt
 ===
 	echo; wr << ===; echo; exit_version
+The above example assumes you want to temporarily break lines at 72 columns
+during editing, because this is the traditional line width for e-mail. Feel
+free to use other line widths, such as 66 for optimal reading experience or 79
+for maximally exploiting the available screen width of an 80-column terminal.
+
+See https://tools.ietf.org/rfc/rfc3676.txt for details about the type of text
+which has been created by "fold -s", and which $APP expects as input.
+
 Options:
 
 -h: Display this help and exit.
