@@ -1,10 +1,13 @@
 #! /usr/bin/perl
-# Convert text in current locale encoding into escaped ASCII text or back
-# again (with option -u).
+# Convert text in current locale encoding into escaped ASCII pathnames
+# avoiding "characters which annoy people who do not want to quote or escape
+# any character within a path name" or back again (with option -u).
 #
-# Version 2017.329
+# Dedicated to my friend Thomas.
 #
-# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# Version 2019.141
+#
+# Copyright (c) 2017-2019 Guenther Brunthaler. All rights reserved.
 # 
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -21,37 +24,41 @@ getopts('u') or die;
 if ($opt_u) {
    sub getchar($) {
       my $n= $_[0];
-      $n =~ /^[[:xdigit:]]{1,6}$/
+      $n =~ /^[0-9A-F]{1,6}$/
             && chr eval '0x' . $n
-         || charnames::string_vianame($n)
-         || die "Invalid escape '<$n>'"
+         || charnames::string_vianame(uc $n)
+         || die "Invalid escape '=$n='"
       ;
    }
    while (defined($_= <>)) {
-      s/<([^<>]+)>/getchar($1)/ge;
+      s/_/ /g;
+      s/=([^=]+)=/getchar($1)/ge;
       print $_ or die $!;
    }
 } else {
-   my %goodness= map {$_, 0} qw/< >/;
+   my %goodness= map {$_, 0} qw/=/;
    {
       my($i, $c);
       for ($i= 0; $i < 128; ++$i) {
          if (exists $goodness{$c= chr $i}) {
             delete $goodness{$c}
-         } else {
+         } elsif ($c =~ m![-+:. /A-Za-z0-9]!) {
             $goodness{$c}= 0;
          }
       }
    }
+   sub charname($) {
+      my $c= $_[0];
+      '=' . (lc charnames::viacode($c= ord $c) or sprintf '%X', $c) . '='
+   };
    sub getname($) {
       my $c= $_[0];
-      exists($goodness{$c})
-         ? $c
-         : '<' . (charnames::viacode($c= ord $c) || sprintf '%X', $c) . '>'
-      ;
-   }
+      exists($goodness{$c}) ? $c : charname $c;
+   };
    while (defined($_= <>)) {
       s/./getname($&)/ge;
+      s/^-/charname($&)/ge;
+      s/ /_/g;
       print $_ or die $!;
    }
 }
