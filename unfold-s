@@ -1,0 +1,86 @@
+#! /bin/sh
+exit_version() {
+	wr -s << ===; exit
+$APP Version 2019.141
+Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+exit_help() {
+	wr << ===
+$APP - undo the effect of a "fold" with "-s" option.
+
+Usage: $APP [ <options> ... ] [ -- ] [ <file1> ... ]
+
+Be sure not to disturb any space immediately before newlines! If those spaces
+should be removed, a lossless back-transformation is no longer possible.
+
+Editors such as "joe" have explicit options for editing such files. For
+instance, this can be used to edit a text with very long lines like this:
+===
+	echo; cat << ===
+\$ fold -sw 72 long_lines.txt > rfc3676-flowed.txt
+\$ joe -flow -rmargin 72 rfc3676-flowed.txt
+\$ $APP rfc3676-flowed.txt > long_lines.txt
+\$ rm rfc3676-flowed.txt
+===
+	echo; wr << ===; echo; exit_version
+Options:
+
+-h: Display this help and exit.
+
+-V: Display version information and exit.
+===
+}
+
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+MAXWITH=110
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+test $LINEWIDTH -le $MAXWITH || LINEWIDTH=$MAXWITH
+
+APP=${0##*/}
+while getopts Vh opt
+do
+	case $opt in
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+sed 's/q/qq/g; s/N/qn/g; s/$/N/; s/ N$/ /' ${1+"$@"} \
+| tr -d '\n' | tr N '\n' \
+| sed 's/qn/N/g; s/qq/q/g'
