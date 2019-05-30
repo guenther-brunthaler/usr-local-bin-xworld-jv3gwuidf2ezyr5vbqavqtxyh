@@ -33,20 +33,36 @@
 # * https://www.konradvoelkel.com/2013/03/scan-to-pdfa/ has also intersting
 #   ideas but they compress the bitmaps as shitty JPEGs rather than to JBIG2.
 #
-# Version 2019.150
+# Version 2019.150.1
 # Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
 infile_pat='out/*.tif'; # Default to the output directory of 'scantailor'.
-out_dirname=ocr
+out_dirname=.
 ocr_lang=from_locale
 props_query_pfx="identify -units PixelsPerInch -format '%x x %y DPI'"
 props_expected='300 x 300 DPI'
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+fix_path() {
+	while :
+	do
+		case $2 in
+			./*) ;;
+			*) break
+		esac
+		set $1 "${2#./}"
+	done
+	case $2 in
+		'') set $1 .;;
+		-*) set $1 ./"$2"
+	esac
+	eval $1=\$2
+}
 
 dry_run=false
 while getopts nl:O: opt
@@ -77,12 +93,6 @@ case $# in
 	0) set -- $infile_pat; infile_pat=
 esac
 
-case $ocr_lang in
-	from_locale)
-		eval `locale -ck LC_ADDRESS | grep ^lang_term=`
-		ocr_lang=$lang_term
-esac
-
 outdir=
 for f
 do
@@ -92,6 +102,8 @@ do
 			'')
 				outdir=`dirname -- "$f"`
 				outdir=`dirname -- "$outdir"`/$out_dirname
+				fix_path outdir "$outdir"
+				$dry_run || mkdir -p -- "$outdir"
 		esac
 		$dry_run && continue
 		props=`eval "$props_query_pfx '$f'"`
@@ -116,7 +128,11 @@ do
 	false || exit
 done
 
-mkdir -p -- "$outdir"
+case $ocr_lang in
+	from_locale)
+		eval `locale -ck LC_ADDRESS | grep ^lang_term=`
+		ocr_lang=$lang_term
+esac
 
 do_ocr() {
 	echo "OCR'ing file '$1'..." >& 2
@@ -131,15 +147,16 @@ case $i in
 	*)
 		while :
 		do
-			o=$outdir/`basename -- "${1%.*}"`
-			do_ocr "$1"
+			fix_path o "$outdir/`basename -- "${1%.*}"`"
+			fix_path f "$1"
+			do_ocr "$f"
 			o=$o.pdf
 			$dry_run || test -f "$o"
 			set -- "$@" "$o"; shift
 			i=`expr $i - 1` || break
 		done
 esac
-o=$outdir/`date +%Y%m%d_%H%M%S`.pdf
+fix_path o "$outdir/`date +%Y%m%d_%H%M%S`.pdf"
 set qpdf --empty --pages "$@" -- "$o"
 $dry_run && set echo "$@"
 "$@"
