@@ -1,0 +1,146 @@
+#! /bin/sh
+# Convert already post-processed B/W pixel-based images into a combined PDF
+# document, and apply OCR on it in order to make it a searchable PDF which
+# also supports copying text selected with the mouse from it.
+#
+# This script is intended to be run after 'scaintailor', but can also work
+# alone.
+# Specify the bitmap files to be processed as arguments. Otherwise the files
+# from the output directory created by scantailor will be used if it exists.
+#
+# Uses the current locale's language by default for the OCR, but this can be
+# overridden with the -l option.
+#
+# When using scantailor, use it to post-process the input images, making it
+# suitable for OCR. That it, use it to crop borders, rotate as necessary to
+# get straight text lines, and convert the files to clean B/W TIFF images.
+# Don't forget to change the output resolution from 600 DPI to 300 DPI for all
+# pages in the last step of the workflow/wizard!
+#
+# Unsolved problems remaining:
+# 
+# * tesseract generates incorrect heights for the text boxes of the
+#   OCR-recognized text. This looks ugly but does not pose a problem for text
+#   selection/search.
+# 
+# * qpdf is unable to recompress the bitmaps using JBIG2 compression (the most
+#   efficient one). Therefore, the PDFs will be larger than necessary, though
+#   not by a large factor.
+# 
+# * imagemagick seems to support conversion into JBIG2 via "convert input.tiff
+#   -compress JBIG2 output.pdf" but actually it does not.
+# 
+# * https://www.konradvoelkel.com/2013/03/scan-to-pdfa/ has also intersting
+#   ideas but they compress the bitmaps as shitty JPEGs rather than to JBIG2.
+#
+# Version 2019.150
+# Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+infile_pat='out/*.tif'; # Default to the output directory of 'scantailor'.
+out_dirname=ocr
+ocr_lang=from_locale
+props_query_pfx="identify -units PixelsPerInch -format '%x x %y DPI'"
+props_expected='300 x 300 DPI'
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+dry_run=false
+while getopts nl:O: opt
+do
+	case $opt in
+		O) test -d "$OPTARG"; out_dirname=$OPTARG;;
+		l) ocr_lang=$OPTARG;;
+		n) dry_run=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+for f in tesseract qpdf identify:ImageMagick
+do
+	tool=${f%%:*}
+	command -v $tool > /dev/null 2>& 1 && continue
+	f=${f#*:}
+	case $f in
+		$tool) f=;;
+		*) f=" from the $f tool suite"
+	esac
+	echo "Please install required utility '$tool'$f!" >& 2
+	false || exit
+done
+
+case $# in
+	0) set -- $infile_pat; infile_pat=
+esac
+
+case $ocr_lang in
+	from_locale)
+		eval `locale -ck LC_ADDRESS | grep ^lang_term=`
+		ocr_lang=$lang_term
+esac
+
+outdir=
+for f
+do
+	if test -f "$f"
+	then
+		case $outdir in
+			'')
+				outdir=`dirname -- "$f"`
+				outdir=`dirname -- "$outdir"`/$out_dirname
+		esac
+		$dry_run && continue
+		props=`eval "$props_query_pfx '$f'"`
+		case $props in
+			"$props_expected") ;;
+			*)
+				{
+					echo "Unsupported image properties" \
+						"in '$f':"
+					echo "Required: $props_expected"
+					echo "Present: $props"
+				} >& 2
+				false || exit
+		esac
+		continue
+	fi
+	case $infile_pat in
+		'') f='Please specify the input TIFF/PNG files to process!';;
+		*) f="Input file '$f' does not exist!"
+	esac
+	echo "$f" >& 2
+	false || exit
+done
+
+mkdir -p -- "$outdir"
+
+do_ocr() {
+	echo "OCR'ing file '$1'..." >& 2
+	set tesseract "$1" "$o" -l $ocr_lang -psm 1 pdf
+	$dry_run && set echo "$@"
+	"$@"
+}
+
+i=$#
+case $i in
+	0) ;;
+	*)
+		while :
+		do
+			o=$outdir/`basename -- "${1%.*}"`
+			do_ocr "$1"
+			o=$o.pdf
+			$dry_run || test -f "$o"
+			set -- "$@" "$o"; shift
+			i=`expr $i - 1` || break
+		done
+esac
+o=$outdir/`date +%Y%m%d_%H%M%S`.pdf
+set qpdf --empty --pages "$@" -- "$o"
+$dry_run && set echo "$@"
+"$@"
+echo "File '$o' has been created!" >& 2

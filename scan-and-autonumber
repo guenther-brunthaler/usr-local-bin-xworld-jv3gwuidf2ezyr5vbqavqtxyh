@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2019.131
+# Version 2019.150
 # Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -19,10 +19,13 @@ ck_posint() {
 
 dry_run=false
 mode=Color
+cvopt=-trim
 n=
-while getopts d:N:gn opt
+while getopts D:Td:N:gn opt
 do
 	case $opt in
+		D) ck_posint; dpi=$OPTARG;;
+		T) cvopt=;;
 		d) ck_posint; digits=$OPTARG;;
 		N) ck_posint; n=$OPTARG;;
 		g) mode=Gray;;
@@ -38,7 +41,8 @@ test "$n" || read n 2> /dev/null < "$counter" || n=1
 outfile=`printf "$outfmt" $n`
 n=`expr $n + 1`
 
-set scanimage --mode=$mode --resolution=$dpi \| convert pnm:- "$outfile"
+set scanimage --mode=$mode --resolution=$dpi \| \
+	convert -units pixelsperinch -density $dpi $cvopt pnm:- "$outfile"
 
 if $dry_run
 then
