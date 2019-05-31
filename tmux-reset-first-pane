@@ -1,0 +1,90 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+${0##*/} Version 2019.151
+Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	cat << ===; echo; exit_version # Help text width is 66 columns.
+Without arguments, the first pane (pane # 0) will be reset and
+then the current pane running THIS command will be removed.
+
+If an argument is present, the pane with that # will be reset
+instead. See option -l for displaying pane numbers.
+
+Options:
+
+-l, -v, -d: list/view/display pane numbers shortly.
+
+-r, -n: repawn a new shell in the pane. Do this if the client
+there died.
+
+-k: kill the current client in the pane, the respawn a new shell
+there.
+
+-q: Commit suicide by killing the pane from where THIS command is
+executed
+
+-K: Most command kill the pane from where they have been run
+after performing their actions. This option disables this
+suicidal behavior.
+
+-h: Display this help and exit
+
+-V: Display version information and exit
+===
+}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+action=reset
+keep_alive=false
+while getopts lvdrnqkKhV opt
+do
+	case $opt in
+		l | v | d) action=list;;
+		r | n) action=repawn;;
+		k) action=kill;;
+		q) action=suicide;;
+		K) keep_alive=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+case $# in
+	0) PANE=0;;
+	1) PANE=$1;;
+	*) false || exit
+esac
+
+suicide() {
+	$keep_alive && exit
+	exec tmux kill-pane
+	false || exit
+}
+
+case $action in
+	reset)
+		tmux send-keys -R -t $PANE
+		suicide
+		;;
+	respawn)
+		tmux respawn-pane -t $PANE
+		suicide
+		;;
+	kill)	
+		tmux respawn-pane -k -t $PANE
+		;;
+	list) tmux display-panes;;
+	suicide) suicide;;
+	*) false || exit
+esac
