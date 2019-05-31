@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-${0##*/} Version 2019.151
+$APP Version 2019.151.1
 Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -11,10 +11,15 @@ Distribution is permitted under the terms of the GPLv3.
 
 exit_help() {
 	cat << ===; echo; exit_version # Help text width is 66 columns.
-Without arguments, the first pane (pane # 0) will be reset and
-then the current pane running THIS command will be removed.
+$APP - reset frozen tmux panes
 
-If an argument is present, the pane with that # will be reset
+Usage: $APP [ <options...> [--] ] [ <pane_number> ]
+
+Without arguments, the first pane (pane # 0) will be reset and
+then the current pane running THIS command will be closed/killed.
+
+If an argument <pane_number> is present, the pane with that #
+will be reset (or be subjected to some other specified command)
 instead. See option -l for displaying pane numbers.
 
 Options:
@@ -22,23 +27,25 @@ Options:
 -l, -v, -d: list/view/display pane numbers shortly.
 
 -r, -n: repawn a new shell in the pane. Do this if the client
-there died.
+there died. Then kill the pane from where THIS command is run.
 
 -k: kill the current client in the pane, the respawn a new shell
-there.
+there. Then also kill the pane from where THIS command is run.
 
 -q: Commit suicide by killing the pane from where THIS command is
 executed
 
--K: Most command kill the pane from where they have been run
-after performing their actions. This option disables this
-suicidal behavior.
+-K: Most command close/kill the pane from where they have been
+run after performing their actions. This option disables this
+suicidal behavior. Exit the running shell yourself eventually in
+order to close the pane.
 
 -h: Display this help and exit
 
 -V: Display version information and exit
 ===
 }
+APP=${0##*/}
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
