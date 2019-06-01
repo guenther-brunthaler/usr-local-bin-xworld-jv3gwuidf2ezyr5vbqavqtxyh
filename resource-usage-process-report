@@ -1,0 +1,86 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2019.152
+Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	cat << ===; echo; exit_version # Help text width is 66 columns.
+$APP - report essential (CPU, memory) process usage
+
+Usage: $APP [ <options...> [--] ] [ <process> ... ]
+
+where <process> is either
+
+* A positive integer - then it is assumed to be a process ID
+
+* The name of a process as accepted by "pidof".
+
+* A substring which can be found somewhere in the command line of
+  the process.
+
+The first two possibilities will be checked first. The third one
+will only be tried if this did not match any processes.
+
+It is OK to specify <process> arguments which to not match any
+current processes. Those will then be silently ignored.
+
+Options:
+
+-h: Display this help and exit
+
+-V: Display version information and exit
+===
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+cols=pid,etime,user,rss,vsz,pcpu,time,args
+
+while getopts hV opt
+do
+	case $opt in
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+procs=
+i=$#
+case $i in
+	0) break;;
+	*)
+		while :
+		do
+			if expr x"$1" : x'[1-9][0-9]*$' > /dev/null
+			then
+				pids=$1
+			elif pids=`pidof -- "$1"`
+			then
+				:
+			else
+				case $procs in
+					"") procs=`ps -Ao pid,args`'1'
+				esac
+				pids=`
+					printf '%s\n' "$procs" \
+					| grep -F -- "$1" \
+					| cut -d ' ' -f 1
+				`
+			fi
+			set -- "$@" $pids; shift
+			i=`expr $i - 1` || break
+		done
+esac
+set -- `echo "$* " | tr ' ' '\n' | sort -nu | tr '\n' ' '`
+
+ps -o $cols "$@"
