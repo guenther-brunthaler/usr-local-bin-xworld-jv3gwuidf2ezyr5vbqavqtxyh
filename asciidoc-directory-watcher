@@ -2,58 +2,14 @@
 # Watch the current directory for .html files which can be updated by asciidoc
 # from corresponding .txt files.
 #
-# Version 2019.139
+# Version 2019.153
 # Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
 set -e
-
-reformat() {
-	local line
-	while read -r line
-	do
-		case $line in
-			"") echo; echo;;
-			*) printf ' %s' "$line"
-		esac
-	done \
-	| fold -sw 66 \
-	| sed 's/[[:space:]]/ /g; s/^ *//; s/ *$//'
-}
-
-cleanup() {
-	test $? = 0 || echo "\"$0\" failed!" >& 2
-	if test "$worker"
-	then
-		kill $worker 2> /dev/null || :
-		wait $worker || : # BUG: Hangs for some reason!
-	fi
-	if $x11
-	then
-		exec 2>& 5 5>& -
-		if test -s "$TD"/errors
-		then
-			reformat < "$TD"/errors | iconv -sct LATIN1 \
-			| xmessage -file -
-		fi
-	fi
-	test "$TD" && rm -r -- "$TD"
-}
-x11=false
-worker=
-TD=
-trap cleanup 0
-trap 'exit $?' INT TERM HUP QUIT
-
-TD=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
-
-if xset q > /dev/null 2>& 1
-then
-	exec 5>& 2 2> "$TD"/errors
-	x11=true
-fi
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
 die() {
 	printf '%s\n' "$*" >& 2
@@ -81,6 +37,23 @@ is_newer() {
 	test `find -H "$f" -newer "$2" | wc -l` = 1 || return
 }
 
+convert() {
+	echo
+	echo "`
+		date +'%Y-%m-%d %H:%M:%S'
+	` \"$1\" has changed and is being converted..."
+	asciidoc "$1"
+	echo "`date +%M:%S` \"$2\" has been updated."
+}
+
+tr '\n' ' ' << === | sed 's/   */\n\n/g; $!b; p; s/.*//' | fold -sw66
+"$bb $applet" is watching directory "`pwd`" for changed .txt files for which
+an associated .html file exists.
+
+It will then run asciidoc to update the associated .html files automatically.
+
+Press [Ctrl]+[c] to stop watching the directory.
+===
 $bb $applet - .:w | {
 	ht=`printf '\t:'`; ht=${ht%:}
 	while IFS=$ht read -r f f f
@@ -88,38 +61,7 @@ $bb $applet - .:w | {
 		case $f in *.txt)
 			h=${f%.*}.html
 			test -f "$h" || continue
-			if is_newer "$f" "$h"
-			then
-				asciidoc "$f" > "$TD"/out
-				if test -s "$TD"/out
-				then
-					xmessage -file - < "$TD"/out
-				fi
-			fi
+			is_newer "$f" "$h" && convert "$f" "$h"
 		esac
 	done
-} & worker=$!
-
-if $x11
-then
-	stop='[OK]'
-else
-	stop='[Enter]'
-fi
-{
-	reformat \
-	| if $x11
-	then
-		xmessage -file -
-	else
-		cat
-		read -r anything <& 6
-	fi
-} 6<& 0 << EOF
-"$bb $applet" is watching directory "`pwd`" for changed .txt files for which
-an associated .html file exists.
-
-It will then run asciidoc to update the associated .html files automatically.
-
-Press $stop to stop watching the directory.
-EOF
+}
