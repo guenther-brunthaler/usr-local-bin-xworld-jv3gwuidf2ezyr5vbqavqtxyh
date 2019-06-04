@@ -2,9 +2,19 @@
 # Convert text in current locale encoding into escaped ASCII text or back
 # again (with option -u).
 #
-# Version 2017.329
+# By default, all ASCII characters, including control characters are left
+# as-is.
 #
-# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# Option -C also escapes all control characters except for UNIX newlines.
+# The last ASCII SPACE at the end of a line is also escaped.
+#
+# Option -N also escapes UNIX newlines.
+#
+# Option -S also escapes ASCII SPACE.
+#
+# Version 2019.154
+#
+# Copyright (c) 2017-2019 Guenther Brunthaler. All rights reserved.
 # 
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -15,30 +25,57 @@ use charnames ':full';
 use open ':locale';
 use Getopt::Std;
 
-our $opt_u;
-getopts('u') or die;
+sub read_buffer_size {8192}
+
+our($opt_u, $opt_C, $opt_N, $opt_S);
+getopts('uCNS') or die;
+
+sub next_part {
+   if (@ARGV) {
+      our($fh, $i);
+      my $read;
+      for (;;) {
+         unless (defined $fh) {
+            if (defined $i) {
+               return 0 if ++$i >= @ARGV;
+            } else {
+               $i= 0;
+            }
+            open($fh, '<', $ARGV[$i]) or die "Can't open '$ARGV[$i]': $!";
+         }
+         return $read if $read= read $fh, $_, read_buffer_size;
+         close $fh or die "Can't close '$ARGV[$i]': $!";
+         undef $fh
+      }
+   } else {
+      return read *STDIN, $_, read_buffer_size;
+   }
+}
 
 if ($opt_u) {
    sub getchar($) {
       my $n= $_[0];
       $n =~ /^[[:xdigit:]]{1,6}$/
             && chr eval '0x' . $n
-         || charnames::string_vianame($n)
+         || do { $n =~ tr/_/ /; charnames::string_vianame $n; }
          || die "Invalid escape '<$n>'"
       ;
    }
-   while (defined($_= <>)) {
-      s/<([^<>]+)>/getchar($1)/ge;
+   while (&next_part) {
+      s/\n//sg if $opt_N;
+      s/<([^<>]+)>/getchar($1)/sge;
       print $_ or die $!;
    }
 } else {
    my %goodness= map {$_, 0} qw/< >/;
+   $goodness{' '}= 0 if $opt_S;
+   $goodness{"\n"}= 0 if $opt_N;
    {
       my($i, $c);
       for ($i= 0; $i < 128; ++$i) {
          if (exists $goodness{$c= chr $i}) {
             delete $goodness{$c}
-         } else {
+         } elsif (!$opt_C || $i >= 32 && $i != 127 || $c eq "\n") {
             $goodness{$c}= 0;
          }
       }
@@ -47,12 +84,19 @@ if ($opt_u) {
       my $c= $_[0];
       exists($goodness{$c})
          ? $c
-         : '<' . (charnames::viacode($c= ord $c) || sprintf '%X', $c) . '>'
+         : '<' . (
+               do {
+                  my $n= charnames::viacode($c= ord $c);
+                  $n =~ tr/ /_/ if $opt_S && defined $n;
+                  $n;
+               } || sprintf '%X', $c
+           ) . '>'
       ;
    }
-   while (defined($_= <>)) {
-      s/./getname($&)/ge;
+   while (&next_part) {
+      s/./getname($&)/sge;
       print $_ or die $!;
    }
+   print "\n" or die $! if $opt_N;
 }
 STDOUT->flush() or die $!;
