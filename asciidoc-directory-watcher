@@ -2,7 +2,7 @@
 # Watch the current directory for .html files which can be updated by asciidoc
 # from corresponding .txt files.
 #
-# Version 2019.155
+# Version 2019.155.1
 # Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -11,20 +11,37 @@
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+custom_bb=
+while getopts b: opt
+do
+	case $opt in
+		b) custom_bb=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
 die() {
 	printf '%s\n' "$*" >& 2
 	false || exit
 }
 
-for bb in busybox-pbyqxzl1ktqlk3fjm3arlrclg busybox-localsite busybox false
-do
-	command -v $bb > /dev/null 2>& 1 && break
-done
-test $bb != false || die "BusyBox needs to be installed!"
-
 applet=inotifyd
-$bb $applet -h > /dev/null 2>& 1 \
-|| die "Locally installed $bb does not provide the '$applet' applet!"
+for bb in \
+	${custom_bb:+"$custom_bb"} \
+	busybox \
+	busybox-site \
+	busybox-localsite \
+	busybox-pbyqxzl1ktqlk3fjm3arlrclg \
+	false
+do
+	command -v -- "$bb" > /dev/null 2>& 1 || continue
+	"$bb" 2> /dev/null \
+	| grep -q '[^[:alnum:]]inotifyd[^[:alnum:]]' && break
+done
+test $bb != false || die "No BusyBox version providing" \
+	"the '$applet' applet could be located!" \
+	"Please install one or build it yourself."
 
 command -v asciidoc > /dev/null 2>& 1 || die "asciidoc is not installed!"
 
