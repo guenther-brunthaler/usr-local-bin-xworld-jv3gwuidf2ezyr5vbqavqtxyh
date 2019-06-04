@@ -6,13 +6,12 @@
 # as-is.
 #
 # Option -C also escapes all control characters except for UNIX newlines.
-# The last ASCII SPACE at the end of a line is also escaped.
 #
 # Option -N also escapes UNIX newlines.
 #
 # Option -S also escapes ASCII SPACE.
 #
-# Version 2019.155.1
+# Version 2019.155.2
 #
 # Copyright (c) 2017-2019 Guenther Brunthaler. All rights reserved.
 # 
