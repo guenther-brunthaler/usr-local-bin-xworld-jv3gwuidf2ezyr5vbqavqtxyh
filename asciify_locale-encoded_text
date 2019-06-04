@@ -12,7 +12,7 @@
 #
 # Option -S also escapes ASCII SPACE.
 #
-# Version 2019.155
+# Version 2019.155.1
 #
 # Copyright (c) 2017-2019 Guenther Brunthaler. All rights reserved.
 # 
@@ -37,7 +37,7 @@ sub next_part {
       for (;;) {
          unless (defined $fh) {
             if (defined $i) {
-               return 0 if ++$i >= @ARGV;
+               return 0 if $i == @ARGV || ++$i == @ARGV;
             } else {
                $i= 0;
             }
@@ -62,7 +62,7 @@ if ($opt_u) {
       ;
    }
    my($pfx, $lt)= '';
-   while (&next_part) {
+   while (&next_part || $pfx ne '' && do {$_= ''; 1}) {
       s/\n//sg if $opt_N;
       substr($_, 0, 0)= $pfx;
       if (($lt= rindex $_, '<') >= 0 && index($_, '>', $lt) < 0) {
