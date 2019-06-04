@@ -12,7 +12,7 @@
 #
 # Option -S also escapes ASCII SPACE.
 #
-# Version 2019.154
+# Version 2019.155
 #
 # Copyright (c) 2017-2019 Guenther Brunthaler. All rights reserved.
 # 
@@ -61,8 +61,15 @@ if ($opt_u) {
          || die "Invalid escape '<$n>'"
       ;
    }
+   my($pfx, $lt)= '';
    while (&next_part) {
       s/\n//sg if $opt_N;
+      substr($_, 0, 0)= $pfx;
+      if (($lt= rindex $_, '<') >= 0 && index($_, '>', $lt) < 0) {
+         $pfx= substr $_, $lt; $_= substr $_, 0, $lt;
+      } else {
+         $pfx= '';
+      }
       s/<([^<>]+)>/getchar($1)/sge;
       print $_ or die $!;
    }
