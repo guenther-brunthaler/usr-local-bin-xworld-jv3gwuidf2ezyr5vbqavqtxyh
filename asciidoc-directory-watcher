@@ -2,7 +2,7 @@
 # Watch the current directory for .html files which can be updated by asciidoc
 # from corresponding .txt files.
 #
-# Version 2019.153
+# Version 2019.155
 # Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -23,7 +23,7 @@ done
 test $bb != false || die "BusyBox needs to be installed!"
 
 applet=inotifyd
-$bb $applet --help > /dev/null 2>& 1 \
+$bb $applet -h > /dev/null 2>& 1 \
 || die "Locally installed $bb does not provide the '$applet' applet!"
 
 command -v asciidoc > /dev/null 2>& 1 || die "asciidoc is not installed!"
