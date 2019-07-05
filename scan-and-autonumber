@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2019.150
+# Version 2019.186
 # Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -7,7 +7,9 @@
 
 counter=scan_counter.txt
 digits=3
-outfmt='infile-%0${digits}u.png'
+outfmt='infile-%0${digits}u.%s'
+toutext=pnm
+foutext=png
 dpi=300
 
 set -e
@@ -38,17 +40,21 @@ shift `expr $OPTIND - 1 || :`
 eval "outfmt=\"$outfmt\""
 
 test "$n" || read n 2> /dev/null < "$counter" || n=1
-outfile=`printf "$outfmt" $n`
-n=`expr $n + 1`
+toutfile=`printf "$outfmt" $n "$toutext"`
+foutfile=`printf "$outfmt" $n "$foutext"`
 
-set scanimage --mode=$mode --resolution=$dpi \| \
-	convert -units pixelsperinch -density $dpi $cvopt pnm:- "$outfile"
+simrun() {
+	$dry_run || return
+	echo "SIMULATION: $*"
+}
 
-if $dry_run
-then
-	echo "$@"
-else
-	echo "Scanning to $outfile..."
-	eval "$@"
-	echo $n > "$counter"
-fi
+echo "Scanning to $foutfile..." >& 2
+set scanimage --mode=$mode --resolution=$dpi
+simrun "$* > $toutfile" || "$@" > "$toutfile"
+set nice ionice -n 5 convert -units pixelsperinch -density $dpi $cvopt \
+	"$toutfile" "$foutfile"
+r="rm $toutfile"
+simrun "$* && $r &" || {
+	"$@" && $r &
+	echo `expr $n + 1` > "$counter"
+}
