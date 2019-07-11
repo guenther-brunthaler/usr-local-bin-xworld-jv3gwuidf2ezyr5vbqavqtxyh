@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wr -s << EOF
-$APP version 2018.225
+$APP version 2019.192
 
-Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+Copyright (c) 2018-2019 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -71,6 +71,12 @@ displays the current date and time as well as the titles and window numbers of
 the windows around the current window. This is disabled by default because GNU
 "screen" neither displays such a line by default. Implies -s. May be combined
 with -g.
+
+-r: Make tmux "remote friendly". This means disabling options which may cause
+too much traffic. Right now, this only works in newer versions of tmux and
+disabled the default-"preview" option when selecting windows, panes or
+sessions from a list with the cursor keys. The preview can still be enabled
+temporarily by pressing "v".
 
 -V: Display version information and exit.
 
@@ -443,9 +449,11 @@ tmx() {
 screenify=false
 gen_config=false
 ztatus=false
-while getopts sghVz opt
+minimize_traffic=false
+while getopts rsghVz opt
 do
 	case $opt in
+		r) minimize_traffic=true;;
 		g) gen_config=true; screenify=true;;
 		s) screenify=true;;
 		z) ztatus=true; screenify=true;;
@@ -534,7 +542,12 @@ then
 	dsc
 	tdsc "[ctrl]+[$np],[\"] shows a menu for selecting a window" \
 		"to switch to."
-	tmx bind '"' choose-window
+	if $minimize_traffic
+	then
+		tmx bind '"' choose-tree -w -N
+	else
+		tmx bind '"' choose-window
+	fi
 	tmx unbind w
 	dsc
 	tdsc "[ctrl]+[$np],[|] splits current pane horizontally."
@@ -546,5 +559,17 @@ then
 	tdsc "[ctrl]+[$np],[shift]+[x] removes the current pane" \
 		"without confirmation."
 	tmx bind X kill-pane
+	dsc
+	tdsc "[ctrl]+[$np],[m] toggles monitoring the current window" \
+		"for activity."
+	tmx bind m set monitor-activity
+	dsc
+	tdsc "[ctrl]+[$np],[Underscore] monitor the current" \
+		"window for 30 seconds of silence."
+	tmx bind _ set monitor-silence 30
+	dsc
+	tdsc "[ctrl]+[$np],[shift]+[m] stop monitoring the current" \
+		"window for silence."
+	tmx bind _ set monitor-silence 0
 fi
 ereal "Done."
