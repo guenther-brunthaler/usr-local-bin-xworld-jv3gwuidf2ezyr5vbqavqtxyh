@@ -1,7 +1,7 @@
 #! /bin/sh
 show_version() {
 	wr -s << EOF
-$APP version 2019.192
+$APP version 2019.192.1
 
 Copyright (c) 2018-2019 Guenther Brunthaler. All rights reserved.
 
@@ -446,6 +446,23 @@ tmx() {
 	fi
 }
 
+# Prints "0" if tmux is older than version 2.6, otherwise "1".
+get_tmux_feature_level() {
+	ver=`tmux -V`.
+	set --
+	while v=`expr x"$ver" : '.*[^0-9]\([0-9]\{1,\}\.\)$'`
+	do
+		set ${v%.} ${1+"$@"}
+		ver=${ver%"$v"}
+	done
+	while test $# -lt 2
+	do
+		set -- ${1+"$@"} 0
+	done
+	test $1 -gt 2 || { test $1 -eq 2 && test $2 -ge 6; } \
+		&& echo 1 || echo 0
+}
+
 screenify=false
 gen_config=false
 ztatus=false
@@ -464,6 +481,7 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
+tmux_level=`get_tmux_feature_level`
 if $gen_config
 then
 	np=${1:-a}
@@ -542,12 +560,13 @@ then
 	dsc
 	tdsc "[ctrl]+[$np],[\"] shows a menu for selecting a window" \
 		"to switch to."
-	if $minimize_traffic
-	then
-		tmx bind '"' choose-tree -w -N
-	else
-		tmx bind '"' choose-window
-	fi
+	case $tmux_level in
+		0) tmx bind '"' choose-window;;
+		1)
+			t=`$minimize_traffic && echo N || :`
+			tmx bind '"' run-shell "tmux choose-tree -${t}wf "`:
+				`'"##{==:##{session_name},#{session_name}}"'
+	esac
 	tmx unbind w
 	dsc
 	tdsc "[ctrl]+[$np],[|] splits current pane horizontally."
@@ -562,14 +581,18 @@ then
 	dsc
 	tdsc "[ctrl]+[$np],[m] toggles monitoring the current window" \
 		"for activity."
-	tmx bind m set monitor-activity
+	tmx bind m if-shell -F '#{monitor-activity}' \
+		'setw monitor-activity off; display-message'`:
+		`' "stop monitoring activity"' \
+		'setw monitor-activity on; display-message'`:
+		`' "monitoring activity"'
 	dsc
-	tdsc "[ctrl]+[$np],[Underscore] monitor the current" \
-		"window for 30 seconds of silence."
-	tmx bind _ set monitor-silence 30
-	dsc
-	tdsc "[ctrl]+[$np],[shift]+[m] stop monitoring the current" \
+	tdsc "[ctrl]+[$np],[Underscore] toggles monitoring the current" \
 		"window for silence."
-	tmx bind _ set monitor-silence 0
+	tmx bind _ if-shell -F '#{monitor-silence}' \
+		'setw monitor-silence 0; display-message'`:
+		`' "stop silence monitoring"' \
+		'command-prompt -p "Inactivity timeout?" -I 30'`:
+		`' "setw monitor-silence \"%%\""'
 fi
 ereal "Done."
