@@ -1,0 +1,52 @@
+#! /bin/sh
+# Given a GitHub URL, sets up a "github" remote for the current repository.
+#
+# Version 2019.287
+#
+# Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+# 
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+www_url_pfx='https://github.com/'
+ssh_url_pfx='git@github.com:'
+rname=github
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+public=false
+dry_run=false
+while getopts pn opt
+do
+	case $opt in
+		p) public=true;;
+		n) dry_run=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+do_git() {
+	set git "$@"
+	$dry_run && set echo SIMULATION: "$@"
+	"$@"
+}
+
+test $# = 1
+
+u=${1#"$www_url_pfx"}
+if test "$u" = "$1"
+then
+	u=${1#"$ssh_url_pfx"}
+	test "$u" != "$1"
+fi
+u=${u%.git}.git
+
+if $public
+then
+	do_git remote add $rname "$www_url_pfx$u"
+	do_git remote set-url --push $rname "$ssh_url_pfx$u"
+else
+	do_git remote add $rname "$ssh_url_pfx$u"
+fi
