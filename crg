@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$SCRIPT version 2018.77
+	$SCRIPT version 2019.320
 
-	Copyright (c) 2008-2018 Guenther Brunthaler. All rights reserved.
+	Copyright (c) 2008-2019 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -46,8 +46,11 @@ show_help() {
 	
 	--script, -s: The document is a script rather than a "source file".
 
+	--doc, -d: The document represents documentation rather than a "source
+	file". This affectes the license.
+
 	--text, -t: The document is a text document rather than a "source
-	file".
+	file". However, it uses the same licencse as source files.
 
 	--help, -h, --usage: Display this help.
 
@@ -76,8 +79,8 @@ notice() {
 	run cat <<-.
 	Copyright (c) `date '+%Y'` $NAME. All rights reserved.
 	
-	This $DOCTYPE is free software.
-	Distribution is permitted under the terms of the GPLv3.
+	This $DOCTYPE is free $FILE_KIND.
+	Distribution is permitted under the terms of the $LICENSE.
 	.
 }
 
@@ -155,6 +158,8 @@ quote() {
 # Define presets.
 NAME=
 DOCTYPE='source file'
+FILE_KIND='software'
+LICENSE='GPLv3'
 # Start of command line processing.
 SCRIPT=${0##*/}
 COPTS=
@@ -180,6 +185,10 @@ do
 		--name) NAME=$1; shift;;
 		--text | -t) DOCTYPE='text document';;
 		--script | -s) DOCTYPE='script';;
+		--doc | -d)
+			DOCTYPE='document'; FILE_KIND='documentation'
+			LICENSE='GFDL-1.3'
+			;;
 		--help | -h | --usage) show_help; exit;;
 		--version | -V) show_version; exit;;
 		*) die "Unknown option '$COPT'!";; # Must be last!

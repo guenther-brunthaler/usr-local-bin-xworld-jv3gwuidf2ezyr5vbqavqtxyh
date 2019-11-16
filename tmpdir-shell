@@ -1,5 +1,6 @@
 #! /bin/sh
 # Run a shell in a temporary directory to be removed when the shell exits.
+# Version 2019.320
 
 set -e
 cleanup() {
@@ -19,7 +20,10 @@ echo "Enter 'exit' to leave and remove temporary directory." >& 2
 cd "$T"
 PS1='\u@\h [tmpshell] \$ ' # Most likely, this will be overwritten anyway.
 export PS1
-MYSH=${SHELL:-/bin/sh}
-test -x "$MYSH"
-"$MYSH"
+case ${SHELL:=/bin/sh} in
+	/*) ;;
+	*) SHELL=`command -v -- "$SHELL"`
+esac
+test -x "$SHELL"
+"$SHELL" -l
 echo "Removing temporary shell directory '$T'." >& 2
