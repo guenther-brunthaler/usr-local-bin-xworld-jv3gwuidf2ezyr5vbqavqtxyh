@@ -1,9 +1,9 @@
 #! /bin/sh
 exit_version() {
 	cat << EOF | wrs; exit
-$APP version 2017.358
+$APP version 2019.332
 
-Copyright (c) 2015-2017 Guenther Brunthaler. All rights reserved.
+Copyright (c) 2015-2019 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -128,8 +128,8 @@ done
 shift `expr $OPTIND - 1 || :`
 
 for tool in \
-	convert make identify autooptimiser cpclean cpfind linefind \
-	pano_modify pto2mk pto_gen pto_lensstack pto_var
+	convert identify autooptimiser cpclean cpfind linefind \
+	pano_modify hugin_executor pto_gen pto_lensstack pto_var
 do
 	x=`which -- "$tool"`
 	test -n "$x"; test -f "$x"; test -x "$x"
@@ -188,8 +188,7 @@ FOV=10
 	"$autooptimiser" -n -o autoptim.pto setoptim.pto
 	"$pano_modify" --projection=0 --fov=AUTO --center --canvas=AUTO \
 		--crop=AUTO -o autoptim2.pto autoptim.pto
-	"$pto2mk" -o project.mk -p $Prefix autoptim2.pto
-	"$make" -f project.mk all
+	"$hugin_executor" --stitching --prefix=$Prefix autoptim2.pto
 )
 test -f "$result"
 echo "Creating '$outfile'..." >& 2
