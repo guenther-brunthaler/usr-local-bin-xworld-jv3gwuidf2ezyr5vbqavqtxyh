@@ -1,0 +1,43 @@
+#! /bin/sh
+# List files by size. Most (all for a particular version of the POSIX
+# standard) portable "ls" options which do not affect the filtering performed
+# by the implementation will be passed through.
+#
+# Version 2019.333
+# Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+opts=-gon
+while getopts AFHLSacdfglnopqrtu1 opt
+do
+	case $opt in
+		[AFHLSacdfpqrtu]) opts="$opts -$opt";;
+		[glno1]) ;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+case $opts in
+	*"-d"*) ;;
+	*)
+		any=
+		for a
+		do
+			test ! -d "$a" && continue
+			echo "Directory arguments require option -d." >& 2
+			false || exit
+		done
+esac
+ls='command ls --color=auto'
+$ls -d / > /dev/null 2>& 1 || ls='command ls'
+LC_MESSAGES=POSIX $ls $opts -- ${1+"$@"} | {
+	case $opts in
+        	*"-d"*) ;;
+        	*) IFS= read ignored
+        esac
+	sed 's/^[^ ]* *[^ ]* \( *[^ ]*\).\{13\}/\1/'
+}
