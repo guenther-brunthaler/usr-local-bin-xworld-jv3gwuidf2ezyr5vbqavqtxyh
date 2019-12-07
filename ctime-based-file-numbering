@@ -1,0 +1,61 @@
+#! /bin/sh
+# Prepend a numeric prefix and a dash to the specified file in such a way that
+# the files are put into the same lexicographic order as sorting them by their
+# current ctime, from oldest to newest. The prefix will have as many decimal
+# digits as necessary for all files to have prefixes of the same number of
+# digits. Any directories also specified as arguments will be ignored.
+#
+# Version 2019.341
+# Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+dry_run=false
+quiet=false
+while getopts nq opt
+do
+	case $opt in
+		q) quiet=true;;
+		n) dry_run=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+n=0
+while test $n != $#
+do
+	if test ! -d "$1"
+	then
+		set -- "$@" "$1"
+		n=`expr $n + 1`
+	fi
+	shift
+done
+
+rename() {
+	set mv -i -- "$1" "$2"
+	$quiet || echo "Renaming into '$o'..." >& 2
+	$dry_run && set echo SIMULATION: "$@"
+	"$@"
+}
+
+ls -Hdct1r -- "$@" | {
+	set --
+	while IFS= read -r file
+	do
+		set -- ${1+"$@"} "$file"
+	done
+	fmt="%s%0${##}u-%s\\n"
+	n=0
+	while test $# != 0
+	do
+		n=`expr $n + 1`
+		p=${1%/*}/; b=${1##*/}; test "$b" = "$1" && p=
+		o=`printf "$fmt" "$p" "$n" "$b"`
+		rename "$1" "$o"
+		shift
+	done
+}
