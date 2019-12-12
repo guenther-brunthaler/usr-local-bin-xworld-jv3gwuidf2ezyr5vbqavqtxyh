@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2019.186
+# Version 2019.346
 # Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -9,8 +9,9 @@ counter=scan_counter.txt
 digits=3
 outfmt='infile-%0${digits}u.%s'
 toutext=pnm
-foutext=png
+foutext=tif
 dpi=300
+out_opt='-type TrueColor -colorspace sRGB -depth 8 -compress LZW'
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
@@ -37,9 +38,31 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
+for u in util-linux: ionice flock imagemagick: convert sane-utils: scanimage
+do
+	case $u in
+		*:) p=${u%:};;
+		*)
+			command -v $u > /dev/null 2>& 1 || {
+				echo "Utility '$u' needs to be installed!"
+				echo "For some Linux distributions," \
+					"this is part of package '$p'."
+				false || exit
+			} >& 2
+	esac
+done
+
 eval "outfmt=\"$outfmt\""
 
-test "$n" || read n 2> /dev/null < "$counter" || n=1
+exec 5>> "$counter"
+flock 5
+if test -z "$n"
+then
+	read n 2> /dev/null < "$counter" || n=1
+fi
+echo `expr $n + 1` > "$counter"
+exec 5>& -
+
 toutfile=`printf "$outfmt" $n "$toutext"`
 foutfile=`printf "$outfmt" $n "$foutext"`
 
@@ -52,9 +75,6 @@ echo "Scanning to $foutfile..." >& 2
 set scanimage --mode=$mode --resolution=$dpi
 simrun "$* > $toutfile" || "$@" > "$toutfile"
 set nice ionice -n 5 convert -units pixelsperinch -density $dpi $cvopt \
-	"$toutfile" "$foutfile"
+	"$toutfile" $out_opt "$foutfile"
 r="rm $toutfile"
-simrun "$* && $r &" || {
-	"$@" && $r &
-	echo `expr $n + 1` > "$counter"
-}
+simrun "$* && $r &" || { { "$@" && $r; } & }
