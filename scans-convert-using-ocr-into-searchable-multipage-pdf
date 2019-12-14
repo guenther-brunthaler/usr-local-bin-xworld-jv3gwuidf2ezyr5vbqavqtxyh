@@ -33,7 +33,7 @@
 # * https://www.konradvoelkel.com/2013/03/scan-to-pdfa/ has also intersting
 #   ideas but they compress the bitmaps as shitty JPEGs rather than to JBIG2.
 #
-# Version 2019.150.1
+# Version 2019.348
 # Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -89,6 +89,16 @@ do
 	false || exit
 done
 
+if
+	test `
+		tesseract --version 2>& 1 | sed '1!d; s|^[^0-9]*||; s|\..*||'
+	` -lt 4
+then
+	tess_option_dash='-'
+else
+	tess_option_dash='--'
+fi
+
 case $# in
 	0) set -- $infile_pat; infile_pat=
 esac
@@ -136,7 +146,7 @@ esac
 
 do_ocr() {
 	echo "OCR'ing file '$1'..." >& 2
-	set tesseract "$1" "$o" -l $ocr_lang -psm 1 pdf
+	set tesseract "$1" "$o" -l $ocr_lang ${tess_option_dash}psm 1 pdf
 	$dry_run && set echo "$@"
 	"$@"
 }
