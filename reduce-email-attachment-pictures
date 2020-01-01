@@ -1,0 +1,117 @@
+#! /bin/sh
+version() {
+	cat << ====
+$APP - create size-reduced copies of the multimedia image whose pathnames have
+been provided as script arguments.
+
+Without arguments, the list of pathnames will be read from standard input
+unless it is a character device (such as a terminal or /dev/null), or from the
+X11 clipboard otherwise.
+
+Version 2020.1
+Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+====
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "\"$APP\" failed!" >& 2' 0
+
+println() {
+	printf '%s\n' "$1"
+}
+
+unwrap() {
+	sep=
+	while read -r line
+	do
+		case $line in
+			'') test -n "$sep" && echo; sep=; echo;;
+			*) printf %s "$sep$line"; sep=' '
+		esac
+	done
+	test -n "$sep" && echo
+}
+
+wrap() {
+	fold -sw $out_cols
+}
+max_cols=100
+out_cols=`command -v tput > /dev/null 2>& 1 && tput cols || echo 66`
+test $out_cols -gt $max_cols && out_cols=$max_cols
+
+exit_version() {
+	version | sed '/^[Vv]ersion/,$!d' | wrap; exit
+}
+
+exit_help() {
+	version | sed '1,/^[Vv]ersion/!d' | head -n -1 | unwrap | wrap
+	exit_version
+}
+
+quality_percent=50
+resize_percent=45
+while getopts Q:R:hV opt
+do
+	case $opt in
+		Q) quality_percent=$OPTARG;;
+		R) resize_percent=$OPTARG;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+check_util() {
+	p=
+	for c
+	do
+		case $c in
+			*:) p=${c%:};;
+			*)
+				 command -v -- "$c" > /dev/null && continue
+				 {
+				 	echo "Missing required utility '$c'!"
+				 	echo "(At least under" \
+				 		" Devuan 'ascii'," \
+				 		"it is part of package" \
+				 		"'${p:-"$c"}')"
+				 } >& 2
+				 false || exit
+		esac
+	done
+}
+
+check_util imagemagick: convert
+
+process() {
+	r=$resize_percent
+	q=$quality_percent
+	while IFS= read -r f
+	do
+		convert -resize $r% -quality $q% \
+			"$f" "${f%.*} Q$q% Rsz$r%.jpg"
+	done 
+}
+
+case $# in
+	0) ;;
+	*)
+		for arg
+		do
+			println "$arg"
+		done | process
+		exit
+esac
+
+if test -c /dev/stdin && xset q > /dev/null 2>& 1
+then
+	check_util xclip
+	{ xclip -selection clipboard -o; echo; } | process
+else
+	process
+fi
