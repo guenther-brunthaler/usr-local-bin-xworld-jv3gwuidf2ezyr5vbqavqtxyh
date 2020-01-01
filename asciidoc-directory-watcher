@@ -1,12 +1,16 @@
 #! /bin/sh
-# Watch the current directory for .html files which can be updated by asciidoc
-# from corresponding .txt files.
-#
-# Version 2019.155.1
-# Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
-#
-# This script is free software.
-# Distribution is permitted under the terms of the GPLv3.
+version() {
+	cat << '===='
+Watch the current directory for .html files which can be updated by asciidoc
+from corresponding .txt (and .asciidoc and .adoc) files.
+
+Version 2020.1
+Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+====
+}
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
@@ -63,19 +67,37 @@ convert() {
 	echo "`date +%M:%S` \"$2\" has been updated."
 }
 
-tr '\n' ' ' << === | sed 's/   */\n\n/g; $!b; p; s/.*//' | fold -sw66
-"$bb $applet" is watching directory "`pwd`" for changed .txt files for which
-an associated .html file exists.
+unwrap() {
+	sep=
+	while read -r line
+	do
+		case $line in
+			'') test -n "$sep" && echo; sep=; echo;;
+			*) printf %s "$sep$line"; sep=' '
+		esac
+	done
+	test -n "$sep" && echo
+}
+
+patterns() {
+	version | unwrap | sed 's/.*\([.]txt.*\) files.*/\1/; t; d'
+}
+
+{
+	unwrap << ===
+"$bb $applet" is watching directory "`pwd`" for changed `patterns` files for
+which an associated .html file exists.
 
 It will then run asciidoc to update the associated .html files automatically.
-
-Press [Ctrl]+[c] to stop watching the directory.
 ===
+	echo; version | sed '/^[Vv]ersion /!d'; echo
+	echo "Press [Ctrl]+[c] to stop watching the directory."
+} | fold -sw 66
 $bb $applet - .:w | {
 	ht=`printf '\t:'`; ht=${ht%:}
 	while IFS=$ht read -r f f f
 	do
-		case $f in *.txt)
+		case $f in *.txt | *.asciidoc | *.adoc)
 			h=${f%.*}.html
 			test -f "$h" || continue
 			is_newer "$f" "$h" && convert "$f" "$h"
