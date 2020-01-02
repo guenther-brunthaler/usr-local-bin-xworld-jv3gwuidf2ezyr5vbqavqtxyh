@@ -1,0 +1,168 @@
+#! /bin/sh
+version() {
+	cat << ====
+$APP - rename multimedia files into names based on date and time.
+
+The files to be renamed will be taken from the program arguments.
+
+Without arguments, the list of pathnames will be read from standard input
+unless it is a character device (such as a terminal or /dev/null), or from the
+X11 clipboard otherwise.
+
+The new files will have names like
+
+YYYYMMDD-HHMM.jpg
+
+or
+
+YYYYMMDD-HHMM-COUNTER.jpg
+
+in case of name collisions for counter-based disambiguation of file names.
+
+The date and time will be taken from the EXIF information of the multimedia
+files if available, or from the file date (time of last modification)
+otherwise.
+
+Version 2020.1
+Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+====
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "\"$APP\" failed!" >& 2' 0
+
+println() {
+	printf '%s\n' "$1"
+}
+
+unwrap() {
+	sep=
+	while read -r line
+	do
+		case $line in
+			'') test -n "$sep" && echo; sep=; echo;;
+			*) printf %s "$sep$line"; sep=' '
+		esac
+	done
+	test -n "$sep" && echo
+}
+
+wrap() {
+	fold -sw $out_cols
+}
+max_cols=100
+out_cols=`command -v tput > /dev/null 2>& 1 && tput cols || echo 66`
+test $out_cols -gt $max_cols && out_cols=$max_cols
+
+exit_version() {
+	version | sed '/^[Vv]ersion/,$!d' | wrap; exit
+}
+
+exit_help() {
+	version | sed '1,/^[Vv]ersion/!d' | head -n -1 | unwrap | wrap
+	exit_version
+}
+
+dry_run=false
+while getopts nhV opt
+do
+	case $opt in
+		n) dry_run=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+check_util() {
+	p=
+	for c
+	do
+		case $c in
+			*:) p=${c%:};;
+			*)
+				 command -v -- "$c" > /dev/null && continue
+				 {
+				 	echo "Missing required utility '$c'!"
+				 	echo "(At least under $distro," \
+				 		"it is part of package" \
+				 		"'${p:-"$c"}')"
+				 } >& 2
+				 false || exit
+		esac
+	done
+}
+
+distro="Devuan 'ascii'"
+check_util libimage-exiftool-perl: exiftool
+
+preferred_name_base() {
+		exiftool -args "$1" \
+		| sort -t = -u -k 1,1 \
+		| join -t = -o 1.1,2.2 /dev/fd/5 - 5<< 'EOF' \
+		| sort -t = -k 1,1 \
+		| cut -d = -f 2 \
+		| head -n 1 \
+		| tr -d : \
+		| tr ' ' - \
+		| cut -c -15
+-CreateDate=1
+-DateTimeOriginal=3
+-FileModifyDate=4
+-ModifyDate=2
+-TimeStamp=5
+EOF
+}
+
+process() {
+	fs=0
+	while IFS= read -r f
+	do
+		n=`preferred_name_base "$f"`
+		p=`dirname -- "$f"`
+		b=`basename -- "$f"`
+		x=${b##*.}
+		if test "$x" != "$b"
+		then
+			x=.`println "$x" | tr '[:upper:]' '[:lower:]'`
+		else
+			x=
+		fi
+		c=
+		while :
+		do
+			o=$p/$n${c:+"-"}$c$x
+			test ! -e "$o" && break
+			c=`expr ${c:-0} + 1`
+		done
+		set mv -- "$f" "$o"
+		$dry_run && set echo SIMULATION: "$@"
+		"$@"
+		fs=`expr $fs + 1`
+	done
+	echo "Renamed $fs file(s)!" >& 2
+}
+
+export LC_COLLATE=C
+case $# in
+	0) ;;
+	*)
+		for arg
+		do
+			println "$arg"
+		done | process
+		exit
+esac
+
+if test -c /dev/stdin && xset q > /dev/null 2>& 1
+then
+	check_util xclip
+	{ xclip -selection clipboard -o; echo; } | process
+else
+	process
+fi
