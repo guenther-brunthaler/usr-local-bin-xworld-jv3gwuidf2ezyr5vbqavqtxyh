@@ -1,5 +1,4 @@
 #! /bin/sh
-set -x; exec > /tmp/x 2>& 1
 version() {
 	cat << ====
 $APP - create size-reduced copies of the multimedia image whose pathnames have
