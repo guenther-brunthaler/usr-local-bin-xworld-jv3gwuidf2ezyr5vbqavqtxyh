@@ -5,9 +5,10 @@ $APP - rename multimedia files into names based on date and time.
 
 The files to be renamed will be taken from the program arguments.
 
-Without arguments, the list of pathnames will be read from standard input
-unless it is a character device (such as a terminal or /dev/null), or from the
-X11 clipboard otherwise.
+With a single argument "-", the list of files will be read from standard
+input.
+
+Without arguments, the list of pathnames will be read from the X11 clipboard.
 
 The new files will have names like
 
@@ -23,7 +24,7 @@ The date and time will be taken from the EXIF information of the multimedia
 files if available, or from the file date (time of last modification)
 otherwise.
 
-Version 2020.1
+Version 2020.2
 Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -152,17 +153,17 @@ export LC_COLLATE=C
 case $# in
 	0) ;;
 	*)
-		for arg
-		do
-			println "$arg"
-		done | process
+		if test $# = 1 && test "$x" = -
+		then
+			process
+		else
+			for arg
+			do
+				println "$arg"
+			done | process
+		fi
 		exit
 esac
 
-if test -c /dev/stdin && xset q > /dev/null 2>& 1
-then
-	check_util xclip
-	{ xclip -selection clipboard -o; echo; } | process
-else
-	process
-fi
+check_util xclip
+{ xclip -selection clipboard -o; echo; } | process

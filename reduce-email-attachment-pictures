@@ -1,14 +1,16 @@
 #! /bin/sh
+set -x; exec > /tmp/x 2>& 1
 version() {
 	cat << ====
 $APP - create size-reduced copies of the multimedia image whose pathnames have
 been provided as script arguments.
 
-Without arguments, the list of pathnames will be read from standard input
-unless it is a character device (such as a terminal or /dev/null), or from the
-X11 clipboard otherwise.
+With a single argument "-", the list of files will be read from standard
+input.
 
-Version 2020.1
+Without arguments, the list of pathnames will be read from the X11 clipboard.
+
+Version 2020.2
 Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -101,17 +103,17 @@ process() {
 case $# in
 	0) ;;
 	*)
-		for arg
-		do
-			println "$arg"
-		done | process
+		if test $# = 1 && test "$x" = -
+		then
+			process
+		else
+			for arg
+			do
+				println "$arg"
+			done | process
+		fi
 		exit
 esac
 
-if test -c /dev/stdin && xset q > /dev/null 2>& 1
-then
-	check_util xclip
-	{ xclip -selection clipboard -o; echo; } | process
-else
-	process
-fi
+check_util xclip
+{ xclip -selection clipboard -o; echo; } | process
