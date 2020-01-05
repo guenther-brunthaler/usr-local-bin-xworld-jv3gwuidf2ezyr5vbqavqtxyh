@@ -1,0 +1,124 @@
+#! /bin/sh
+# Parallelizing topological sort - sort into parallel job groups
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TD" && rm -r -- "$TD"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TD=
+trap cleanup 0
+trap 'exit $?' HUP TERM QUIT INT
+
+while getopts '' opt
+do
+	case $opt in
+		*) false
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test $# = 0
+
+TD=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
+
+# Accept a list of pairs ("before", "after") and optionally a trailing single
+# entry "independent" in free form from standard input.
+# 
+# Create a flat file "single" from that containing only a single item per
+# non-empty line:
+println() { printf '%s\n' "$1"; }
+while read line
+do
+	set -f; set -- $line; set +f
+	for item
+	do
+		case $item in
+			'') ;;
+			*) println "$item"
+		esac
+	done
+done > "$TD"/single
+
+# Consider all pairs "before", "after" to represent pairs("job":= "after",
+# "prerequisite":= "before).
+# 
+# Consider all items "before", "after", "independent" to represent members of
+# list "jobs".
+# 
+# With that in mind, create 3 lists from "single", all sorted by their first
+# field:
+# 
+# * "jobs" containing all jobs
+# 
+# * "deps" containing pairs ("job", "prerequisite")
+# 
+# * "rdeps" containing pairs ("prerequisite", "job")
+# 
+# where "prerequisite" in "deps" and "rdeps" is a job that must be run before
+# "job".
+# 
+# "deps" and "rdeps" contain the same entries, just in different column order
+# and sorted accordingly.
+unset before
+while read after
+do
+	println "$after"
+	case ${before+have} in
+		'') before=$after;;
+		*)
+			println "$after $before" >& 5
+			println "$before $after" >& 6
+			unset before
+	esac
+done < "$TD"/single 5> "$TD"/deps 6> "$TD"/rdeps \
+	| LC_COLLATE=C sort -u > "$TD"/jobs
+LC_COLLATE=C sort -o "$TD"/deps -u -- "$TD"/deps
+LC_COLLATE=C sort -o "$TD"/rdeps -u -- "$TD"/rdeps
+rm -- "$TD"/single
+
+# Then perform the following algorithm in order to calculate a total ordering
+# from the partial orderings:
+# 
+# 1. Set dependency group counter to 1.
+group=1
+
+# 2. Check whether "jobs" is empty. If so, then we are done.
+while test -s "$TD"/jobs
+do
+	# 3. Create a copy of "jobs" called "indeps" and remove all entries
+	# from it which have a matching entry in "deps".
+	LC_COLLATE=C join -v 1 -- "$TD"/jobs "$TD"/deps > "$TD"/indeps
+
+	# 4. If "indeps" is empty we encountered a circular dependencies,
+	# terminate with an error.
+	if test ! -s "$TD"/indeps
+	then
+		echo "Chicken-egg problem in dependencies!" >& 2
+		false || exit
+	fi
+
+	# 5. Emit "indeps" as the next segment of the result, inserting the
+	# current dependency group counter as the new first field. Bump the
+	# counter after that.
+	while read job
+	do
+		echo "$group $job"
+	done < "$TD"/indeps
+	group=`expr $group + 1`
+
+	# 6. Remove all members of "indeps" from "jobs".
+	LC_COLLATE=C join -v 2 -- "$TD"/indeps "$TD"/jobs > "$TD"/tmp
+	cat < "$TD"/tmp > "$TD"/jobs
+
+	# 7. Remove all dependencies on "indeps" from "deps" and "rdeps".
+	LC_COLLATE=C join -o 1.2,1.1 -- "$TD"/rdeps "$TD"/indeps \
+		| LC_COLLATE=C sort \
+		| LC_COLLATE=C comm -13 - "$TD"/deps > "$TD"/tmp
+	cat < "$TD"/tmp > "$TD"/deps
+	LC_COLLATE=C join -v 1 -- "$TD"/rdeps "$TD"/indeps > "$TD"/tmp
+	cat < "$TD"/tmp > "$TD"/rdeps
+
+	# 8. Continue with step 2.
+done
