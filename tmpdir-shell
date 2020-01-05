@@ -1,6 +1,6 @@
 #! /bin/sh
 # Run a shell in a temporary directory to be removed when the shell exits.
-# Version 2019.320
+# Version 2020.5
 
 set -e
 cleanup() {
@@ -14,12 +14,12 @@ T=
 trap cleanup 0
 T=`mktemp -d "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
 echo "Entering temporary shell directory '$T'." >& 2
-export p=`pwd`
+p=`pwd`
 echo "The previous current directory is available as \$p." >& 2
 echo "Enter 'exit' to leave and remove temporary directory." >& 2
 cd "$T"
 PS1='\u@\h [tmpshell] \$ ' # Most likely, this will be overwritten anyway.
-export PS1
+export PS1 p
 case ${SHELL:=/bin/sh} in
 	/*) ;;
 	*) SHELL=`command -v -- "$SHELL"`
