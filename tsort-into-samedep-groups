@@ -1,7 +1,7 @@
 #! /bin/sh
 # Parallelizing topological sort - sort into parallel job groups
 #
-# Version 2020.5
+# Version 2020.6
 # Copyright (c) 2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -17,9 +17,11 @@ TD=
 trap cleanup 0
 trap 'exit $?' HUP TERM QUIT INT
 
-while getopts '' opt
+group=
+while getopts g opt
 do
 	case $opt in
+		g) group=1;;
 		*) false
 	esac
 done
@@ -29,29 +31,13 @@ test $# = 0
 
 TD=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
 
-# Accept a list of pairs ("before", "after") and optionally a trailing single
-# entry "independent" in free form from standard input.
-# 
-# Create a flat file "single" from that containing only a single item per
-# non-empty line:
 println() { printf '%s\n' "$1"; }
-while read line
-do
-	set -f; set -- $line; set +f
-	for item
-	do
-		case $item in
-			'') ;;
-			*) println "$item"
-		esac
-	done
-done > "$TD"/single
 
 # Consider all pairs "before", "after" to represent pairs("job":= "after",
 # "prerequisite":= "before).
 # 
-# Consider all items "before", "after", "independent" to represent members of
-# list "jobs".
+# Consider all items from pairs ("before", "after") as well as single items
+# "independent" to represent members of list "jobs".
 # 
 # With that in mind, create 3 lists from "single", all sorted by their first
 # field:
@@ -67,29 +53,28 @@ done > "$TD"/single
 # 
 # "deps" and "rdeps" contain the same entries, just in different column order
 # and sorted accordingly.
-unset before
-while read after
+while read before after
 do
-	println "$after"
-	case ${before+have} in
-		'') before=$after;;
-		*)
-			println "$after $before" >& 5
-			println "$before $after" >& 6
-			unset before
+	case $before in
+		'') continue
 	esac
-done < "$TD"/single 5> "$TD"/deps 6> "$TD"/rdeps \
-	| LC_COLLATE=C sort -u > "$TD"/jobs
+	println "$before"
+	case $after in
+		'') continue
+	esac
+	println "$after"
+	println "$after $before" >& 5
+	println "$before $after" >& 6
+done 5> "$TD"/deps 6> "$TD"/rdeps \
+| LC_COLLATE=C sort -u > "$TD"/jobs
 LC_COLLATE=C sort -o "$TD"/deps -u -- "$TD"/deps
 LC_COLLATE=C sort -o "$TD"/rdeps -u -- "$TD"/rdeps
-rm -- "$TD"/single
 
 # Then perform the following algorithm in order to calculate a total ordering
 # from the partial orderings:
 # 
 # 1. Set dependency group counter to 1.
-group=1
-
+#
 # 2. Check whether "jobs" is empty. If so, then we are done.
 while test -s "$TD"/jobs
 do
@@ -105,14 +90,27 @@ do
 		false || exit
 	fi
 
-	# 5. Emit "indeps" as the next segment of the result, inserting the
-	# current dependency group counter as the new first field. Bump the
-	# counter after that.
-	while read job
-	do
-		echo "$group $job"
-	done < "$TD"/indeps
-	group=`expr $group + 1`
+	case $group in
+		'')
+			# In one-line mode, emit all jobs which could be run
+			# in parallel in the same output line.
+			sep=
+			while read job
+			do
+				printf %s "$sep$job"; sep=' '
+			done < "$TD"/indeps
+			test "$sep" && echo
+			;;
+		*)
+			# 5. Emit "indeps" as the next segment of the result,
+			# inserting the current dependency group counter as
+			# the new first field. Bump the counter after that.
+			while read job
+			do
+				echo "$group $job"
+			done < "$TD"/indeps
+			group=`expr $group + 1`
+	esac
 
 	# 6. Remove all members of "indeps" from "jobs".
 	LC_COLLATE=C join -v 2 -- "$TD"/indeps "$TD"/jobs > "$TD"/tmp
