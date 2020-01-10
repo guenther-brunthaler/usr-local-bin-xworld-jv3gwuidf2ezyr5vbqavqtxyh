@@ -1,6 +1,6 @@
 #! /bin/sh
-# Version 2019.346
-# Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+# Version 2020.10
+# Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -22,13 +22,15 @@ ck_posint() {
 
 dry_run=false
 mode=Color
-cvopt=-trim
+trim=true
+rotate180=false
 n=
-while getopts D:Td:N:gn opt
+while getopts D:Trd:N:gn opt
 do
 	case $opt in
 		D) ck_posint; dpi=$OPTARG;;
-		T) cvopt=;;
+		T) trim=false;;
+		r) rotate180=true;;
 		d) ck_posint; digits=$OPTARG;;
 		N) ck_posint; n=$OPTARG;;
 		g) mode=Gray;;
@@ -74,7 +76,10 @@ simrun() {
 echo "Scanning to $foutfile..." >& 2
 set scanimage --mode=$mode --resolution=$dpi
 simrun "$* > $toutfile" || "$@" > "$toutfile"
-set nice ionice -n 5 convert -units pixelsperinch -density $dpi $cvopt \
-	"$toutfile" $out_opt "$foutfile"
+
+set nice ionice -n 5 convert -units pixelsperinch -density $dpi
+$trim && set "$@" -trim
+$rotate180 && set "$@" -rotate 180
+set "$@" "$toutfile" $out_opt "$foutfile"
 r="rm $toutfile"
 simrun "$* && $r &" || { { "$@" && $r; } & }
