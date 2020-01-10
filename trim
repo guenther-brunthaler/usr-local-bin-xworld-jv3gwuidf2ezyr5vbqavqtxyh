@@ -7,15 +7,15 @@
 # Note that you might want to use "expand" before applying this filter in
 # order to convert any tabs into spaces.
 #
-# Version 2020.10
+# Version 2020.10.1
 # Copyright (c) 2006-2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
 while (defined($_= <>)) {
-   chomp;
+   $nl= chomp ? "\n" : "";
    s/^\s+//; s/\s+$//;
    s/(?<=\s)\s+//g;
-   print "$_\n";
+   print "$_$nl";
 }

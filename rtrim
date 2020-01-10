@@ -1,14 +1,14 @@
 #! /usr/bin/perl
 # Filter to remove trailing whitespace from lines.
 #
-# Version 2020.10
+# Version 2020.10.1
 # Copyright (c) 2006-2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
 while (defined($_= <>)) {
-   chomp;
+   $nl= chomp ? "\n" : "";
    s/\s+$//;
-   print "$_\n";
+   print "$_$nl";
 }
