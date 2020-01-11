@@ -1,7 +1,20 @@
-#! /usr/bin/perl -w
-# Written by Guenther Brunthaler in 2008
+#! /usr/bin/perl
+# Filter to titlecase words (convert first character of words to uppercase).
+#
+# Version 2020.11
+# Copyright (c) 2006-2020 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
+use warnings qw(all);
+use autodie;
+use Getopt::Std;
+
+getopts('') or die;
 while (defined($_= <>)) {
+   $nl= chomp ? "\n" : "";
    s/\b(.)/\u$1/g;
-   print;
+   print "$_$nl" or die $!;
 }
+close STDOUT or die $!; # Flush output to detect any write errors.
