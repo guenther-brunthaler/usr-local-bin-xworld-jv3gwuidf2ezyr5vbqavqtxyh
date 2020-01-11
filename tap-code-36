@@ -1,5 +1,13 @@
 #! /bin/sh
-# Convert input or arguments into "tap code".
+# Convert input or arguments into a non-standard extension of the well-known
+# "tap code" (which uses a 5 x 5 grid).
+#
+# The extended code uses a 6 x 6 grid instead, consisting of all the
+# alphabetic characters first, followed by the digits 0 through 9.
+#
+# Other than the original code, the extended code can encode decimal digits
+# directly, there is no difference between the German and English version, and
+# no need to map the letters "I", "J", "C" and "K" in any way.
 #
 # Version 2020.11
 # Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
@@ -14,13 +22,11 @@ process() {
 	awk -f /dev/fd/5 5<< EOF
 
 # Set up: outr[], outc[]
-function init(    al, aln, ch, from, into, r, c) {
-	al= "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	if ("$german") {from= "J"; into= "I"} else {from= "K"; into= "C"}
+function init(    al, aln, ch, r, c) {
+	al= "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	aln= length(al)
 	for (r= c= i= 1; i <= aln; ++i) {
 		ch= substr(al, i, 1)
-		if (ch == from) continue
 		if ($show_table) {
 			if (c > 1) printf " "
 			printf "%s", ch
@@ -28,15 +34,12 @@ function init(    al, aln, ch, from, into, r, c) {
 		outr[ch]= r; outc[ch]= c
 		ch= tolower(ch)
 		outr[ch]= r; outc[ch]= c
-		if (++c > 5) {
+		if (++c > 6) {
 			c= 1; ++r
 			if ($show_table) print ""
 		}
 	}
 	if ($show_table) exit
-	outr[from]= outr[into]; outc[from]= outc[into]
-	from= tolower(from); into= tolower(into)
-	outr[from]= outr[into]; outc[from]= outc[into]
 }
 
 function tap_number(n    , out, sep) {
@@ -71,8 +74,6 @@ do
 	esac
 done
 shift `expr $OPTIND - 1 || :`
-
-german=`locale | sed 's/^LC_MESSAGES="de_.*/DE/; t; d'`
 
 case $# in
 	0) process;;
