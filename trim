@@ -7,21 +7,24 @@
 # Note that you might want to use "expand" before applying this filter in
 # order to convert any tabs into spaces.
 #
-# Version 2020.10.2
+# Version 2020.11
 # Copyright (c) 2006-2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
+use strict;
 use warnings qw(all);
 use autodie;
+use open ':locale';
 use Getopt::Std;
 
 getopts('') or die;
+my $nl;
 while (defined($_= <>)) {
    $nl= chomp ? "\n" : "";
    s/^\s+//; s/\s+$//;
    s/(?<=\s)\s+//g;
    print "$_$nl" or die $!;
 }
-close STDOUT or die $!; # Flush output to detect any write errors.
+STDOUT->flush() or die $!;

@@ -1,20 +1,23 @@
 #! /usr/bin/perl
 # Filter to lower-case text.
 #
-# Version 2020.11
+# Version 2020.11.1
 # Copyright (c) 2006-2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
+use strict;
 use warnings qw(all);
 use autodie;
+use open ':locale';
 use Getopt::Std;
 
 getopts('') or die;
+my $nl;
 while (defined($_= <>)) {
    $nl= chomp ? "\n" : "";
    $_= lc;
    print "$_$nl" or die $!;
 }
-close STDOUT or die $!; # Flush output to detect any write errors.
+STDOUT->flush() or die $!;
