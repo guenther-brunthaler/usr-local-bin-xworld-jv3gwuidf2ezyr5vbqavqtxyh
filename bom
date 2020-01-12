@@ -1,0 +1,38 @@
+#! /bin/sh
+# Print a byte-order mark ("BOM") to standard output. No newline will be
+# appended.
+#
+# A BOM is generally required as the first character in UTF-16 and UTF-32
+# encoded texts without a declared specific endianness. A BOM is also
+# frequently used in UTF-8 encoded texts in order to differentiate them from
+# UTF-8, UTF-16, but also from pure ASCII. For instance, XML uses this
+# approach.
+#
+# The BOM will be encoded according to the current locale (LC_CTYPE in
+# particular). This will only work if the current locale provides a BOM
+# character.
+#
+# The character used as the BOM may have different names depending on the
+# character set used. At least in the UNICODE character set, the BOM character
+# is called U+FEFF "ZERO WIDTH NO-BREAK SPACE".
+#
+# Version 2020.12
+# Copyright (c) 2020 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test $# = 0
+
+printf %s '+/v8-' | iconv -f UTF-7
