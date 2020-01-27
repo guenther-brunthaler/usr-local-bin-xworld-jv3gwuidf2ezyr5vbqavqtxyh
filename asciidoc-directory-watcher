@@ -4,7 +4,7 @@ version() {
 Watch the current directory for .html files which can be updated by asciidoc
 from corresponding .txt (and .asciidoc and .adoc) files.
 
-Version 2020.11
+Version 2020.27
 Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -16,9 +16,11 @@ set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
 custom_bb=
-while getopts b: opt
+immediately_oneshot=false
+while getopts ib: opt
 do
 	case $opt in
+		i) immediately_oneshot=true;;
 		b) custom_bb=$OPTARG;;
 		*) false || exit
 	esac
@@ -30,22 +32,27 @@ die() {
 	false || exit
 }
 
-applet=inotifyd
-for bb in \
-	${custom_bb:+"$custom_bb"} \
-	busybox \
-	busybox-site \
-	busybox-localsite \
-	busybox-pbyqxzl1ktqlk3fjm3arlrclg \
-	false
-do
-	command -v -- "$bb" > /dev/null 2>& 1 || continue
-	"$bb" 2> /dev/null \
-	| grep -q '[^[:alnum:]]inotifyd[^[:alnum:]]' && break
-done
-test $bb != false || die "No BusyBox version providing" \
-	"the '$applet' applet could be located!" \
-	"Please install one or build it yourself."
+if $immediately_oneshot
+then
+	:
+else
+	applet=inotifyd
+	for bb in \
+		${custom_bb:+"$custom_bb"} \
+		busybox \
+		busybox-site \
+		busybox-localsite \
+		busybox-pbyqxzl1ktqlk3fjm3arlrclg \
+		false
+	do
+		command -v -- "$bb" > /dev/null 2>& 1 || continue
+		"$bb" 2> /dev/null \
+		| grep -q '[^[:alnum:]]inotifyd[^[:alnum:]]' && break
+	done
+	test $bb != false || die "No BusyBox version providing" \
+		"the '$applet' applet could be located!" \
+		"Please install one or build it yourself."
+fi
 
 command -v asciidoc > /dev/null 2>& 1 || die "asciidoc is not installed!"
 
@@ -79,6 +86,37 @@ unwrap() {
 	test -n "$sep" && echo
 }
 
+process() {
+	local h
+	case $1 in
+		*.txt | *.asciidoc | *.adoc)
+			h=${1%.*}.html
+			test -f "$h" || continue
+			is_newer "$1" "$h" && convert "$1" "$h"
+	esac
+}
+
+if $immediately_oneshot
+then
+	case $# in
+		0)
+			# Read list of files from standard input.
+			test ! -t 0 # But not from a terminal!
+			while IFS= read -r line
+			do
+				process "$line"
+			done
+			;;
+		*)
+			# Process all arguments passed as pathnames.
+			for arg
+			do
+				process "$arg"
+			done
+	esac
+	exit
+fi
+
 patterns() {
 	version | unwrap | sed 's/.*\([.]txt.*\) files.*/\1/; t; d'
 }
@@ -97,10 +135,6 @@ $bb $applet - .:yMw | {
 	ht=`printf '\t:'`; ht=${ht%:}
 	while IFS=$ht read -r f f f
 	do
-		case $f in *.txt | *.asciidoc | *.adoc)
-			h=${f%.*}.html
-			test -f "$h" || continue
-			is_newer "$f" "$h" && convert "$f" "$h"
-		esac
+		process "$f"
 	done
 }
