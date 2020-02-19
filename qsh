@@ -1,7 +1,11 @@
 #! /bin/sh
-# Version 2018.77
+# Quote shell metacharacters. If option -s is speciefied, the resulting lines
+# will be output as double quoted strings, or the double quotes will be
+# removed when unquoting.
 #
-# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+# Version 2020.50
+#
+# Copyright (c) 2018-2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -13,18 +17,20 @@ case `basename -- "$0"` in
 	u*) mode=unqote;;
 	*) mode=quote
 esac
-while getopts qu opt
+lq=
+while getopts qus opt
 do
 	case $opt in
 		q) mode=quote;;
 		u) mode=unqote;;
+		s) lq='"';;
 		*) false || exit
 	esac
 done
 shift `expr $OPTIND - 1 || :`
 case $mode in
-	quote) sx='s/[$`\\"]/\\&/g; s/.*/"&"/';;
-	unqote) sx='s/"\(.*\)"/\1/; s/\\\([$`\\"]\)/\1/g';;
+	quote) sx='s/[$`\\"]/\\&/g; s/.*/'"$lq"'&'"$lq"'/';;
+	unqote) sx='s/'"$lq"'\(.*\)'"$lq"'/\1/; s/\\\([$`\\"]\)/\1/g';;
 	*) false || exit
 esac
 exec sed -- "$sx"
