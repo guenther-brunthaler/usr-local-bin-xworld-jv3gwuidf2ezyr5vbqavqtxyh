@@ -1,10 +1,12 @@
 #! /bin/sh
 # Use this if "ssh -XY" does not work. Run it with "&" in the background.
-# Works on Linux only.
+# Works on Linux only. When running from within a root jail from where the
+# real X11-server has not been started, use -f to bypass some checks which
+# would make the script fail.
 #
-# Version 2017.160
+# Version 2020.29
 #
-# Copyright (c) 2017 Guenther Brunthaler. All rights reserved.
+# Copyright (c) 2017-2020 Guenther Brunthaler. All rights reserved.
 #
 # This script file is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -14,6 +16,17 @@ LOCAL=127.0.0.1
 #
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+force=false
+while getopts f opt
+do
+	case $opt in
+		f) force=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
 test -n "$DISPLAY"
 # DISPLAY=hostname:displaynumber.screennumber
 # Both numbers may contain leading zeros.
@@ -31,7 +44,12 @@ ld=`expr "a${ld}" : '\(a[0-9]\{1,\}\)\(\.[0-9]\{1,\}\)\{0,1\}$'`
 ld=`expr ${ld#a} + 0 || :`
 # Linux specific: start.
 ls=/tmp/.X11-unix/X$ld$sn
-test -S "$ls"
+if $force
+then
+	:
+else
+	test -S "$ls"
+fi
 ls=ABSTRACT:$ls
 # Linux specific: end.
 rd=`expr $ld + $DISPLAY_OFFSET || :`

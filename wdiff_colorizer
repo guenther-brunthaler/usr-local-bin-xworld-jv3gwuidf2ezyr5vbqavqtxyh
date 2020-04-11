@@ -1,0 +1,39 @@
+#! /bin/sh
+# Postprocess the output of wdiff in order to replace markers by color.
+#
+# Version 2000.1
+#
+# Copyright (c) 2020 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+
+RED=1
+GREEN=`expr $RED \* 2`
+BLUE=`expr $GREEN \* 2`
+BLACK=`expr 0 \* $RED + 0 \* $GREEN + 0 \* $BLUE || :`
+WHITE=`expr 1 \* $RED + 1 \* $GREEN + 1 \* $BLUE || :`
+
+CSI=`printf '\033['`
+DEL="${CSI}3$WHITE;4${RED}m"
+ADD="${CSI}3$BLACK;4${GREEN}m"
+NORMAL=${CSI}0m
+
+println() {
+	printf '%s\n' "$*"
+}
+
+se=
+while read from into
+do
+	from=`println "$from" | sed 's|[[\\]|\\\\&|g'`
+	se="$se${se:+"; "}s/$from/$into/g"
+done <<- EOF
+	[- $DEL
+	-] $NORMAL
+	{+ $ADD
+	+} $NORMAL
+EOF
+exec sed "$se"
