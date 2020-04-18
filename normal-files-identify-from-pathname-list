@@ -1,0 +1,48 @@
+#! /bin/sh
+# Filter out symlinks, directories and generally everything else than normal
+# files from a list of pathnames. This is useful, among other purposes, for
+# filtering the result of "dpkg -L" and simplar commands for calculating the
+# installation size.
+#
+# Version 2020.109
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+warn() {
+	echo "WARNING: '$fso' $1!" >& 2
+}
+
+filter() {
+	while IFS= read -r fso
+	do
+		test ! -e "$fso" && { warn "does not exist"; continue; }
+		test -L "$fso" && continue
+		test -d "$fso" && continue
+		test ! -f "$fso" && { warn "is something strange"; continue; }
+		printf '%s\n' "$fso"
+	done
+}
+
+case $# in
+	0)
+		filter
+		;;
+	*)
+		for arg
+		do
+			test -f "$arg"
+		done
+		for arg
+		do
+			cat < "$arg"
+		done | filter
+esac
