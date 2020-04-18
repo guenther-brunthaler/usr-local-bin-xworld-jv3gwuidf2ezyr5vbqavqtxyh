@@ -4,7 +4,7 @@ version() {
 Watch the current directory for .html files which can be updated by asciidoc
 from corresponding .txt (and .asciidoc and .adoc) files.
 
-Version 2020.27
+Version 2020.109
 Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -70,7 +70,7 @@ convert() {
 	echo "`
 		date +'%Y-%m-%d %H:%M:%S'
 	` \"$1\" has changed and is being converted..."
-	asciidoc "$1"
+	asciidoc "$1" || :
 	echo "`date +%M:%S` \"$2\" has been updated."
 }
 
