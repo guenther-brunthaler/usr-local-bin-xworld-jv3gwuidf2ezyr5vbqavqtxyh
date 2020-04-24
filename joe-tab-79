@@ -1,0 +1,24 @@
+#! /bin/sh
+
+# 'joe' editor wrapper for hard-wrapped text with tabulation-based indentation
+#
+# Indentation inserts single horizontal tabulation characters, which are set
+# to use the ANSI terminal standard width of 8 columns for the tabulation
+# zones of the display.
+#
+# This is the best mode for classic text files where the space at the end of
+# folded paragraph lines must be avoided. It represents also the right
+# settings for shell scripts or Makefiles expected by the POSIX 'make'
+# utility.
+#
+# joe can still re-flow such paragraphs, but they need to be selected as
+# blocks not containing pre-formatted paragraphs.
+#
+# In case of preformatted text (shell scripts and Makefiles) rather than
+# hard-flowed text, the enabled hard-wrapping is just a safety measure,
+# informing the programmer that she just attempted to exceed the 79th column
+# in a source-text line, which is generally disencouraged.
+#
+# Version 2020.115
+
+exec joe -rmargin 79 -wordwrap --flowed --spaces -indentc 9 -istep 1 ${1+"$@"}

@@ -1,0 +1,22 @@
+#! /bin/sh
+
+# 'joe' editor wrapper optimized for human readers
+#
+# Recommended for free-text documents like README files, and uses a line width
+# generally considered most human-friendly for reading.
+#
+# It also uses "RFC 3676"-style reversible hard word-wrapping ("flow-text"),
+# as would be indicated by a MIME type
+#
+# Content-Type: text/plain; charset=UTF-8; format=flowed
+#
+# except that the charset may differ. This style puts a space at the end of
+# hard-wrapped lines within a paragraph, but not on its last line. This is
+# exactly the same format 'fold -sw' produces. It allows to reflow such
+# documents safely to a different line width, without screwing up preformatted
+# text (because such text will normally not have any spaces at the end of its
+# lines).
+#
+# Version 2020.115
+
+exec joe -rmargin 66 -wordwrap -flowed -spaces -indentc 32 -istep 4 ${1+"$@"}

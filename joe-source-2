@@ -1,0 +1,19 @@
+#! /bin/sh
+
+# 'joe' editor wrapper for hard-wrapped source files with 2-space indentation.
+#
+# This is preferred by languages which use frequently need many indentation
+# levels, such as LISP and other functional languages.
+#
+# Indentation inserts space characters instead of horizontal tabulation
+# characters, which will make the text display the same way (and thus
+# consistently) no matter what tabulation width may have been set in someone's
+# editor or terminal.
+#
+# The enabled hard-wrapping is just a safety measure, informing the programmer
+# that she just attempted to exceed the 79th column in a source-text line,
+# which is generally disencouraged.
+#
+# Version 2020.115
+
+exec joe -istep 2 -rmargin 79 -spaces -indentc 32 --wordwrap --flowed ${1+"$@"}
