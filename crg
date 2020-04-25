@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$SCRIPT version 2019.320
+	$SCRIPT version 2020.116
 
-	Copyright (c) 2008-2019 Guenther Brunthaler. All rights reserved.
+	Copyright (c) 2008-2020 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -77,6 +77,8 @@ die() {
 
 notice() {
 	run cat <<-.
+	Version $VERSION
+
 	Copyright (c) `date '+%Y'` $NAME. All rights reserved.
 	
 	This $DOCTYPE is free $FILE_KIND.
@@ -160,6 +162,7 @@ NAME=
 DOCTYPE='source file'
 FILE_KIND='software'
 LICENSE='GPLv3'
+VERSION=`date -u +%Y.%j | sed 's/[.]0*/./g'`
 # Start of command line processing.
 SCRIPT=${0##*/}
 COPTS=
