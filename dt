@@ -1,0 +1,4 @@
+#! /bin/sh
+# Display the current local time as YYYY-MM-DD date. If any argument is
+# specified, add HH:MM also.
+date +"%Y-%m-%d${1+ %H:%M}"
