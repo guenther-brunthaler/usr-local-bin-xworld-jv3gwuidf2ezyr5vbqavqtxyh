@@ -1,8 +1,8 @@
 #! /bin/sh
 # Bump-revision - filter for incrementing YYYY.JJJ.N revision numbers and
-# updating copyright year or year range.
+# updating copyright year or year range. Add vYYYY.JJJJ.N if neither found.
 #
-# Version 2020.1
+# Version 2020.118
 # Copyright (c) 2018-2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -22,29 +22,37 @@ sed '
 	s/\(.* \)\('"$yrx"'\)-\('"$yrx"'\)\( .*\)$/'"$xs2"'/; t
 	s/\(.* \)\('"$yrx"'\)\( .*\)$/p\n\1\nyf\n\2\nys\n\3/; t
 	s/.*/t\n&/
-' | while read cmd
-do
-	IFS= read -r line
-	case $cmd in
-		p) printf '%s' "$line";;
-		t) printf '%s\n' "$line";;
-		r)
-			if test "$line" = "$today"
-			then
-				line=$line.1
-			elif rv=${line#"$today."}; test "$rv" != "$line"
-			then
-				line=$today.`expr $rv + 1`
-			else
-				line=$today
-			fi
-			printf '%s' "$line"
-			;;
-		yf) yf=$line; yt=$yf;;
-		yt) yt=$line;;
-		ys)
-			test $yt -lt $this_year && yt=$this_year
-			test x"$yf" != x"$yt" && yf="$yf-$yt"
-			echo "$yf$line"
-	esac
-done
+' | {
+	nothing=true
+	while read cmd
+	do
+		IFS= read -r line
+		case $cmd in
+			p) printf '%s' "$line";;
+			t) printf '%s\n' "$line";;
+			r)
+				if test "$line" = "$today"
+				then
+					line=$line.1
+				elif
+					rv=${line#"$today."}
+					test "$rv" != "$line"
+				then
+					line=$today.`expr $rv + 1`
+				else
+					line=$today
+				fi
+				printf '%s' "$line"
+				nothing=false
+				;;
+			yf) yf=$line; yt=$yf;;
+			yt) yt=$line;;
+			ys)
+				test $yt -lt $this_year && yt=$this_year
+				test x"$yf" != x"$yt" && yf="$yf-$yt"
+				echo "$yf$line"
+				nothing=false
+		esac
+	done
+	$nothing && echo v$today || :
+}
