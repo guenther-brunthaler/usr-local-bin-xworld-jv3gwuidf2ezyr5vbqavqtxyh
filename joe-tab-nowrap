@@ -1,0 +1,18 @@
+#! /bin/sh
+
+# 'joe' editor wrapper for non-wrapped text with tabulation-based indentation
+#
+# For manual reformatting of paragraphs only, the line length has been set to
+# 79 columns. This will otherwise have no effect, because word-wrapping has
+# been disabled.
+#
+# Indentation inserts single horizontal tabulation characters, which are set
+# to use the ANSI terminal standard width of 8 columns for the tabulation
+# zones of the display.
+#
+# This is the best setting for generic text configuration files, shell scripts
+# or Makefiles expected by the POSIX 'make' utility.
+#
+# Version 2020.137
+
+exec joe -rmargin 79 --wordwrap --flowed --spaces -indentc 9 -istep 1 ${1+"$@"}

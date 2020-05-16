@@ -1,0 +1,22 @@
+#! /bin/sh
+
+# 'joe' editor wrapper for minimizing the number of output lines produced for
+# a 66-column lines. This might be useful in situations where a shorter line
+# width would otherwise make the terminal scroll the beginning of the text out
+# of view.
+#
+# It uses "RFC 3676"-style reversible hard word-wrapping ("flow-text"), as
+# would be indicated by a MIME type
+#
+# Content-Type: text/plain; charset=UTF-8; format=flowed
+#
+# except that the charset may differ. This style puts a space at the end of
+# hard-wrapped lines within a paragraph, but not on its last line. This is
+# exactly the same format 'fold -sw' produces. It allows to reflow such
+# documents safely to a different line width, without screwing up preformatted
+# text (because such text will normally not have any spaces at the end of its
+# lines).
+#
+# Version 2020.137
+
+exec joe -rmargin 66 -wordwrap -flowed -spaces -indentc 32 -istep 4 ${1+"$@"}

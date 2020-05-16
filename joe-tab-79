@@ -8,8 +8,9 @@
 #
 # This is the best mode for classic text files where the space at the end of
 # folded paragraph lines must be avoided. It represents also the right
-# settings for shell scripts or Makefiles expected by the POSIX 'make'
-# utility.
+# settings for shell scripts or Makefiles expected by the POSIX 'make' utility
+# under the condition that those files shall be restricted to a maximum line
+# length of 79 columns.
 #
 # joe can still re-flow such paragraphs, but they need to be selected as
 # blocks not containing pre-formatted paragraphs.
@@ -19,6 +20,6 @@
 # informing the programmer that she just attempted to exceed the 79th column
 # in a source-text line, which is generally disencouraged.
 #
-# Version 2020.115
+# Version 2020.137
 
 exec joe -rmargin 79 -wordwrap --flowed --spaces -indentc 9 -istep 1 ${1+"$@"}
