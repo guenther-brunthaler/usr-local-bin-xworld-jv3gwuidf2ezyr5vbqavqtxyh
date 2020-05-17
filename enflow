@@ -14,7 +14,7 @@
 # As an alternative mode, if no non-option arguments are specified at all,
 # convert standard input to standard output.
 #
-# Version 2020.138
+# Version 2020.138.1
 # Copyright (c) 2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -25,7 +25,7 @@ insert='-flowtext'
 set -e
 cleanup() {
 	rc=$?
-	test "$TD" || rm -- "$TD"
+	test "$TD" || rm rf -- "$TD"
 	test $rc = 0 || echo "\"$0\" failed!" >& 2
 }
 TD=
@@ -34,9 +34,10 @@ trap 'exit $?' INT QUIT HUP TERM
 
 width=66
 unwrap=false
-while getopts w:u opt
+while getopts mw:u opt
 do
 	case $opt in
+		m) width=72;;
 		w) width=$OPTARG;;
 		u) unwrap=true;;
 		*) false || exit
@@ -70,9 +71,10 @@ convert() {
 	if $unwrap
 	then
 		echo "Unwrapping into $tfd..." >& 2
-		sed 's/q/qq/g; s/N/qn/g; s/$/N/; s/ N$/ /' < "$rf" \
+		sed 's/[qQN]/qQ&Qq/g; s/qQNQq/qQnQq/g; s/$/N/; s/ N$/ /' \
+			< "$rf" \
 		| tr -d '\n' | tr N '\n' \
-		| sed 's/qn/N/g; s/qq/q/g' > "$tf"
+		| sed 's/qQnQq/qQNQq/g; s/qQ\(.\)Qq/\1/g' > "$tf"
 		case $# in
 			0) mv -- "$rf" "$of"
 		esac
