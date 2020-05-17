@@ -1,0 +1,152 @@
+#! /bin/sh
+
+# Convert between unwrapped original text and word-wrapped flowtext. The
+# conversion will not break hard-links. By default, unwrapped text is
+# converted into flowtext. Using the -u option, this transformation is undone
+# losslessly. The files are being renamed as part of the process - the
+# flowtext-version has the string $insert (see for the variable assignment
+# below) inserted before the file extension (or added to the end of the
+# filename if it does not have a file extension). As a convenience, the
+# original file names as well as the renamed ones are accepted as arguments,
+# even before the renaming actually took place (or has already been undone by
+# -u).
+#
+# As an alternative mode, if no non-option arguments are specified at all,
+# convert standard input to standard output.
+#
+# Version 2020.138
+# Copyright (c) 2020 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+insert='-flowtext'
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TD" || rm -- "$TD"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TD=
+trap cleanup 0
+trap 'exit $?' INT QUIT HUP TERM
+
+width=66
+unwrap=false
+while getopts w:u opt
+do
+	case $opt in
+		w) width=$OPTARG;;
+		u) unwrap=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+convert() {
+	case $TD in
+		'') TD=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
+	esac
+	case $# in
+		0)
+			sfd="file \"$of\""
+			tfd="file \"$rf\""
+			if $unwrap
+			then
+				t=$sfd; sfd=$tfd; tdf=$t
+			fi
+			;;
+		*)
+			sfd='standard input stream'; of="$TD"/copy_of_stdin
+			tfd='standard output stream'; rf=$TD/copy_of_stdout
+			cat > "$of"; stdout=$rf
+			if $unwrap
+			then
+				t=$of; of=$rf; rf=$t
+			fi
+	esac
+	tf=$TD/intermediate_output
+	if $unwrap
+	then
+		echo "Unwrapping into $tfd..." >& 2
+		sed 's/q/qq/g; s/N/qn/g; s/$/N/; s/ N$/ /' < "$rf" \
+		| tr -d '\n' | tr N '\n' \
+		| sed 's/qn/N/g; s/qq/q/g' > "$tf"
+		case $# in
+			0) mv -- "$rf" "$of"
+		esac
+		if cmp -s -- "$tf" "$of"
+		then
+			:
+		else
+			cat < "$tf" > "$of"
+		fi
+	else
+		sed 's/ $//' < "$of" > "$tf"
+		if cmp -s -- "$of" "$tf"
+		then
+			echo "Wrapping into $tfd..." >& 2
+			fold -sw "$width" < "$of" > "$tf"
+			case $# in
+				0) mv -- "$of" "$rf"
+			esac
+			if cmp -s -- "$tf" "$rf"
+			then
+				:
+			else
+				cat < "$tf" > "$rf"
+				any_wrapped=true
+			fi
+		else
+			echo "Cannot reversibly wrap $sfd into" \
+				"flowtext $tfd, because $sfd" \
+				"contains space characters at the end" \
+				"of some line: Conversion has been aborted" \
+				"at this point!" >& 2
+			echo
+			diff -u -- "$of" "$tf" 2>& 1 | sed 's/$/$/' >& 2
+			false || exit
+		fi
+	fi
+	case $# in
+		0) ;;
+		*) cat < "$stdout"
+	esac
+}
+
+any_wrapped=false
+case $# in
+	0) convert --stdio;;
+	*)
+		for f
+		do
+			pfx=${f%.*}
+			case $pfx in
+				"$f") ext=;;
+				*) ext=${f#"$pfx"}
+			esac
+			pfx=${pfx%"$insert"}
+			of=$pfx$ext
+			rf=$pfx$insert$ext
+			convert
+		done
+esac
+if $any_wrapped
+then
+	mxcols=66
+	{
+		command -v tput > /dev/null 2>& 1 && cols=`tput cols` \
+			|| cols=${COLUMNS:-$mxcols}
+		test $cols -gt $mxcols && cols=$mxcols
+		tr \\n \\t | expand | sed 's/  */ /g' \
+		| fold -sw $cols | sed '1{h; s/.*//; p; g}; $s/ $/\n/' >& 2
+	} <<- 'EOF'
+		IMPORTANT: Make sure to edit the converted files only using
+		editor settings which will not remove the single space
+		character at the end of all intermediate lines which are
+		continued on the following line! Otherwise, you will screw up
+		the flowtext in a way that cannot be fixed by undoing the
+		flowtext transformation any more.
+	EOF
+fi
