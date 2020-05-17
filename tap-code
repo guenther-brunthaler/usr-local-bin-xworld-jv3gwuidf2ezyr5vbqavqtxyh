@@ -1,7 +1,7 @@
 #! /bin/sh
 # Convert input or arguments into "tap code".
 #
-# Version 2020.11
+# Version 2020.138
 # Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -72,7 +72,10 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
-german=`locale | sed 's/^LC_MESSAGES="de_.*/DE/; t; d'`
+german=`
+	locale 2> /dev/null \
+	| sed 's/^LC_MESSAGES="de\([^[:alnum:]].*\)\{0,1\}$/DE/; t; d'
+`
 
 case $# in
 	0) process;;
