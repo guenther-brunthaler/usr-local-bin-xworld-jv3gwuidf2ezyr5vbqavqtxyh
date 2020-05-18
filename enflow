@@ -14,7 +14,7 @@
 # As an alternative mode, if no non-option arguments are specified at all,
 # convert standard input to standard output.
 #
-# Version 2020.138.1
+# Version 2020.139
 # Copyright (c) 2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -25,7 +25,7 @@ insert='-flowtext'
 set -e
 cleanup() {
 	rc=$?
-	test "$TD" || rm rf -- "$TD"
+	test "$TD" && rm -r -- "$TD"
 	test $rc = 0 || echo "\"$0\" failed!" >& 2
 }
 TD=
