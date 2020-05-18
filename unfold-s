@@ -1,8 +1,8 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2019.141.1
-Copyright (c) 2019 Guenther Brunthaler. All rights reserved.
+$APP Version 2020.138
+Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -70,13 +70,11 @@ wr() {
 		} | wr -s
 	fi
 }
-MAXWITH=110
 LINEWIDTH=`
 	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
 	&& test -t 0 && $cmd cols \
 	|| echo 66
 `
-test $LINEWIDTH -le $MAXWITH || LINEWIDTH=$MAXWITH
 
 APP=${0##*/}
 while getopts Vh opt
@@ -89,6 +87,7 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
-sed 's/q/qq/g; s/N/qn/g; s/$/N/; s/ N$/ /' ${1+"$@"} \
-| tr -d '\n' | tr N '\n' \
-| sed 's/qn/N/g; s/qq/q/g'
+q=56f5h41cb63i5ngjf3ilv9quk
+sed "s/Q/$q/g;"' s/$/Q/; s/ Q$/ /' ${1+"$@"} \
+| tr -d \\n | tr Q \\n \
+| sed "s/$q/Q/g"

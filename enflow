@@ -71,10 +71,10 @@ convert() {
 	if $unwrap
 	then
 		echo "Unwrapping into $tfd..." >& 2
-		sed 's/[qQN]/qQ&Qq/g; s/qQNQq/qQnQq/g; s/$/N/; s/ N$/ /' \
-			< "$rf" \
-		| tr -d '\n' | tr N '\n' \
-		| sed 's/qQnQq/qQNQq/g; s/qQ\(.\)Qq/\1/g' > "$tf"
+		q=56f5h41cb63i5ngjf3ilv9quk
+		sed "s/Q/$q/g;"' s/$/Q/; s/ Q$/ /' < "$rf" \
+		| tr -d \\n | tr Q \\n \
+		| sed "s/$q/Q/g" > "$tf"
 		case $# in
 			0) mv -- "$rf" "$of"
 		esac
@@ -136,11 +136,9 @@ case $# in
 esac
 if $any_wrapped
 then
-	mxcols=66
 	{
 		command -v tput > /dev/null 2>& 1 && cols=`tput cols` \
-			|| cols=${COLUMNS:-$mxcols}
-		test $cols -gt $mxcols && cols=$mxcols
+			|| cols=${COLUMNS:-66}
 		tr \\n \\t | expand | sed 's/  */ /g' \
 		| fold -sw $cols | sed '1{h; s/.*//; p; g}; $s/ $/\n/' >& 2
 	} <<- 'EOF'
