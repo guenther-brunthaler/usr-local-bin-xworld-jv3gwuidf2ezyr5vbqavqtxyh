@@ -1,0 +1,8 @@
+#! /bin/sh
+# v2020.142
+case $PAGER in
+	'')
+		PAGER=less
+		command -v $PAGER > /dev/null 2>& 1 || PAGER=more
+esac
+fold -sw 66 -- ${1+"$@"} | $PAGER
