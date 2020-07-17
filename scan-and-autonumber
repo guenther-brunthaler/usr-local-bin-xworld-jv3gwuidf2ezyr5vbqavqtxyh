@@ -1,9 +1,75 @@
 #! /bin/sh
-# Version 2020.199
-# Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
-#
-# This script is free software.
-# Distribution is permitted under the terms of the GPLv3.
+exit_version() {
+	wr -s << ===; exit
+$APP Version 2020.199.1
+Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << ===
+$APP - scan next page(s) and save as autonumbered TIFF file.
+
+Usage: $APP [ <options> ... ]
+
+Options:
+
+-i: Enable interactive scanning mode. In this mode, an interactive prompt is
+shown prior to scanning the next autonumbered page. When just pressing the
+[Enter] key, the page is scanned, saved, and the prompt is shown again in
+order to await scanning the next page. If any text such as "quit" is entered
+before pressing [Enter], the script terminates instead. This option thus has
+the same affect as running the command multiple times without the option.
+
+-D <dpi>: Specify a different scanning resolution. The default resolution is
+$dpi, which is also recommended for later using OCR on the scans.
+
+-T: Remove unused empty border areas around the scan before saving it.
+
+-r: Rotate the scan by 180 degrees before saving it.
+
+-d <digits>: Make the numbered counter in the saved files at least <digits>
+decimal digits wide. Defaults to $digits. The actual counter value will have
+at least this number of decimal digits, zero-padding it at the left if
+shorter. Specifying <digits> explicitly can be used to make all file names the
+same length, allowing them to be sorted by counter automatically when
+displaying the file names sorted alphabetically.
+
+-N <startcounter>: Ignore the last saved counter value and use <startcounter>
+instead as the counter value to be used for saving the scanned page. In either
+case, the next counter value after scanning is saved into a state file
+"$counter" which will become the default counter value for the next scan. If
+no such state file exists yet in the current directory,
+
+-g: Enable grayscale mode. By default, color scans will be made. B/W scans are
+not supported by this script, because improper B/W-threshold settings and
+`echo Moir+AOk- | iconv -f UTF-7` patterns might then require re-scanning the
+same original later, which this script tries to avoid. While color scans
+retain most information of the original image and thus reduce the chance of a
+required re-scan to the minimum, graysale scans are nearly as effective for
+avoiding re-scans and produce smaller saved files. The -g option is thus
+useful when scanning a large number of pages which will be postprocessed into
+B/W later anyway, potentially saving a lot of temporary storage space on disk.
+If you just happen to scan no more than a few dozen pages, it is probably not
+worth the effort to consider using -g or not. In addition, without option -g,
+one can postpone the decision whether or not to convert a page into B/W. With
+-g, the color information would be gone, and a re-scan would be necessary in
+order to re-acquire it.
+
+-n: Dry run. Show what low-level command for scanning and file conversion the
+script would perform in the background, but don't actually run those commands.
+Useful to understand what the script would do when run without this option.
+
+-h: Display this help and exit.
+
+-V: Display version information and exit.
+===
+	echo; exit_version
+}
 
 counter=scan_counter.txt
 digits=3
@@ -16,6 +82,35 @@ out_opt='-type TrueColor -colorspace sRGB -depth 8 -compress LZW'
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+
 ck_posint() {
 	expr x"$OPTARG" : x'[1-9][0-9]*$' > /dev/null
 }
@@ -26,7 +121,7 @@ trim=true
 rotate180=false
 interactive=false
 n=
-while getopts iD:Trd:N:gn opt
+while getopts iD:Trd:N:gnhV opt
 do
 	case $opt in
 		i) interactive=true;;
@@ -37,6 +132,8 @@ do
 		N) ck_posint; n=$OPTARG;;
 		g) mode=Gray;;
 		n) dry_run=true;;
+		h) exit_help;;
+		V) exit_version;;
 		*) false || exit
 	esac
 done
