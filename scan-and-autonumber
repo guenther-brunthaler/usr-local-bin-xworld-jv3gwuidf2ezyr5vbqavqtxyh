@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2020.10
+# Version 2020.199
 # Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -24,10 +24,12 @@ dry_run=false
 mode=Color
 trim=true
 rotate180=false
+interactive=false
 n=
-while getopts D:Trd:N:gn opt
+while getopts iD:Trd:N:gn opt
 do
 	case $opt in
+		i) interactive=true;;
 		D) ck_posint; dpi=$OPTARG;;
 		T) trim=false;;
 		r) rotate180=true;;
@@ -56,30 +58,55 @@ done
 
 eval "outfmt=\"$outfmt\""
 
-exec 5>> "$counter"
-flock 5
-if test -z "$n"
-then
-	read n 2> /dev/null < "$counter" || n=1
-fi
-echo `expr $n + 1` > "$counter"
-exec 5>& -
-
-toutfile=`printf "$outfmt" $n "$toutext"`
-foutfile=`printf "$outfmt" $n "$foutext"`
-
 simrun() {
 	$dry_run || return
 	echo "SIMULATION: $*"
 }
 
-echo "Scanning to $foutfile..." >& 2
-set scanimage --mode=$mode --resolution=$dpi
-simrun "$* > $toutfile" || "$@" > "$toutfile"
+get_n() {
+	exec 5>> "$counter"
+	flock 5
+	if test -z "$n"
+	then
+		read n 2> /dev/null < "$counter" || n=1
+	fi
+	echo `expr $n + 1` > "$counter"
+	exec 5>& -
+}
 
-set nice ionice -n 5 convert -units pixelsperinch -density $dpi
-$trim && set "$@" -trim
-$rotate180 && set "$@" -rotate 180
-set "$@" "$toutfile" $out_opt "$foutfile"
-r="rm $toutfile"
-simrun "$* && $r &" || { { "$@" && $r; } & }
+process() {
+	toutfile=`printf "$outfmt" $n "$toutext"`
+	foutfile=`printf "$outfmt" $n "$foutext"`
+	n=
+
+	echo "Scanning to $foutfile..." >& 2
+	set scanimage --mode=$mode --resolution=$dpi
+	simrun "$* > $toutfile" || "$@" > "$toutfile"
+
+	set nice ionice -n 5 convert -units pixelsperinch -density $dpi
+	$trim && set "$@" -trim
+	$rotate180 && set "$@" -rotate 180
+	set "$@" "$toutfile" $out_opt "$foutfile"
+	r="rm $toutfile"
+	simrun "$* && $r &" || { { "$@" && $r; } & }
+}
+
+if $interactive
+then
+	while :
+	do
+		get_n
+		printf '\n%s ' "[Enter] to scan # $n, (EOF`
+				:
+			` or any text + [Enter]) to quit?"
+		line=; read line || { echo; break; }
+		case $line in
+			'') ;;
+			*) break
+		esac
+		process
+	done
+else
+	get_n
+	process
+fi
