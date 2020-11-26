@@ -1,11 +1,13 @@
 #! /bin/sh
 # Synthesizes local IPv4 addresses from FQDNs as used in xworld domain.
 #
-# Without any FQDNs as arguments, uses all FQDNs from /etc/hosts
-# that refer to IPv4 addresses in the range reserved for local nets as
-# well as all IP-addresses starting with "0.".
+# Without any FQDNs as arguments, uses all FQDNs from /etc/hosts that refer to
+# IPv4 addresses in the range reserved for local nets as well as all
+# IP-addresses starting with "0.".
 #
-# (c) 2012 by Guenther Brunthaler.
+# Version 2020.331
+#
+# (c) 2012-2020 by Guenther Brunthaler.
 # This source file is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
@@ -55,7 +57,7 @@ while :
 do
 	fqdn=${1:?Usage: ${0##*/} <fqdn> ...}
 	host_name=${fqdn%%.*}
-	if test x"$host_name" = x"$fqdn"
+	if test "$host_name" = "$fqdn"
 	then
 		network_name=
 	else
