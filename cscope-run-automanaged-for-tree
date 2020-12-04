@@ -1,9 +1,9 @@
 #! /bin/sh
 exit_version() {
 	wr -s <<- .; exit
-	$APP Version 2018.77
+	$APP Version 2020.339
 
-	Copyright (c) 2013-2018 Guenther Brunthaler. All rights reserved.
+	Copyright (c) 2013-2020 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -118,6 +118,8 @@ exit_help() {
 	    with the same names as some files in /usr/include, because it is
 	    then unclear which file should be used. (cscope does not know what
 	    specific -I options might be used for compiling each file).
+    
+	-n: Show what would be done, but don't actually do anything.
 
 	-h: Show this help.
 
@@ -156,12 +158,14 @@ system() {
 PERMANENT=Y
 UNCONDITIONAL_REBUILD=
 KERNEL_MODE=
-while getopts kuthV OPT
+DRY_RUN=run
+while getopts kutnhV OPT
 do
 	case $OPT in
 		k) KERNEL_MODE=Y;;
 		u) UNCONDITIONAL_REBUILD=Y;;
 		t) PERMANENT=;;
+		n) DRY_RUN='echo SIMULATED:';;
 		h) exit_help;;
 		V) exit_version;;
 		*) false; exit;;
@@ -169,7 +173,7 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 QUERY_EXISTING=
-if test -n "$UNCONDITIONAL_REBUILD"
+if test "$UNCONDITIONAL_REBUILD"
 then
 	PERMANENT=Y
 elif test $# = 0 && test -f cscope.files
@@ -184,12 +188,12 @@ then
 	set -- "$@" "$MARKER"
 	for D
 	do
-		test x"$D" = x"$MARKER" && break
+		test "$D" = "$MARKER" && break
 		run test -d "$D"
 		system readlink -f "$D"
 		set -- "$@" "$REPLY"
 	done
-	while test x"$1" != x"$MARKER"
+	while test "$1" != "$MARKER"
 	do
 		shift
 	done
@@ -197,17 +201,23 @@ then
 fi
 if test -z "$PERMANENT"
 then
-	system mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
+	system mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
 	trap "cd; rm -rf --one-file-system '$T'" 0
+	trap 'exit $?' HUP INT TERM QUIT
 	run cd "$T"
 fi
-if test -n "$QUERY_EXISTING"
+if test "$QUERY_EXISTING"
 then
 	test -f cscope.files
 else
 	run find-c-and-cpp-sources-files "$@" > cscope.files
 fi
-set cscope -q
-test -n "$KERNEL_MODE" && set -- "$@" -k
-test -n "$UNCONDITIONAL_REBUILD" && set -- "$@" -u
-run "$@"
+set cscope
+test "$KERNEL_MODE" && set -- "$@" -k
+if test "$UNCONDITIONAL_REBUILD"
+then
+	set -- "$@" -u -q
+else
+	set -- "$@" -d
+fi
+$DRY_RUN "$@"
