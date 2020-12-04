@@ -19,33 +19,43 @@ exit_help() {
 
 	cscope is a console-GUI-based source-code browser and cross-referencer
 	for C source files.
-	
+
 	Unfortunately, cscope needs a database of pre-parsed source files to
 	operate on, and even though it can create that database by itself it
 	still needs a list of source files to be fed to it. This is cumbersome
 	to do manually, especially in larger projects.
-	
+
 	In this situation, $APP comes to the rescue: It is a wrapper around
 	cscope which takes care of all the gory details one is not interested
 	in.
-	
+
 	Just run $APP in the top-level directory of a project and $APP will
 	scan for source files automatically, instruct cscope to build a
 	database for them, and finally call cscope to show its GUI for
 	browsing the database.
 	
+	Some cscope keyboard shortcuts one might find useful to know:
+.
+	wr -s <<- .
+	
+	Ctrl-d: Quit cscope
+	Tab: Switch between search criterion input fields and result list
+	Ctrl-b, Ctrl-f: Browse through history in text input fields
+.
+	wr <<- .
+
 	$APP also detects whether a database is already present from the last
 	run, and will avoid building it again. (If needed, a rebuild can be
 	enforced with the -u option.)
-	
+
 	But it gets even better: Normally $APP creates the cscope database
 	files in the current directory, allowing them to be found easily. But
 	this is not always what is wanted. Perhaps the source-directory is
 	read-only, or or it could be written but shall not be cluttered with
 	database files.
-	
+
 	For such requirements, $APP presents two alternatives:
-	
+
 	* One can use the -t option. This will create the databases not in the
 	  current directory, but rather in a temporary directory. They will
 	  then be used there until the interactive cscope session ends, and
@@ -53,7 +63,7 @@ exit_help() {
 	  therefore be left. The disadvantage of -t is that the database needs
 	  to be rebuilt on every new run, because it was deleted at the end of
 	  the last run.
-	
+
 	* One runs $APP with a current directory which does not contain the
 	  source files, but rather has been created exclusively for the
 	  purpose of storing the cscope database files for some project
@@ -70,29 +80,29 @@ exit_help() {
 	The arguments to $APP are the paths to the top-level directories of
 	the directory trees which contain the source files. Defaults to "." if
 	no paths are given.
-	
+
 	This means $APP always assumes that the current directory is the
 	top-level directory of the source files, and will also create its
 	database files here.
-	
+
 	And yes, it is possible to specify more than one source directory!
-	
+
 	This can be useful if a project consists of different sub-projects,
 	but not all of the projects are part of the same directory tree.
-	
+
 	It is also useful to specify the location of header files installed in
 	non-standard places (/usr/include will be scanned automatically unless
 	the -k option is used) outside the actual project directory, allowing
 	cscope to locate them.
-	
+
 	Another reason for specifying multiple directory trees rather than
 	just the single parent directory containing all of them is if the
 	parent directory also contains additional sub-directories which are
 	not part of the project and should therefore not be considered by
 	cscope.
-	
+
 	Options:
-	
+
 	-u: Rebuild cscope database unconditionally, i. e. even if it already
 	    exists. This has only an effect if a cscope database already
 	    exists in the current directory. Otherwise, it will always be
@@ -118,7 +128,7 @@ exit_help() {
 	    with the same names as some files in /usr/include, because it is
 	    then unclear which file should be used. (cscope does not know what
 	    specific -I options might be used for compiling each file).
-    
+
 	-n: Show what would be done, but don't actually do anything.
 
 	-h: Show this help.
