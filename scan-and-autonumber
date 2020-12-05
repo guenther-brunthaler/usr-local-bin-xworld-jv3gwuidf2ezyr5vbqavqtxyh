@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2020.199.1
+$APP Version 2020.340
 Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -18,8 +18,9 @@ Usage: $APP [ <options> ... ]
 
 Options:
 
--i: Enable interactive scanning mode. In this mode, an interactive prompt is
-shown prior to scanning the next autonumbered page. When just pressing the
+-I: (upper-case 'i' like India) Disable interactive scanning mode, which is
+enabled by default. In this interactive mode, an interactive prompt is shown
+prior to scanning the first or next autonumbered page. When just pressing the
 [Enter] key, the page is scanned, saved, and the prompt is shown again in
 order to await scanning the next page. If any text such as "quit" is entered
 before pressing [Enter], the script terminates instead. This option thus has
@@ -119,12 +120,12 @@ dry_run=false
 mode=Color
 trim=true
 rotate180=false
-interactive=false
+interactive=true
 n=
-while getopts iD:Trd:N:gnhV opt
+while getopts ID:Trd:N:gnhV opt
 do
 	case $opt in
-		i) interactive=true;;
+		I) interactive=false;;
 		D) ck_posint; dpi=$OPTARG;;
 		T) trim=false;;
 		r) rotate180=true;;
@@ -193,9 +194,9 @@ then
 	while :
 	do
 		get_n
-		printf '\n%s ' "[Enter] to scan # $n, (EOF`
+		printf '\n%s ' "[Enter] to scan # $n, EOF`
 				:
-			` or any text + [Enter]) to quit?"
+			` (or any text + [Enter]) to quit?"
 		line=; read line || { echo; break; }
 		case $line in
 			'') ;;
