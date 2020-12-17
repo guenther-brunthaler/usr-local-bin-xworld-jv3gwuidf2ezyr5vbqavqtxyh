@@ -26,7 +26,7 @@
 # The ring buffer contents always have the same size: the size of the file
 # minus 8 bytes.
 #
-# Version 2020.351
+# Version 2020.352
 #
 # Copyright (c) 2020 Guenther Brunthaler. All rights reserved.
 #
@@ -82,7 +82,7 @@ if (@ARGV == 0) {
    &unmarshall_headtail($buf);
    seek STDIN, 0, SEEK_END or die $!;
    die $! if ($fsize= tell(STDIN)) < 0;
-   $ri= $fsize if $ri > $fsize;
+   $ri= HEADER_SIZE if $ri >= $fsize;
    $ri= HEADER_SIZE if $ri < HEADER_SIZE;
    seek STDIN, $ri, SEEK_SET or die $!;
    my $left= $fsize - HEADER_SIZE;
@@ -110,7 +110,7 @@ if (@ARGV == 0) {
    &unmarshall_headtail($buf);
    seek RING, 0, SEEK_END or die $!;
    die $! if ($fsize= tell(RING)) < 0;
-   $ri= $fsize if $ri > $fsize;
+   $ri= HEADER_SIZE if $ri >= $fsize;
    $ri= HEADER_SIZE if $ri < HEADER_SIZE;
    my($left, $write, $offtrack);
    for ($offtrack= 1;; ) {
