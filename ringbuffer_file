@@ -1,0 +1,142 @@
+#! /usr/bin/env perl
+# Append new data read from standard input to a ring buffer implemented as a
+# fixed-size or write its current contents in linearized order (from oldest to
+# newest byte in the buffer) to standard output.
+#
+# For appending, the script requires a single argument which is the pathname
+# of the ringbuffer file.
+#
+# For dumping its contents, no argument must be specified, and the ring buffer
+# file (the actual file, not a pipe) must have been redirected as standard
+# input.
+#
+# In order to initialize a ring buffer file, create a file of the desired size
+# (e. g. with "truncate -s") filled with binary zeroes. It can actually be
+# filled with anything that makes sense as an "empty" value (for instance
+# ASCII space or newline characters if the buffer contains text), as long as
+# the first 8 bytes are set to binary zero bytes.
+#
+# The data format of the ring buffer file is simple: At offset 0, the file
+# offset of the current head/tail of the ring buffer is stored as a 64 bit
+# value in big endian byte order (from most to least significant byte). This
+# represents the offset where new data will be written to, and where the
+# current data ends. If this value is less then 8, it will be considered to be
+# identical to 8.
+#
+# The ring buffer contents always have the same size: the size of the file
+# minus 8 bytes.
+#
+# Version 2020.351
+#
+# Copyright (c) 2020 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use Fcntl qw(:seek :flock);
+use constant BUF_SIZE => 1 << 15;
+use constant HEADER_SIZE => 8;
+
+GetOptions() or die;
+
+sub usage {
+   die "Usage:\n$0 < ringfile > dumpfile\n$0 [ -- ] ringfile < appenddata\n"
+}
+
+sub chk_stdin {
+   if (-t STDIN) {
+      print STDERR "Cowardly refusing to read binary data from a terminal!\n";
+      &usage;
+   }
+}
+
+my($buf, $ri, $fsize);
+
+sub unmarshall_headtail {
+   my($n);
+   $ri= 0;
+   foreach my $b (unpack 'C' . HEADER_SIZE, $_[0]) {
+      die "Offset too large" if ($n= ($ri << 8) + $b) < $ri;
+      $ri= $n;
+   }
+}
+
+sub marshall_headtail {
+   my(@hdr);
+   while ($ri) {
+      push @hdr, $ri & 0xff;
+      $ri>>= 8;
+   }
+   push @hdr, 0 while @hdr < HEADER_SIZE;
+   $buf= pack 'C' . HEADER_SIZE, reverse @hdr;
+}
+
+if (@ARGV == 0) {
+   &chk_stdin;
+   flock STDIN, LOCK_SH or die $!;
+   read STDIN, $buf, HEADER_SIZE or die $!;
+   &unmarshall_headtail($buf);
+   seek STDIN, 0, SEEK_END or die $!;
+   die $! if ($fsize= tell(STDIN)) < 0;
+   $ri= $fsize if $ri > $fsize;
+   $ri= HEADER_SIZE if $ri < HEADER_SIZE;
+   seek STDIN, $ri, SEEK_SET or die $!;
+   my $left= $fsize - HEADER_SIZE;
+   my($read);
+   while ($left) {
+      $read= $fsize - $ri;
+      $read= $left if $read > $left;
+      $read= BUF_SIZE if $read > BUF_SIZE;
+      die $! unless defined($read= read STDIN, $buf, $read);
+      die if !$read;
+      print $buf or die $!;
+      if (($ri+= $read) >= $fsize) {
+         die unless $ri == $fsize;
+         seek STDIN, $ri= HEADER_SIZE, SEEK_SET or die $!;
+      }
+      $left-= $read;
+   }
+   flock STDIN, LOCK_UN or die $!;
+} elsif (@ARGV == 1) {
+   &chk_stdin;
+   -f $ARGV[0] or die;
+   open RING, '+<', $ARGV[0] or die $!;
+   flock RING, LOCK_EX or die $!;
+   read RING, $buf, HEADER_SIZE or die $!;
+   &unmarshall_headtail($buf);
+   seek RING, 0, SEEK_END or die $!;
+   die $! if ($fsize= tell(RING)) < 0;
+   $ri= $fsize if $ri > $fsize;
+   $ri= HEADER_SIZE if $ri < HEADER_SIZE;
+   my($left, $write, $offtrack);
+   for ($offtrack= 1;; ) {
+      die $! unless defined($left= read STDIN, $buf, BUF_SIZE);
+      last if !$left;
+      while ($left) {
+         $write= $fsize - $ri;
+         $write= $left if $write > $left;
+         if ($offtrack) {
+            seek RING, $ri, SEEK_SET or die $!;
+            $offtrack= 0;
+         }
+         print RING substr $buf, 0, $write or die $!;
+         if (($ri+= $write) >= $fsize) {
+            die unless $ri == $fsize;
+            $offtrack= $ri= HEADER_SIZE;
+         }
+         $buf= substr $buf, $write;
+         $left-= $write;
+      }
+   }
+   &marshall_headtail;
+   seek RING, 0, SEEK_SET or die $!;
+   print RING $buf or die $!;
+   flock RING, LOCK_UN or die $!;
+   close RING or die $!;
+} else {
+   &usage;
+}
