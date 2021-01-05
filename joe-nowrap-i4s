@@ -14,6 +14,8 @@
 # that she just attempted to exceed the 79th column in a source-text line,
 # which is generally disencouraged.
 #
-# Version 2020.115
+# Version 2021.5
 
-exec joe -istep 4 -rmargin 79 -spaces -indentc 32 --wordwrap --flowed ${1+"$@"}
+exec joe -istep 4 -tab 4 -rmargin 79 -spaces -indentc 32 \
+	-smarthome -smartbacks -indentfirst \
+	--wordwrap --flowed ${1+"$@"}

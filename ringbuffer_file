@@ -26,7 +26,7 @@
 # The ring buffer contents always have the same size: the size of the file
 # minus 8 bytes.
 #
-# Version 2020.352
+# Version 2020.357
 #
 # Copyright (c) 2020 Guenther Brunthaler. All rights reserved.
 #
@@ -67,11 +67,10 @@ sub unmarshall_headtail {
 
 sub marshall_headtail {
    my(@hdr);
-   while ($ri) {
+   while (@hdr < HEADER_SIZE) {
       push @hdr, $ri & 0xff;
       $ri>>= 8;
    }
-   push @hdr, 0 while @hdr < HEADER_SIZE;
    $buf= pack 'C' . HEADER_SIZE, reverse @hdr;
 }
 
