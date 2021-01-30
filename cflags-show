@@ -1,0 +1,7 @@
+#! /bin/sh
+exec 5>& 1 > /dev/null; test -t 5 && exec >& 5
+echo "Currently exported CFLAGS, MAKEFLAGS etc:"
+echo
+export -p | grep -E '^export (AS|C|CPP|CXX|LD|MAKE)FLAGS=' >& 5
+echo
+echo "(Hint: Redirect this output into a script file and source it later.)"
