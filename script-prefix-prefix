@@ -8,9 +8,32 @@
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
-sed '/e?/d; s/$PRLANG/'"${1?"prog. language?"}"'/g; $s/$/\n/' < "$0"
-test $# = 2 && test -f "$2" && exec cat < "$2"; # "e?" (exclusion marker)
-test -t 0 && exit || exec cat; # "e?" (exclusion marker)
+cmd=
+while getopts psV opt
+do
+	case $opt in
+		'?') false || exit;;
+		*) cmd=$opt
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+: skip
+case $cmd in
+	p) sed '1n; 2,/^#!/!d; /^#!/d' ${2+"$2"}; exit;;
+	s) sed '1d; /^#!/,$!d' ${2+"$2"}; exit;;
+	V) sed '/Version/,/^$/!d; /^#/!d; s/# *//' < "$0"; exit;;
+esac
+sed '/^: s/,/^: r/d; s/$PRLANG/'"${1?"prog. language?"}"'/g; $s/$/\n/' < "$0"
+test $# = 2 && test -f "$2" && exec cat < "$2"
+test -t 0 && exit || exec cat
+
+: resume
+case $cmd in
+	p) sed '/^$/q' ${1+"$1"}; exit;;
+	s) sed '1,/^$/d' ${1+"$1"}; exit;;
+	V) sed '/Version/,/^$/!d; /^#/!d; s/# *//' < "$0"; exit;;
+esac
 ver=`sed 's/^# Version //; t1; d; :1; q' < "$0"`
 sed '1d; s/$'VERSION/$ver'/g; t; /^#!/,$!d; $s/$/\n/' < "$0"
 test $# = 1 && test -f "$1" && exec cat < "$1"

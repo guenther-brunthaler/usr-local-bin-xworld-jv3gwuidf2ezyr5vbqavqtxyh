@@ -8,6 +8,21 @@
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
+cmd=
+while getopts psV opt
+do
+	case $opt in
+		'?') false || exit;;
+		*) cmd=$opt
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+case $cmd in
+	p) sed '/^$/q' ${1+"$1"}; exit;;
+	s) sed '1,/^$/d' ${1+"$1"}; exit;;
+	V) sed '/Version/,/^$/!d; /^#/!d; s/# *//' < "$0"; exit;;
+esac
 ver=`sed 's/^# Version //; t1; d; :1; q' < "$0"`
 sed '1d; s/$'VERSION/$ver'/g; t; /^#!/,$!d; $s/$/\n/' < "$0"
 test $# = 1 && test -f "$1" && exec cat < "$1"
