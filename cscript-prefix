@@ -1,0 +1,24 @@
+#! /bin/sh
+# Prepend the output of this script to a C source file and "chmod +x" it.
+# The C program can then be run as a normal shell script.
+#
+# Version 2021.30
+# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+ver=`sed 's/^# Version //; t1; d; :1; q' < "$0"`
+exec sed '1d; s/$'VERSION/$ver'/g; t; /^#!/,$!d; $s/$/\n/' < "$0"
+
+#! /bin/sh
+: v$VERSION; set -e; cleanup() {
+	rc=$?; test "$TD" && rm -r -- "$TD"
+	test $rc = 0 || $report "\"$0\" failed!" >& 2
+}
+report=echo; TD=; trap cleanup 0; trap 'exit $?' INT QUIT HUP TERM
+bn=${0##*/}; TD=`mktemp -d -- "${TMPDIR:-/tmp}/$bn.XXXXXXXXXX"`
+sed '1,/exit$/ s/.*//' < "$0" > "$TD/$bn.c"; (
+	cd -- "$TD" && make -f /dev/null -s -- \
+		CFLAGS='-D NDEBUG -O' LDFLAGS='' "$bn"; )
+report=:; "$TD/$bn" ${1+"$@"} && exit || exit

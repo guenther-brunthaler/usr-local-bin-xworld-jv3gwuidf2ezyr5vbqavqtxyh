@@ -1,0 +1,13 @@
+#! /bin/sh
+# Prepend the output of this script to a $PRLANG source file and "chmod +x" it.
+# The $PRLANG program can then be run as a normal shell script.
+#
+# Version 2021.30
+# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+exec sed '/guage?/d; s/$PRLANG/'"${1?"prog. language?"}"'/g; $s/$/\n/' < "$0"
+ver=`sed 's/^# Version //; t1; d; :1; q' < "$0"`
+exec sed '1d; s/$'VERSION/$ver'/g; t; /^#!/,$!d; $s/$/\n/' < "$0"
