@@ -1,14 +1,25 @@
 #! /bin/sh
+# v2021.30
 exec 5>& 1 > /dev/null; test -t 5 && exec >& 5
 echo "Currently exported CFLAGS, MAKEFLAGS etc:"
 echo
-f='AS C CPP CXX LD MAKE'
-export -p | grep -E "^export (`echo $f | tr ' ' '|'`)FLAGS=" \
+
+flags='AR AS C CPP CXX F G LD L MAKE SCCS SCCSGET Y'
+vars='AR ASAN_OPTIONS CC FC GET LANG LC_ALL LC_CTYPE LC_MESSAGES LEX MAKE'\
+' POSIXLY_CORRECT PROJECTDIR YACC'
+
+rx="(`echo $flags |  tr ' ' '|'`)FLAGS"
+rx="($rx|`echo $vars |  tr ' ' '|'`)"
+export -p | grep -E "^export $rx=" \
 | {
 	cut -d ' ' -f 2-
-	for f in $f
+	for v in $flags
 	do
-		echo "${f}FLAGS@"
+		echo "${v}FLAGS@"
+	done
+	for v in $vars
+	do
+		echo "${v}@"
 	done
 } | skip= LC_COLLATE=C sort \
 | while IFS= read -r line
