@@ -10,7 +10,10 @@
 # conversion will fail if any "." or ".." components remain in the pathnames
 # because they could not be resolved.
 #
-# Version 2021.32
+# If -u if specified, strings which start with what looks like an URL prefix
+# will be passed through unmodified (and untested in case of -p).
+#
+# Version 2021.32.1
 #
 # Copyright (c) 2012-2021 Guenther Brunthaler. All rights reserved.
 #
@@ -30,9 +33,11 @@ trap cleanup 0
 trap 'exit $?' INT QUIT TERM HUP
 
 paths=false
-while getopts p opt
+url_passthrough=false
+while getopts up opt
 do
 	case $opt in
+		u) url_passthrough=true;;
 		p) paths=true;;
 		*) false || exit
 	esac
@@ -57,39 +62,60 @@ cleanabspath() {
 ===
 }
 
+# Verfies / resolves path $1, but only if $paths == true.
+# Uses: $cwd.
+# Returns: $n.
+# Trashes: $n2.
+process_path() {
+	n=$1
+	test $paths = false && return
+	if
+		test ! -e "$n" && {
+			n=`println "$n" | cleanabspath`
+			test -z "$n" || test ! -e "$n"
+		}
+	then
+		echo "Pathname '$1' does not exist!" >& 2
+		false || exit
+	fi
+	case $n in
+		/*) ;;
+		*) n=$cwd/$n
+	esac
+	if
+		n2=`println "$n" | cleanabspath`
+		test "$n2" && test -e "$n2"
+	then
+		n=$n2
+	elif
+		n2=`readlink -f -- "$n" | cleanabspath`
+	then
+		n=$n2
+	else
+		echo "Cannot resolve pathname '$1'!" >& 2
+		false || exit
+	fi
+}
+
+# Determines whether $1 looks like an URL, but only if $url_passthrough !=
+# false.
+url_bypass() {
+	case $url_passthrough in
+		false) false || return
+	esac
+	expr x"$1" : x'[a-z]\{2,10\}://.' > /dev/null || return
+}
+
 # Uses $cwd if $paths == true.
-# Trashes: $n.
+# Trashes: $n, $n2.
 prepare() {
 	n=$1
-	case $paths in
-		true)
-			if
-				test ! -e "$n" && {
-					n=`println "$n" | cleanabspath`
-					test -z "$n" || test ! -e "$n"
-				}
-			then
-				echo "Pathname '$1' does not exist!" >& 2
-				false || exit
-			fi
-			case $n in
-				/*) ;;
-				*) n=$cwd/$n
-			esac
-			if
-				n2=`println "$n" | cleanabspath`
-				test "$n2" && test -e "$n2"
-			then
-				n=$n2
-			elif
-				n2=`readlink -f -- "$n" | cleanabspath`
-			then
-				n=$n2
-			else
-				echo "Cannot resolve pathname '$1'!" >& 2
-				false || exit
-			fi
-	esac
+	if url_bypass "$n"
+	then
+		:
+	else
+		process_path "$n"
+	fi
 	println "$n"
 }
 
@@ -121,8 +147,9 @@ rxm() {
 	LC_COLLATE=C expr x"$1" : x"$2" || :
 }
 
-while IFS= read -r left
-do
+# Consumes: $left.
+# Returns: $out.
+encode() {
 	out=
 	while :
 	do
@@ -137,8 +164,18 @@ do
 			'') break
 		esac
 	done
-	case $paths in
-		true) out=file://$out
-	esac
-	printf '%s\n' "$out"
+}
+
+while IFS= read -r left
+do
+	if url_bypass "$left"
+	then
+		out=$left
+	else
+		encode
+		case $paths in
+			true) out=file://$out
+		esac
+	fi
+	println "$out"
 done < "$TF"
