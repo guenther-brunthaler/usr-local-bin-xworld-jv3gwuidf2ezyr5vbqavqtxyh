@@ -1,49 +1,144 @@
-#! /usr/bin/env lua-any
--- Lua-Versions: 5.3 5.2
-setmetatable(_ENV, {__newindex= function(_, v) error("global: " .. v, 2) end})
+#! /bin/sh
+# URL-encodes any number of string arguments. Reads the strings from standard
+# input if not arguments are provided. This is a transactional utility: Either
+# all arguments will have been converted successfully, or none will be output
+# if any of the conversions should fail.
+#
+# If option -p is specified, all strings must be absolute or relative
+# pathnames of existing filesystem objects and will be converted to absolute
+# 'file://'-URLs. "." and ".." will be resolved before conversion. The
+# conversion will fail if any "." or ".." components remain in the pathnames
+# because they could not be resolved.
+#
+# Version 2021.32
+#
+# Copyright (c) 2012-2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
--- URL-encodes any number of ASCII string arguments
---
--- Version 2019.31.1
---
--- (c) 2012-2019 by Guenther Brunthaler.
--- This script is free software.
--- Distribution is permitted under the terms of the GPLv3.
+keep='-A-Za-z0-9/_.~'
 
-local keep= "-A-Za-z0-9_.~"
+set -e
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TF=
+trap cleanup 0
+trap 'exit $?' INT QUIT TERM HUP
 
-local function add_charclass_to_hash(h, ccl)
-   local first, last, lower, upper
-   local i= 1
-   while true do
-      first, last, lower, upper= string.find(ccl, "^(.)-(.)", i)
-      if first then
-         lower, upper= string.byte(lower), string.byte(upper)
-         for j= lower, upper do h[j]= true; end
-      else
-         first, last, lower= string.find(ccl, "^(.)", i)
-         if not first then break; end
-         lower= string.byte(lower)
-         h[lower]= true
-      end
-      i= last + 1
-   end
-end
+paths=false
+while getopts p opt
+do
+	case $opt in
+		p) paths=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
 
-local ok= {}
-add_charclass_to_hash(ok, keep)
-local out
-for _, s in ipairs(arg) do
-   out= {}
-   for i= 1, string.len(s) do
-      i= string.byte(s, i)
-      if ok[i] then
-         i= string.char(i)
-      else
-         assert(i < 128, "not an ASCII character")
-         i= string.format("%%%02x", i)
-      end
-      table.insert(out, i)
-   end
-   print(table.concat(out))
-end
+println() {
+	printf '%s\n' "$*"
+}
+
+cleanabspath() {
+	sed -f /dev/fd/5 5<<- ===
+		s|$|/|; s|/\{2,\}|/|g
+		:1
+			s|/[.]/|/|g
+		t 1
+		:2
+			s|/[^/]\{1,\}/[.][.]/|/|g
+		t 2
+		s|.*/[.]\{1,2\}/.*||
+		s|\(/.*\)/$|\1|
+===
+}
+
+# Uses $cwd if $paths == true.
+# Trashes: $n.
+prepare() {
+	n=$1
+	case $paths in
+		true)
+			if
+				test ! -e "$n" && {
+					n=`println "$n" | cleanabspath`
+					test -z "$n" || test ! -e "$n"
+				}
+			then
+				echo "Pathname '$1' does not exist!" >& 2
+				false || exit
+			fi
+			case $n in
+				/*) ;;
+				*) n=$cwd/$n
+			esac
+			if
+				n2=`println "$n" | cleanabspath`
+				test "$n2" && test -e "$n2"
+			then
+				n=$n2
+			elif
+				n2=`readlink -f -- "$n" | cleanabspath`
+			then
+				n=$n2
+			else
+				echo "Cannot resolve pathname '$1'!" >& 2
+				false || exit
+			fi
+	esac
+	println "$n"
+}
+
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+case $paths in
+	true) cwd=`pwd`
+esac
+case $# in
+	0)
+		while IFS= read -r n
+		do
+			prepare "$n"
+		done
+		;;
+	*)
+		for n
+		do
+			prepare "$n"
+		done
+esac > "$TF"
+
+pct_enc() {
+	tr -d '\n' | od -vt x1 | cut -d ' ' -f 2- | head -n -1 \
+		| tr 'a-f ' 'A-F\n' | sed 's/../%&/g' | tr -d '\n'
+	echo
+}
+
+rxm() {
+	LC_COLLATE=C expr x"$1" : x"$2" || :
+}
+
+while IFS= read -r left
+do
+	out=
+	while :
+	do
+		out=$out`rxm "$left" '\(['"$keep"']*\)'`
+		left=`rxm "$left" '['"$keep"']*\(.*\)'`
+		case $left in
+			'') break
+		esac
+		out=$out`rxm "$left" '\([^'"$keep"']*\)' | pct_enc`
+		left=`rxm "$left" '[^'"$keep"']*\(.*\)'`
+		case $left in
+			'') break
+		esac
+	done
+	case $paths in
+		true) out=file://$out
+	esac
+	printf '%s\n' "$out"
+done < "$TF"
