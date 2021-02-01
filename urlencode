@@ -1,8 +1,8 @@
 #! /bin/sh
-# URL-encodes any number of string arguments. Reads the strings from standard
-# input if not arguments are provided. This is a transactional utility: Either
-# all arguments will have been converted successfully, or none will be output
-# if any of the conversions should fail.
+# URL-encodes any number of string arguments and / or lines read from standard
+# input (if it is not a terminal) This is a transactional utility: Either all
+# arguments will have been converted successfully, or none will be output if
+# any of the conversions should fail.
 #
 # If option -p is specified, all strings must be absolute or relative
 # pathnames of existing filesystem objects and will be converted to absolute
@@ -13,7 +13,7 @@
 # If -u if specified, strings which start with what looks like an URL prefix
 # will be passed through unmodified (and untested in case of -p).
 #
-# Version 2021.32.1
+# Version 2021.32.2
 #
 # Copyright (c) 2012-2021 Guenther Brunthaler. All rights reserved.
 #
@@ -119,24 +119,6 @@ prepare() {
 	println "$n"
 }
 
-TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
-case $paths in
-	true) cwd=`pwd`
-esac
-case $# in
-	0)
-		while IFS= read -r n
-		do
-			prepare "$n"
-		done
-		;;
-	*)
-		for n
-		do
-			prepare "$n"
-		done
-esac > "$TF"
-
 pct_enc() {
 	tr -d '\n' | od -vt x1 | cut -d ' ' -f 2- | head -n -1 \
 		| tr 'a-f ' 'A-F\n' | sed 's/../%&/g' | tr -d '\n'
@@ -165,6 +147,24 @@ encode() {
 		esac
 	done
 }
+
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+case $paths in
+	true) cwd=`pwd`
+esac
+{
+	for n
+	do
+		prepare "$n"
+	done
+	if test ! -t 0
+	then
+		while IFS= read -r n
+		do
+			prepare "$n"
+		done
+	fi
+} > "$TF"
 
 while IFS= read -r left
 do

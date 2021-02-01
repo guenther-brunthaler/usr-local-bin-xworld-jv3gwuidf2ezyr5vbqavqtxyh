@@ -1,7 +1,21 @@
 #! /bin/sh
-# Version 2018.345
+# Opens all file or URL arguments in a "surf" instance (all together as tabs
+# of the same new window by default).
 #
-# Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+# If no arguments are specified but standard input is not a terminal, use all
+# the lines read from standard input as arguments.
+#
+# If no effective arguments are available,
+# use pathname "/" as default. Pathnames can be absolute
+# or relative, but they must refer to existing filesystem objects.
+#
+# If all effective arguments are 'file://'-URLs, enable bandwidth-consuming
+# features of "surf". Otherwise, start the "surf" instances with those
+# features disabled.
+#
+# Version 2021.32
+#
+# Copyright (c) 2018-2021 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -28,9 +42,17 @@ cookies=~/.surf/cookies.txt
 # The WebInspector is left enabled because it costs neglectible RAM as long as
 # it is not actually being used.
 surf_options='-a @ -kfgips'
+surf_options_local_xfm='tr i I'
 
 set -e
-trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TF=
+trap cleanup 0
+trap 'exit $?' INT QUIT TERM HUP
 
 untabbed=false
 dry_run=false
@@ -47,19 +69,52 @@ shift `expr $OPTIND - 1 || :`
 mkdir -p -- "`dirname -- "$cookies"`"
 > "$cookies" # Remove all cookies from the last session.
 
-test $# = 0 && set file:///
-set -- $surf_options -c "$cookies" -- "$@"
-$untabbed || set -- -e '' "$@"
+println() {
+	printf '%s\n' "$*"
+}
+
+url_bypass() {
+	expr x"$1" : x'[a-z]\{2,10\}://.' > /dev/null || return
+}
+
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+urlencode -pu -- ${1+"$@"} > "$TF"
+test -s "$TF" || echo file:/// > "$TF"
+
+case `sed '/^file:\/\/./d' < "$TF" | wc -c` in
+	0) surf_options=`println "$surf_options" | $surf_options_local_xfm`
+esac
+set -- $surf_options -c "$cookies" --
+if $untabbed
+then
+	:
+else
+	if $dry_run
+	then
+		tab='0x???...???'
+	else
+		tab=`tabbed -dc`
+	fi
+	test "$tab"
+	set -- -e "$tab" "$@"
+fi
 set surf "$@"
-$untabbed || set tabbed -c -r 2 "$@"
+while IFS= read -r url
+do
+	if $dry_run
+	then
+		echo "$@" "$url"
+	else
+		"$@" "$url" < /dev/null > /dev/null 2>& 1 &
+	fi
+done < "$TF"
 if $dry_run
 then
-	echo "$@"
+	:
 else
-	"$@" < /dev/null > /dev/null 2>& 1 &
 	if test -t 1
 	then
-		cat << EOF
+			cat << '===='
 The most important shortcuts:
 
 [Shift]+[Ctrl]+[Return] or middle-clicking on link opens a new tab
@@ -77,6 +132,6 @@ The most important shortcuts:
 [F11] toggle full-screen mode
 
 See "man tabbed" and "man surf" for more keyboard shortcuts.
-EOF
+====
 	fi
 fi
