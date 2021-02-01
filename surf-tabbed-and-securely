@@ -6,14 +6,14 @@
 # the lines read from standard input as arguments.
 #
 # If no effective arguments are available,
-# use pathname "/" as default. Pathnames can be absolute
+# use pathname "." as default. Pathnames can be absolute
 # or relative, but they must refer to existing filesystem objects.
 #
 # If all effective arguments are 'file://'-URLs, enable bandwidth-consuming
 # features of "surf". Otherwise, start the "surf" instances with those
 # features disabled.
 #
-# Version 2021.32
+# Version 2021.32.1
 #
 # Copyright (c) 2018-2021 Guenther Brunthaler. All rights reserved.
 #
@@ -79,7 +79,7 @@ url_bypass() {
 
 TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
 urlencode -pu -- ${1+"$@"} > "$TF"
-test -s "$TF" || echo file:/// > "$TF"
+test -s "$TF" || urlencode -p . > "$TF"
 
 case `sed '/^file:\/\/./d' < "$TF" | wc -c` in
 	0) surf_options=`println "$surf_options" | $surf_options_local_xfm`
