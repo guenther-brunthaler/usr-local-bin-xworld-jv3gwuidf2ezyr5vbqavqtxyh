@@ -13,7 +13,7 @@
 # features of "surf". Otherwise, start the "surf" instances with those
 # features disabled.
 #
-# Version 2021.32.1
+# Version 2021.32.2
 #
 # Copyright (c) 2018-2021 Guenther Brunthaler. All rights reserved.
 #
@@ -47,10 +47,10 @@ surf_options_local_xfm='tr i I'
 set -e
 cleanup() {
 	rc=$?
-	test "$TF" && rm -- "$TF"
+	test "$TD" && rm -r -- "$TD"
 	test $rc = 0 || echo "\"$0\" failed!" >& 2
 }
-TF=
+TD=
 trap cleanup 0
 trap 'exit $?' INT QUIT TERM HUP
 
@@ -77,11 +77,16 @@ url_bypass() {
 	expr x"$1" : x'[a-z]\{2,10\}://.' > /dev/null || return
 }
 
-TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
-urlencode -pu -- ${1+"$@"} > "$TF"
-test -s "$TF" || urlencode -p . > "$TF"
+TD=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+tmp=$TD/$$.tmp
+urlencode -pu -- ${1+"$@"} > "$tmp"
+test -s "$tmp" || urlencode -p . > "$tmp"
+# "surf" is totally nuts and downloads local copies of the surfed-to web sites
+# into the current directory! It does this even for 'file://'-URIs. So let's
+# at last create a temporary directory for this.
+cd -- "$TD"
 
-case `sed '/^file:\/\/./d' < "$TF" | wc -c` in
+case `sed '/^file:\/\/./d' < "$tmp" | wc -c` in
 	0) surf_options=`println "$surf_options" | $surf_options_local_xfm`
 esac
 set -- $surf_options -c "$cookies" --
@@ -107,7 +112,7 @@ do
 	else
 		"$@" "$url" < /dev/null > /dev/null 2>& 1 &
 	fi
-done < "$TF"
+done < "$tmp"
 if $dry_run
 then
 	:
@@ -135,3 +140,5 @@ See "man tabbed" and "man surf" for more keyboard shortcuts.
 ====
 	fi
 fi
+$dry_run && exit
+wait
