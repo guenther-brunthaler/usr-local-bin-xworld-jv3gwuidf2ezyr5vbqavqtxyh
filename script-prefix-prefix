@@ -1,8 +1,9 @@
 #! /bin/sh
-# Prepend the output of this script to a $PRLANG source file and "chmod +x" it.
-# The $PRLANG program can then be run as a normal shell script.
+# Prepend the output of this script to a "script-prefix"\ source file and
+# "chmod\ +x" it. The "script-prefix"\ program can then be run as a normal
+# shell\ script.
 #
-# Version 2021.30
+# Version 2021.33
 # Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -24,7 +25,45 @@ case $cmd in
 	s) sed '1d; /^#!/,$!d' ${2+"$2"}; exit;;
 	V) sed '/Version/,/^$/!d; /^#/!d; s/# *//' < "$0"; exit;;
 esac
-sed '/^: s/,/^: r/d; s/$PRLANG/'"${1?"prog. language?"}"'/g; $s/$/\n/' < "$0"
+sed '
+	/^: s/,/^: r/d
+	s/"script-prefix"/'"${1?"prog. language?"}"'/g
+	$s/$/\n/
+' < "$0" | {
+	p="#"
+	while :
+	do
+		read -r t
+		case $t in
+			"#!"*) echo "$t";;
+			"#") break;;
+			"# "*)
+				set -- ${t#"# "}
+				while :
+				do
+					case $# in
+						0) break
+					esac
+					case $1 in
+						*\\)
+							t="${1%\\} $2"
+							shift 2
+							set -- "$t" ${1+"$@"}
+							continue
+					esac
+					t=" $1"; pn=$p$t
+					if test ${#pn} -ge 80
+					then
+						echo "$p"; p="#$t"
+					else
+						p=$pn
+					fi
+					shift
+				done
+		esac
+	done
+	echo "$p"; echo "$t"; cat
+}
 test $# = 2 && test -f "$2" && exec cat < "$2"
 test -t 0 && exit || exec cat
 
