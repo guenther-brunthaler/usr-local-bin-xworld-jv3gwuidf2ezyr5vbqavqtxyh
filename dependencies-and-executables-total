@@ -1,0 +1,52 @@
+#! /bin/sh
+# List the cummulative sizes of all executables specified on the command line
+# and all their shared library dependencies. If executables do not specify any
+# pathname prefix, they will be searched in $PATH. Any duplicates in the
+# resulting list of files will be removed before calculating the total.
+#
+# Version 2021.38
+#
+# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+list=0
+while getopts l opt
+do
+	case $opt in
+		l) list=1;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+for x
+do
+	case $x in
+		*/*) ;;
+		*) x=`command -v -- "$x"`
+	esac
+	case $x in
+		-*) x=./$x
+	esac
+	test -x "$x" || exit
+	printf '%s\n' "$x"
+	ldd "$x" | sed 's/.* => //; t1; d; :1; s/ ([^)]*)$//; t; d'
+done \
+| xargsL ls -Logn -- \
+| sort -u \
+| awk '
+	{
+		s+= $3
+		if ('$list') print
+	}
+	END {
+		if (s < 1e6) {
+			printf "%#d Bytes\n", s
+		} else {
+			printf "%#.1f MB\n", s / 1000 ^ 2
+		}
+	}
+'
