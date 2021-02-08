@@ -4,7 +4,7 @@
 # pathname prefix, they will be searched in $PATH. Any duplicates in the
 # resulting list of files will be removed before calculating the total.
 #
-# Version 2021.38
+# Version 2021.39
 #
 # Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 #
@@ -33,20 +33,28 @@ do
 	esac
 	test -x "$x" || exit
 	printf '%s\n' "$x"
-	ldd "$x" | sed 's/.* => //; t1; d; :1; s/ ([^)]*)$//; t; d'
+	ldd "$x" | sed '
+		s/.* => //; t1
+		s|^[[:space:]]*\(/[^(]\{1,\}[^[:space:]] (\)|\1|; t1; d
+		:1; s/ ([^)]*)$//; t; d
+	'
 done \
 | xargsL ls -Logn -- \
-| sort -u \
+| {
+	S='[^[:space:]]\{1,\}'; f='[[:space:]]\{1,\}'$S
+	sed "s/^$S$f\($f\)$f$f$f/\\1/"
+} \
+| sort -u -k 2 \
 | awk '
 	{
-		s+= $3
+		s+= $1
 		if ('$list') print
 	}
 	END {
 		if (s < 1e6) {
-			printf "%#d Bytes\n", s
+			printf "%u Bytes\n", s
 		} else {
-			printf "%#.1f MB\n", s / 1000 ^ 2
+			printf "%.1f MB\n", s / 1000 ^ 2
 		}
 	}
 '
