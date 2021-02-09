@@ -1,11 +1,12 @@
 #! /bin/sh
-# Quote shell metacharacters. If option -s is speciefied, the resulting lines
-# will be output as double quoted strings, or the double quotes will be
-# removed when unquoting.
+# Quote shell metacharacters. If option -s is specified, the resulting lines
+# will be output as quoted strings, or the quotes will be removed when
+# unquoting. By default, single quotes will be used - but options -d and -2
+# will make the script use double quotes instead.
 #
-# Version 2020.50
+# Version 2021.40
 #
-# Copyright (c) 2018-2020 Guenther Brunthaler. All rights reserved.
+# Copyright (c) 2018-2021 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -18,19 +19,32 @@ case `basename -- "$0"` in
 	*) mode=quote
 esac
 lq=
-while getopts qus opt
+q=s
+while getopts qusd12 opt
 do
 	case $opt in
 		q) mode=quote;;
 		u) mode=unqote;;
-		s) lq='"';;
+		d | 2) q=d;;
+		1) q=s;;
+		s) lq=true;;
 		*) false || exit
 	esac
 done
 shift `expr $OPTIND - 1 || :`
-case $mode in
-	quote) sx='s/[$`\\"]/\\&/g; s/.*/'"$lq"'&'"$lq"'/';;
-	unqote) sx='s/'"$lq"'\(.*\)'"$lq"'/\1/; s/\\\([$`\\"]\)/\1/g';;
+case $lq in
+	'') ;;
+	*)
+		case $q in
+			d) lq=\";;
+			*) lq=\'
+		esac
+esac
+case $q-$mode in
+	d-quote) sx='s/[$`\\"]/\\&/g; s/.*/'"$lq"'&'"$lq"'/';;
+	d-unqote) sx='s/'"$lq"'\(.*\)'"$lq"'/\1/; s/\\\([$`\\"]\)/\1/g';;
+	s-quote) sx='s/'\''/&\\&&/g; s/.*/'"$lq"'&'"$lq"'/';;
+	s-unqote) sx='s/'"$lq"'\(.*\)'"$lq"'/\1/; '"s/'\\\\''/'/g";;
 	*) false || exit
 esac
 exec sed -- "$sx"
