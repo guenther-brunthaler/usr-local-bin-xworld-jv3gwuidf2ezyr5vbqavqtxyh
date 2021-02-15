@@ -1,0 +1,139 @@
+#! /bin/sh
+# Version 2021.46
+#
+# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "\"$APP\" failed!" >& 2
+}
+APP=${0##*/}
+TF=
+trap cleanup 0
+trap 'exit $?' INT QUIT HUP TERM
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+must() {
+	"$@" && return
+	echo "Command >>>$*<<< failed with return code ${?}!" >& 2
+	false || exit
+}
+
+backup_repo() {
+	test -d objects && test -f config || must test -d .git
+	TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+	set -- --buffer --unordered \
+		--batch-check='%(objecttype) %(objectname) %(objectsize)'
+	{
+		git cat-file --batch-all-objects "$@"
+		git tag > "$TF"
+		sed 's|^|refs/tags/|' < "$TF" \
+		| git cat-file "$@" \
+		| paste -d ' ' - "$TF" \
+		| while read -r tp id sz ver
+		do
+			echo "~~tag~~ $id $ver"
+		done
+		git branch | sed 's/^[*]*[[:space:]]*//' \
+		| while read -r br
+		do
+			id=`git rev-parse "refs/heads/$br"`
+			echo "~~branch~~ $id $br"
+		done
+		if br=`git symbolic-ref HEAD 2> /dev/null` && test "$br"
+		then
+			echo "~~default~~ 0 $br"
+		fi
+		git notes \
+		| while read note id
+		do
+			echo "~~note~~ $id $note"
+		done
+	} \
+	| LC_COLLATE=C sort \
+	| {
+		lt=
+		while read tp id sz
+		do
+			case $lt in
+				$tp) echo;;
+				*) echo $tp; lt=$tp
+			esac
+			echo $sz
+			case $tp in
+				~~default~~) ;;
+				~~*) echo "$id";;
+				*) git cat-file $tp $id
+			esac
+		done
+	}
+}
+
+restore_repo() {
+	must test ! -e .git
+	git init
+	lt=
+	while read tp
+	do
+		case $tp in
+			'') tp=$lt;;
+			*) lt=$tp
+		esac
+		case $tp in
+			~~tag~~)
+				read ver; read id
+				git tag -- "$ver" "$id"
+				;;
+			~~branch~~)
+				read br; read id
+				git branch -- "$br" "$id"
+				;;
+			~~default~~)
+				read br
+				git symbolic-ref HEAD "$br"
+				;;
+			~~note~~)
+				read note; read id
+				git notes append -C "$note" "$id"
+				;;
+			*)
+				read sz
+				dd bs=1 count=$sz 2> /dev/null \
+				| git hash-object -t "$tp" --stdin -w \
+					> /dev/null
+		esac
+	done
+	git reflog expire --expire=all --all
+	git gc --aggressive --prune=all
+}
+
+case $* in
+	backup) backup_repo;;
+	restore) restore_repo;;
+	*)
+		cat <<- . >& 2
+			Usages:
+
+			\$ cd /path/to/some/git/repo
+			\$ $APP backup > myrepo.gitbak
+			\$ lrzip -L 9 -U -z myrepo.gitbak # Or gzip or whatever
+
+			\$ cd /path/to/some/empty/dir
+			\$ lrunzip myrepo.gitbak.lrzip # Or gunzip or whatever
+			\$ $APP restore < myrepo.gitbak
+
+.
+		false || exit
+esac
