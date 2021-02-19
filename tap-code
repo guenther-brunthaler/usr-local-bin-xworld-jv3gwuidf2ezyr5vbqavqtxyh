@@ -1,8 +1,8 @@
 #! /bin/sh
 # Convert input or arguments into "tap code".
 #
-# Version 2020.138
-# Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
+# Version 2021.50
+# Copyright (c) 2019-2021 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -41,16 +41,16 @@ function init(    al, aln, ch, from, into, r, c) {
 
 function tap_number(n    , out, sep) {
 	while (n--) {out= out sep "*"; sep= " "}
-	print out
+	return out
 }
 
-function tap_word(s    , sl, i, ch) {
+function tap_word(s    , sl, i, ch, out) {
 	if (first) print ""; else first= 1
 	sl= length(s)
 	for (i= 1; i <= sl; ++i) {
 		if ((ch= substr(s, i, 1)) in outr) {
-			tap_number(outr[ch])
-			tap_number(outc[ch])
+			out= tap_number(outr[ch])
+			print out "   " tap_number(outc[ch])
 		}
 	}
 }

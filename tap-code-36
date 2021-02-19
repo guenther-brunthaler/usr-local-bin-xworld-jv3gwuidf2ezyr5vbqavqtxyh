@@ -2,15 +2,15 @@
 # Convert input or arguments into a non-standard extension of the well-known
 # "tap code" (which uses a 5 x 5 grid).
 #
-# The extended code uses a 6 x 6 grid instead, consisting of all the
-# alphabetic characters first, followed by the digits 0 through 9.
+# The extended code uses a 6 x 6 grid instead, consisting of the digits 0
+# through 9 first, followed by all the alphabetic characters.
 #
 # Other than the original code, the extended code can encode decimal digits
 # directly, there is no difference between the German and English version, and
 # no need to map the letters "I", "J", "C" and "K" in any way.
 #
-# Version 2020.11
-# Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
+# Version 2021.50
+# Copyright (c) 2019-2021 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -23,7 +23,7 @@ process() {
 
 # Set up: outr[], outc[]
 function init(    al, aln, ch, r, c) {
-	al= "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	al= "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	aln= length(al)
 	for (r= c= i= 1; i <= aln; ++i) {
 		ch= substr(al, i, 1)
@@ -44,16 +44,16 @@ function init(    al, aln, ch, r, c) {
 
 function tap_number(n    , out, sep) {
 	while (n--) {out= out sep "*"; sep= " "}
-	print out
+	return out
 }
 
-function tap_word(s    , sl, i, ch) {
+function tap_word(s    , sl, i, ch, out) {
 	if (first) print ""; else first= 1
 	sl= length(s)
 	for (i= 1; i <= sl; ++i) {
 		if ((ch= substr(s, i, 1)) in outr) {
-			tap_number(outr[ch])
-			tap_number(outc[ch])
+			out= tap_number(outr[ch])
+			print out "   " tap_number(outc[ch])
 		}
 	}
 }
