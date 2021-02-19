@@ -1,0 +1,63 @@
+#! /bin/sh
+# Convert the output of "tap-code" and "tap-code-36" into blinking. Only
+# argument: The number of the "xset" keyboard LED to use for blinking (on my
+# keyboard, "3" refers to the Scroll Lock LED which is the only LED for which
+# blinking did actually work).
+#
+# Version 2021.50
+# Copyright (c) 2019-2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+pause() {
+	sleep 1
+}
+
+test $# = 1; test "$1" -ge 1; test "$1" -le 32
+any_letters=false
+while IFS= read -r seq
+do
+	case $any_letters in
+		true) printf ' '; pause;;
+		*) any_letters=true
+	esac
+	case $seq in
+		'') seq="  ";;
+		*) seq="$seq "
+	esac
+	any_taps=false
+	while :
+	do
+		case $seq in
+			'') break
+		esac
+		case $any_taps in
+			true) printf -; pause;;
+			*) any_taps=true
+		esac
+		case $seq in
+			'*'*) xset led $1; printf tap;;
+			*) printf pause
+		esac
+		pause
+		case $seq in
+			'*'*) xset -led $1
+		esac
+		seq=${seq#??}
+	done
+done
+case $any_letters in
+	true) echo
+esac
