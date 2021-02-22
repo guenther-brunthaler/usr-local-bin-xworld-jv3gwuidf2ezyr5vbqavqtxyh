@@ -1,9 +1,9 @@
 #! /bin/sh
 exit_version() {
 	wr -s <<- .; exit
-	$APP Version 2020.339
+	$APP Version 2021.53
 
-	Copyright (c) 2013-2020 Guenther Brunthaler. All rights reserved.
+	Copyright (c) 2013-2021 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -212,7 +212,7 @@ fi
 if test -z "$PERMANENT"
 then
 	system mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
-	trap "cd; rm -rf --one-file-system '$T'" 0
+	trap "cd; rm -rf --one-file-system -- '$T'" 0
 	trap 'exit $?' HUP INT TERM QUIT
 	run cd "$T"
 fi
@@ -220,7 +220,13 @@ if test "$QUERY_EXISTING"
 then
 	test -f cscope.files
 else
-	run find-c-and-cpp-sources-files "$@" > cscope.files
+	find_cscope_quoted_files() {
+		find-c-and-cpp-sources-files ${1+"$@"} | sed '
+			/["\\[:space:]]/ !b
+			s/["\\]/\\&/g; s/.*/"&"/
+		'
+	}
+	run find_cscope_quoted_files ${1+"$@"} > cscope.files
 fi
 set cscope
 test "$KERNEL_MODE" && set -- "$@" -k
