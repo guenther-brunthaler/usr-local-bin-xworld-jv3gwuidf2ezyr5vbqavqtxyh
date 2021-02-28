@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2021.59.1
+$APP Version 2021.59.2
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -151,6 +151,7 @@ missing=false
 for needed in \
 	coreutils: mktemp \
 	fuse: fusermount \
+	psmisc: fuser \
 	rsync: rsync \
 	unionfs-fuse: unionfs
 do
@@ -218,6 +219,13 @@ then
 	find "$target" -depth -exec rmdir -- {} +
 	rm -- "$symlink"
 	rmdir -- "$profile"
+	mv -- "$real" "$profile"
+elif
+	test -L "$symlink" && test ! -e "$symlink" && test -d "$real" \
+	&& test "`fuser "$symlink" 2> /dev/null | wc -l`" = 0
+then
+	rmdir -- "$profile"
+	rm -- "$symlink"
 	mv -- "$real" "$profile"
 fi
 $keep_unmounted && exit
