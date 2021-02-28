@@ -1,0 +1,233 @@
+#! /bin/sh
+exit_version() {
+	wr -s << ===; exit
+$APP Version 2021.59
+Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << ===
+$APP - divert Firefox write accesses to your default Firefox profile so that
+Firefox will not succeed killing your flash drive despite its continuous
+attempts to do so
+
+Usage: $APP [ <options> ... ]
+
+Options:
+
+-u: Don't mount a new overlay after back-syncing and then removing the
+last overlay.
+
+-f: $APP does some sanity checks and will refuse to run if they fail. Use this
+option in order to enforce execution if you know better.
+
+-h: Display this help and exit.
+
+-V: Display version information and exit.
+
+Firefox writes constantly to its profile directory as long as it is running.
+Even without any web sites open. When Firefox runs for a very long time, that
+will wear out your flash drive eventually. But even if Firefox should not
+succeed in doing so, it certainly is not healthy for your flash drive.
+
+When run without any arguments, $APP will mount an overlay filesystem in place
+of your default Firefox profile directory, and will create a temporary
+RAM-based directory where all write-accesses made Firefox to its profile
+directory will be diverted to.
+
+IMPORTANT: $APP must NOT be run while Firefox is running! Quit Firefox before
+running $APP, then start it again afterwards.
+
+When run again some time, $APP will write the changes which have accumulated
+in the temporary directory back to your real profile directory on disk/flash
+and then remove the overlay together with the temporary directory.
+
+After this, it will immediately create a new overlay backed by a new
+(initially empty) temporary directory.
+
+You can avoid this with option -u - then no new overlay will be created after
+removing the old one.
+===
+	echo; exit_version
+}
+
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+keep_unmounted=false
+unforced=true
+while getopts fuVh opt
+do
+	case $opt in
+		f) unforced=false;;
+		u) keep_unmounted=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+if test "$XDG_RUNTIME_DIR" && test -d "$XDG_RUNTIME_DIR"
+then
+	tdir=$XDG_RUNTIME_DIR
+else
+	tdir=${TMPDIR:-/tmp}
+fi
+while :
+do
+	case $tdir in
+		*/) tdir=${tdir%/};;
+		*) break
+	esac
+done
+test "$tdir" != "${tdir#/}"
+test -d "$tdir"
+
+if $unforced
+then
+	fst=`stat -f -c %T -- "$tdir"`
+	case $fst in
+		tmpfs | ramfs) ;;
+		*)
+			wr <<- . >& 2
+				Your '$tdir' does not seem to be a RAM-based
+				temporary directory. Giving up. (Use -f to
+				enforce execution.)
+.
+			false || exit
+	esac
+	if
+		rx='[[:space:]]+'
+		rx="^[0-9]+$rx`id -un`${rx}firefox(-esr)?$"
+		ps -Ao pid,user,comm | grep -E -- "$rx"
+	then
+		wr <<- . >& 2
+			It seems Firefox is running! You must close it before
+			you can run $APP. (Use -f to enforce execution it I am
+			wrong and Firefox is not really running.)
+.
+		false || exit
+	fi
+fi
+
+pkg=
+missing=false
+for needed in \
+	coreutils: mktemp \
+	fuse: fusermount \
+	rsync: rsync \
+	unionfs-fuse: unionfs
+do
+	case $needed in
+		*:) pkg=${needed%:};;
+		*)
+			command -v "$needed" > /dev/null 2>& 1 && continue
+			echo "Required utility '$needed' is missing!" >& 2
+			echo "On some systems, it may be installed with:" >& 2
+			printf '$ ' >& 2
+			echo "sudo apt-get install $pkg"
+			echo >& 2
+			missing=true
+	esac
+done
+if $missing
+then
+	echo "Please install the missing packages, then try again!" >& 2
+	false || exit
+fi
+
+get_device() {
+	stat -c %d -- "`readlink -f "$1"`"
+}
+
+is_mounted() {
+	test "`get_device "$1"`" != "`get_device "$1/.."`"
+}
+
+test "$HOME"
+cd -- "$HOME"/.mozilla/firefox
+maybe_profile= profile=
+while IFS= read -r line
+do
+	case $line in
+		"["*"]")
+			maybe_profile=
+			case $profile in
+				"") ;;
+				*) break
+			esac
+			profile=
+			;;
+		"Path="*) maybe_profile=${line#*=};;
+		"Default=1") profile=$maybe_profile
+	esac
+done < profiles.ini
+test "$profile"
+profile=`readlink -f -- "$profile"`
+test -d "$profile"
+real=$profile.real
+symlink=$profile.diverted
+
+test -d "$profile"
+if test -d "$symlink" && test -d "$real" && is_mounted "$profile"
+then
+	test -L "$symlink"
+	target=`readlink -f -- "$symlink"`
+	test -d "$target"
+	echo Backsyncing...
+	rsync -caHW --inplace --delete -- "$profile"/ "$real"/
+	echo Removing overlay...
+	fusermount -u -- "$profile"
+	find "$target" ! -path "$target" ! -type d -exec rm -- {} +
+	find "$target" -depth -exec rmdir -- {} +
+	rm -- "$symlink"
+	rmdir -- "$profile"
+	mv -- "$real" "$profile"
+fi
+$keep_unmounted && exit
+if test ! -e "$real" && test ! -e "$symlink"
+then
+	tdir=$tdir/firefox_overlay_`id -u`.XXXXXXXXXX
+	tdir=`mktemp -d -- "$tdir"`
+	ln -s -- "$tdir" "$symlink"
+	echo Mounting overlay...
+	mv -- "$profile" "$real"
+	mkdir -m 700 -- "$profile"
+	unionfs -o cow -o hide_meta_files "$symlink=RW:$real=RO" "$profile"
+else
+	echo "*** What??! ***" >& 2
+fi
