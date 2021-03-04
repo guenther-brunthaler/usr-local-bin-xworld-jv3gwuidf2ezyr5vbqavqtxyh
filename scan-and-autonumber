@@ -1,8 +1,8 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2020.340
-Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
+$APP Version 2021.63
+Copyright (c) 2019-2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -29,9 +29,15 @@ the same affect as running the command multiple times without the option.
 -D <dpi>: Specify a different scanning resolution. The default resolution is
 $dpi, which is also recommended for later using OCR on the scans.
 
--T: Remove unused empty border areas around the scan before saving it.
+-T: Don't remove unused empty border areas around the scan before saving it.
 
 -r: Rotate the scan by 180 degrees before saving it.
+
+-C: Don't try to convert the scanned image into losslessly LZW-compressed TIFF
+format, but rather leave it as an uncompressed PNM. Use this if you have
+plenty of free space on your disk and do not want to waste your time waiting
+for LZW compression. Also used this if 'imagemagick' runs out of resources
+while trying to convert very large images.
 
 -d <digits>: Make the numbered counter in the saved files at least <digits>
 decimal digits wide. Defaults to $digits. The actual counter value will have
@@ -61,6 +67,23 @@ one can postpone the decision whether or not to convert a page into B/W. With
 -g, the color information would be gone, and a re-scan would be necessary in
 order to re-acquire it.
 
+-G: Enable 16-bit grayscale mode. This is similar to -g, except that a depth
+of 16 bit will be requested by the scanner. Not all scanners support this.
+
+-L: Enable line art mode. Normally, this is not a good idea, because an
+improper B/W threshold value used by the scanner hardware would produce
+unusable scans. In those cases, using a color scan is best, and then apply
+software algorithms to find out the best way to convert the image to B/W.
+However, some scanner model apply adaptive thresholding algorithms themselves
+and might therefore be able to deliver usable line art scans. For such scanner
+models only, this option might actually be useful.
+
+-o <options>: Pass additional custom options to the 'simplescan' program which
+does the actual work, and for which $APP is just a command-line front end.
+This can used to communicate scanner-model specific parameters to the scanner,
+something a generic driver program like $APP cannot do. Run 'scanimage --help'
+in order to get a listing of the model-specific options of your scanner model.
+
 -n: Dry run. Show what low-level command for scanning and file conversion the
 script would perform in the background, but don't actually run those commands.
 Useful to understand what the script would do when run without this option.
@@ -78,7 +101,8 @@ outfmt='infile-%0${digits}u.%s'
 toutext=pnm
 foutext=tif
 dpi=300
-out_opt='-type TrueColor -colorspace sRGB -depth 8 -compress LZW'
+depth=8
+out_opt='-type TrueColor -colorspace sRGB -depth $depth -compress LZW'
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
@@ -121,17 +145,22 @@ mode=Color
 trim=true
 rotate180=false
 interactive=true
+custom_opts=
 n=
-while getopts ID:Trd:N:gnhV opt
+while getopts CLo:ID:Trd:N:gGnhV opt
 do
 	case $opt in
 		I) interactive=false;;
 		D) ck_posint; dpi=$OPTARG;;
 		T) trim=false;;
+		C) out_opt=;;
 		r) rotate180=true;;
 		d) ck_posint; digits=$OPTARG;;
 		N) ck_posint; n=$OPTARG;;
 		g) mode=Gray;;
+		G) depth=16; mode="Gray --depth=$depth";;
+		L) mode=Lineart;;
+		o) custom_opts="$custom_opts $OPTARG";;
 		n) dry_run=true;;
 		h) exit_help;;
 		V) exit_version;;
@@ -177,14 +206,16 @@ process() {
 	foutfile=`printf "$outfmt" $n "$foutext"`
 	n=
 
-	echo "Scanning to $foutfile..." >& 2
-	set scanimage --mode=$mode --resolution=$dpi
+	outfile=$foutfile; test -z "$out_opt" && outfile=$toutfile
+	echo "Scanning to $outfile..." >& 2
+	set scanimage --mode=$mode$custom_opts --resolution=$dpi
 	simrun "$* > $toutfile" || "$@" > "$toutfile"
+	test -z "$out_opt" && return
 
 	set nice ionice -n 5 convert -units pixelsperinch -density $dpi
 	$trim && set "$@" -trim
 	$rotate180 && set "$@" -rotate 180
-	set "$@" "$toutfile" $out_opt "$foutfile"
+	set "$@" "$toutfile"`eval "printf ' %s' $out_opt"` "$foutfile"
 	r="rm $toutfile"
 	simrun "$* && $r &" || { { "$@" && $r; } & }
 }
