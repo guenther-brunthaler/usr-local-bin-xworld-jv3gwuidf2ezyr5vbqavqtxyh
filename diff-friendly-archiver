@@ -1,0 +1,134 @@
+#! /bin/sh
+# Archiver for minimizing "diff"s between directory trees.
+#
+# Version 2021.67
+# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+verbose=
+block_size=32768
+mode=
+chdir=
+file=
+while getopts vtB:f:C:cx opt
+do
+	case $opt in
+		t) mode=list;;
+		v) verbose=yes;;
+		f) test -d "`dirname -- "$OPTARG"`"; file=$OPTARG;;
+		C) test -d "$OPTARG"; chdir=$OPTARG;;
+		c) mode=create;;
+		x) mode=extract;;
+		B) test "$OPTARG" -ge 1; block_size=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test $# = 0
+test "$mode"
+
+# Emulate "head -c" which is not defined by POSIX.
+passthrough_bytes() {
+	b=$1
+	if test $b -gt $block_size
+	then
+		q=`expr $b / $block_size`
+		r=`expr $b % $block_size || :`
+		# Verify that no numeric overflows occurred in 'expr'.
+		expr $q \* $block_size + $r = $b >& 7
+		dd bs=$block_size count=$q 2>& 7
+		b=$r
+	fi
+	case $b in
+		0) ;;
+		*) dd bs=$b count=1 2>& 7
+	esac
+}
+
+create() {
+	case $file in
+		'') ;;
+		*) exec > "$file"
+	esac
+	case $chdir in
+		'') ;;
+		*) cd -- "$chdir"
+	esac
+	find . ! -path . ! -type d | cut -d / -f 2- | LC_COLLATE=C sort \
+	| while IFS= read -r f
+	do
+		set -- `ls -og -- "$f" | cut -d ' ' -f 1,3`
+		case $1 in
+			-??x*)
+				echo "X $2 $f"
+				cat < "$f"
+				;;
+			-*)
+				echo "F $2 $f"
+				cat < "$f"
+				;;
+			l*)
+				echo "L $2 $f"
+				readlink -- "$f" | passthrough_bytes $2
+				;;
+			*)
+				echo "Unsupported FSO type for '$f'!" >& 2
+				false || exit
+		esac
+	done
+}
+
+extract() {
+	case $file in
+		'') ;;
+		*) exec < "$file"
+	esac
+	case $chdir in
+		'') ;;
+		*) cd -- "$chdir"
+	esac
+	while IFS=' ' read -r t sz f
+	do
+		d=${f%/*}
+		case $d in
+			"$f") ;;
+			*) mkdir -p -- "$d"
+		esac
+		case $t in
+			F | X)
+				passthrough_bytes $sz > "$f"
+				case $t in
+					X) chmod +x -- "$f"
+				esac
+				;;
+			L) ln -sn -- "`passthrough_bytes $sz`" "$f";;
+			*)
+				echo "Unsupported type '$t' " \
+					"in entry '$f'!" >& 2
+				false || exit
+		esac
+	done
+}
+
+list() {
+	case $file in
+		'') ;;
+		*) exec < "$file"
+	esac
+	while IFS=' ' read -r t sz f
+	do
+		case $verbose in
+			'') printf '%s%s\n' "$f";;
+			*) echo "$t $sz $f"
+		esac
+		passthrough_bytes $sz >& 7
+	done
+}
+
+$mode 7> /dev/null
