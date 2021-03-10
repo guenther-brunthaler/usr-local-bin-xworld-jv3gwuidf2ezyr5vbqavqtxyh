@@ -1,7 +1,20 @@
 #! /bin/sh
-# Archiver for minimizing "diff"s between directory trees.
+# Archiver for minimizing "diff"s (including binary diffs) between directory
+# trees. The generated archives will be rsync-friendly as well.
 #
-# Version 2021.67
+# It only retains what Git generally also retains when a file is put under
+# version control: Its relative pathname, its contents, its executable bit,
+# and symlinks. Everything else will be ignored, such as additional permission
+# bits, ACLs, owner, etc. Hard links might be supported in a later version of
+# the script, but are not supported yet.
+#
+# Suggested archive file extension: "*.dfa".
+#
+# When only text files are put into the archive, the archive itself will be a
+# text file as well. No "binary" byte values are used in the (very
+# minimalistic) archive metadata framing.
+#
+# Version 2021.69
 # Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -15,9 +28,13 @@ block_size=32768
 mode=
 chdir=
 file=
-while getopts vtB:f:C:cx opt
+stdin=false
+strip=0
+while getopts p:TvtB:f:C:cx opt
 do
 	case $opt in
+		p) test "$OPTARG" -ge 0; strip=$OPTARG;;
+		T) stdin=true;;
 		t) mode=list;;
 		v) verbose=yes;;
 		f) test -d "`dirname -- "$OPTARG"`"; file=$OPTARG;;
@@ -30,8 +47,14 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
-test $# = 0
-test "$mode"
+println() {
+	printf '%s\n' "$*"
+}
+
+die() {
+	println "$*" >& 2
+	false || exit
+}
 
 # Emulate "head -c" which is not defined by POSIX.
 passthrough_bytes() {
@@ -52,6 +75,36 @@ passthrough_bytes() {
 }
 
 create() {
+	case $# in
+		0)
+			case $stdin in
+				true) ;;
+				*) set .
+			esac
+			;;
+		*)
+			case $stdin in
+				false) ;;
+				*)
+					die "If -T is used, no non-option" \
+						"arguments are supported!"
+			esac
+			i=$#
+			while test $i != 0
+			do
+				if test ! -L "$1"
+				then
+					test -e "$1" \
+					|| die "'$1' does not exist!"
+				fi
+				case $1 in
+					-*) set -- "$@" ./"$1";;
+					*) set -- "$@" "$1"
+				esac
+				shift
+				i=`expr $i - 1 || :`
+			done
+	esac
 	case $file in
 		'') ;;
 		*) exec > "$file"
@@ -60,31 +113,70 @@ create() {
 		'') ;;
 		*) cd -- "$chdir"
 	esac
-	find . ! -path . ! -type d | cut -d / -f 2- | LC_COLLATE=C sort \
+	case $stdin in
+		true)
+			while IFS= read -r f
+			do
+				if test ! -L "$f"
+				then
+					test -e "$f" \
+					|| die "'$f' does not exist!"
+					test -d "$f" \
+					&& die "'$f': directories" \
+						"are forbidden!"
+				fi
+				println "$f"
+			done
+			;;
+		*) find "$@" ! -path . ! -type d
+	esac \
+	| sed 's|^[.]/||' \
+	| LC_COLLATE=C sort \
 	| while IFS= read -r f
 	do
+		case $f in
+			/*) die "'$f': absolute paths are forbidden!"
+		esac
 		set -- `ls -og -- "$f" | cut -d ' ' -f 1,3`
+		sf=$f
+		case $strip in
+			0) ;;
+			*)
+				i=$strip
+				while test $i != 0
+				do
+					sf0=${sf#*/}
+					case $sf0 in
+						"$sf")
+							die "Cannot strip $i" \
+							"additional path" \
+							"prefixes from '$sf'!"
+					esac
+					sf=$sf0
+					i=`expr $i - 1 || :`
+				done
+		esac
 		case $1 in
 			-??x*)
-				echo "X $2 $f"
+				echo "X $2 $sf"
 				cat < "$f"
 				;;
 			-*)
-				echo "F $2 $f"
+				echo "F $2 $sf"
 				cat < "$f"
 				;;
 			l*)
-				echo "L $2 $f"
+				echo "L $2 $sf"
 				readlink -- "$f" | passthrough_bytes $2
 				;;
 			*)
-				echo "Unsupported FSO type for '$f'!" >& 2
-				false || exit
+				die "Unsupported FSO type for '$f'!"
 		esac
 	done
 }
 
 extract() {
+	test $# = 0
 	case $file in
 		'') ;;
 		*) exec < "$file"
@@ -109,14 +201,13 @@ extract() {
 				;;
 			L) ln -sn -- "`passthrough_bytes $sz`" "$f";;
 			*)
-				echo "Unsupported type '$t' " \
-					"in entry '$f'!" >& 2
-				false || exit
+				die "Unsupported type '$t' in entry '$f'!"
 		esac
 	done
 }
 
 list() {
+	test $# = 0
 	case $file in
 		'') ;;
 		*) exec < "$file"
@@ -131,4 +222,5 @@ list() {
 	done
 }
 
-$mode 7> /dev/null
+test "$mode"
+$mode ${1+"$@"} 7> /dev/null
