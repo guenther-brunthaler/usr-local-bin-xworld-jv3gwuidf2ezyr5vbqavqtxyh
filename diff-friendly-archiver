@@ -1,36 +1,168 @@
 #! /bin/sh
-# Archiver for minimizing "diff"s (including binary diffs) between directory
-# trees. The generated archives will be rsync-friendly as well.
-#
-# It only retains what Git generally also retains when a file is put under
-# version control: Its relative pathname, its contents, its executable bit,
-# and symlinks. Everything else will be ignored, such as additional permission
-# bits, ACLs, owner, etc. Hard links might be supported in a later version of
-# the script, but are not supported yet.
-#
-# Suggested archive file extension: "*.dfa".
-#
-# When only text files are put into the archive, the archive itself will be a
-# text file as well. No "binary" byte values are used in the (very
-# minimalistic) archive metadata framing.
-#
-# Version 2021.69
-# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
-#
-# This script is free software.
-# Distribution is permitted under the terms of the GPLv3.
+exit_version() {
+	wr -s << ===; exit
+$APP Version 2021.71
+Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << ===
+$APP - create an archive which will typically result in smaller diff/rsync
+deltas
+
+Usage: $APP [ <options> ... ]
+
+$APP is an archiver for minimizing "diff"s (including binary diffs) between
+directory trees.
+
+For the purpose of mimimizing the total size of all differences, $APP can be
+expected to perform better than 'tar', 'cpio' or 'ar' archives with (at least)
+the following known utilities: diff, rsync, bsdiff, rdiff, xdelta3, bdelta,
+VCDIFF (RFC 3284).
+
+Options:
+
+-c: Create a new archive from the files or symlinks specified as named
+pathnames specified as arguments. Directories are not allowed. Without any
+non-option arguments, all files and symlinks found by recursively searching
+the current directory (or the directory specified with option -C) will be
+added to the archive instead. The archive will be written to standard output
+unless option -f is used to specify an output file.
+
+-x: Extract all the files and symlinks contained in the archive which has been
+created by $APP to the current directory or to the directory specified by
+option -C. The extracted entries will be created with the same relative paths
+as they have been recorded within the archive. Required directories for that
+purpose which are missing will be created automatically. The archive to be
+extracted will be read from standard input by default, but option -f can be
+used to specify an input file instead.
+
+-t: Shows the files and symlinks contained with an archive created by $APP.
+Adding option -v will include more detail in the output.
+
+-v: When using together with -t, add the object type and size in the output.
+There are 3 object types: "F" for normal files, "L" for symlinks and "X" for
+files which have their executable bit set. The object size will be shown as a
+decimal byte count.
+
+-p <n>: Strip the leading <n> path components from all path names that are
+recorded within an archive when it is generated with option -c. Has no effect
+on extraction of files or listing contents. Does not affect the paths of the
+files/symlinks which are actually read for creating the archive either.
+
+-T: Read a list of pathnames from standard input. This is an alternative to
+specifying such a list as command line arguments. -T is only allowed if no
+non-option command line arguments are used. The pathnames fed into $APP via
+option -T must meet the same requirements as any allowed regular arguments.
+Those are: All path names must be relative to the current directory or to the
+directory specified by option -C. Absolute pathnames are not allowed. Only the
+pathnames of files or symlinks are allowed. Pathnames of special files or
+directories are forbidden. Option -T is normally used for piping the output of
+the "find" utility as a list of pathnames into $APP.
+
+-f <archive_file>: Write the created archive to <archive_file> rather than to
+standard output, or read the archive from <archive_file> rather than from
+standard input. Concrete interpretation depends on the operation mode (-c, -x
+or -t) of $APP. The argument can be an absolute or relative path name. In the
+latter case, the pathname will be relative to the current directory, and will
+not be affected by option -C.
+
+-C <directory>: Switch to the specified <directory> before archiving or
+extractinv files/symlinks using the specified relative pathnames. If option -C
+is not specified, all pathnames are interpreted relative to the current
+directory. Note that this setting has no effect on the argument of option -f;
+this argument will be interpreted before the switch happens.
+
+-B <bytes>: Specify the transfer block size. When reading or writing files for
+inclusion into the archive or for extraction from it, the data will be
+transferred in blocks of <bytes> bytes (except for the last block which may be
+shorter). When dealing with very large files, performance of $APP can be
+improved by specifying a larger block size than the default. However,
+specifying a block size also requires the allocation of a temporary buffer of
+that size. If the block size is very large, this buffer will occupy a lot of
+RAM. Without this option, a default block size of $default_block_size will be
+used. The block size must be specified exactly as a number of bytes (no
+multiplicative suffixes like 'M' are supported).
+
+-h: Display this help and exit.
+
+-V: Display version information and exit.
+
+
+When creating an archive, $APP only retains what Git generally also retains
+when a file is put under version control: Its relative pathname, its contents,
+its executable bit, and symlinks.
+
+Everything else will be ignored, such as additional permission bits, ACLs,
+EAs, owner, date/time. Holes in sparse files will be replaced by binary zero
+bytes with the same size as the holes.
+
+Hard links might be supported in a later version of $APP, but are not
+supported yet. When hard-linked files are present in the directory tree or in
+the list of specified individual paths, their contents will be included within
+the archive multiple times.
+
+The order of files/symlinks within archives created by $APP will always be
+that of the sorted path names, using the POSIX collation order. Which means
+the order will always be the same, no matter which locale is in effect, and no
+matter in which order the pathnames are specified on the command line or via
+option -T.
+
+The suggested file extension for archives created by $APP is: "*.dfa".
+
+When only text files are put into the archive, the archive itself will be a
+text file as well. No "binary" byte values are used in the (very
+minimalistic) archive metadata framing.
+===
+	echo; exit_version
+}
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+
 verbose=
-block_size=32768
+default_block_size=32768
+block_size=$default_block_size
 mode=
 chdir=
 file=
 stdin=false
 strip=0
-while getopts p:TvtB:f:C:cx opt
+while getopts p:TvtB:f:C:cxVh opt
 do
 	case $opt in
 		p) test "$OPTARG" -ge 0; strip=$OPTARG;;
@@ -42,6 +174,8 @@ do
 		c) mode=create;;
 		x) mode=extract;;
 		B) test "$OPTARG" -ge 1; block_size=$OPTARG;;
+		h) exit_help;;
+		V) exit_version;;
 		*) false || exit
 	esac
 done
@@ -59,7 +193,7 @@ die() {
 # Emulate "head -c" which is not defined by POSIX.
 passthrough_bytes() {
 	b=$1
-	if test $b -gt $block_size
+	if test $b -ge $block_size
 	then
 		q=`expr $b / $block_size`
 		r=`expr $b % $block_size || :`
@@ -131,7 +265,7 @@ create() {
 		*) find "$@" ! -path . ! -type d
 	esac \
 	| sed 's|^[.]/||' \
-	| LC_COLLATE=C sort \
+	| LC_COLLATE=POSIX sort \
 	| while IFS= read -r f
 	do
 		case $f in
@@ -187,6 +321,9 @@ extract() {
 	esac
 	while IFS=' ' read -r t sz f
 	do
+		case $f in
+			/*) die "Absolute pathnames are forbidden: '$f'!"
+		esac
 		d=${f%/*}
 		case $d in
 			"$f") ;;
