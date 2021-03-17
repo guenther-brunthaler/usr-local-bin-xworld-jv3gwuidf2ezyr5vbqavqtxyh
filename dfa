@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2021.71
+$APP Version 2021.76
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -12,27 +12,35 @@ APP=${0##*/}
 
 exit_help() {
 	wr << ===
-$APP - create an archive which will typically result in smaller diff/rsync
-deltas
+$APP - "diff"-friendly archiver
 
-Usage: $APP [ <options> ... ]
+Usage: $APP [ <options> ... ] [ <pathname> ... ]
 
-$APP is an archiver for minimizing "diff"s (including binary diffs) between
-directory trees.
+$APP creates archives from the contents of directory trees.
 
-For the purpose of mimimizing the total size of all differences, $APP can be
-expected to perform better than 'tar', 'cpio' or 'ar' archives with (at least)
-the following known utilities: diff, rsync, bsdiff, rdiff, xdelta3, bdelta,
-VCDIFF (RFC 3284).
+When a delta between two such archives is created with utilties such as diff,
+xdelta3 or rsync, the resulting delta can be expected to be smaller than for
+archives created by other utilties such as tar, cpio and ar.
+
+Archives created by $APP use the file extension ".dfa" by convention.
+
+$APP can also extract or list archive contents.
+
+If only plain text files are included within an archive created by $APP, then
+the resulting archive itself will also be a plain text file.
 
 Options:
 
--c: Create a new archive from the files or symlinks specified as named
-pathnames specified as arguments. Directories are not allowed. Without any
-non-option arguments, all files and symlinks found by recursively searching
-the current directory (or the directory specified with option -C) will be
-added to the archive instead. The archive will be written to standard output
-unless option -f is used to specify an output file.
+-c: Create a new archive from the files or symlinks specified as pathname
+arguments. Directories are also allowed, but only the files and symlinks found
+by searching them recursively ("find" with option "-xdev") will actually be
+included within the archive. Without any non-option arguments, acts as if "."
+would have been specified. No absolute pathnames are allowed. Pathnames of
+special files (FIFOs etc.) are forbidden. Path components ".." are not allowed
+either. Path components "." will be stripped silently. All pathnames will be
+interpreted relative to the current directory, unless option -C is used which
+allows to specify a different base directory. The archive will be written to
+standard output unless option -f is used to specify an output file.
 
 -x: Extract all the files and symlinks contained in the archive which has been
 created by $APP to the current directory or to the directory specified by
@@ -58,12 +66,9 @@ files/symlinks which are actually read for creating the archive either.
 -T: Read a list of pathnames from standard input. This is an alternative to
 specifying such a list as command line arguments. -T is only allowed if no
 non-option command line arguments are used. The pathnames fed into $APP via
-option -T must meet the same requirements as any allowed regular arguments.
-Those are: All path names must be relative to the current directory or to the
-directory specified by option -C. Absolute pathnames are not allowed. Only the
-pathnames of files or symlinks are allowed. Pathnames of special files or
-directories are forbidden. Option -T is normally used for piping the output of
-the "find" utility as a list of pathnames into $APP.
+option -T must meet the same requirements as any allowed regular arguments,
+except that no directories are allowed. Option -T is normally used for piping
+the output of the "find" utility as a list of pathnames into $APP.
 
 -f <archive_file>: Write the created archive to <archive_file> rather than to
 standard output, or read the archive from <archive_file> rather than from
@@ -94,6 +99,14 @@ multiplicative suffixes like 'M' are supported).
 -V: Display version information and exit.
 
 
+$APP is an archiver for minimizing "diff"s (including binary diffs) between
+archives it has created.
+
+For the purpose of mimimizing the total size of all differences, $APP can be
+expected to perform better than 'tar', 'cpio' or 'ar' archives with (at least)
+the following known utilities: diff, rsync, bsdiff, rdiff, xdelta3, bdelta,
+VCDIFF (RFC 3284).
+
 When creating an archive, $APP only retains what Git generally also retains
 when a file is put under version control: Its relative pathname, its contents,
 its executable bit, and symlinks.
@@ -113,13 +126,41 @@ the order will always be the same, no matter which locale is in effect, and no
 matter in which order the pathnames are specified on the command line or via
 option -T.
 
-The suggested file extension for archives created by $APP is: "*.dfa".
+$APP uses no padding between entries. No "binary" byte values are used in the
+(very minimalistic) archive metadata framing.
 
-When only text files are put into the archive, the archive itself will be a
-text file as well. No "binary" byte values are used in the (very
-minimalistic) archive metadata framing.
+Here is the format specification (version 1.0) for .dfa files:
+
 ===
-	echo; exit_version
+	wr -s << '==='
+<dfa_file> := <entry>*.
+<entry> := <header> <binary_contents>.
+<header> := <type> " " <content_size> " " <relative_pathname> <newline>.
+<type> := "F" | "X" | "L".
+<newline> := decimal_codepoint_to_ASCII_character(10).
+===
+	wr << '==='
+
+The <content_size> is a byte count specified as an ASCII decimal number.
+
+The whole <header> line should be encoded in ASCII or UTF-8 (NFC, without BOM).
+
+<relative_pathname> must use "/" to separate pathname components.
+
+Pathname components "." and ".." shall not be present. Pathname components
+containing <newline> characters are not supported.
+
+Absolute pathnames are not allowed.
+
+Types "F" (non-executable) and "X" (executable) are both files - then
+<binary_contents> is the file contents.
+
+Type "L" represents symlinks. <binary_contents> is the symlink target.
+
+There exists a companion utility "dfa-mini-xtr" which is a lot shorter than
+$APP but supports only extraction of entry types "F" and "X".
+===
+	echo; echo; exit_version
 }
 
 set -e
@@ -155,7 +196,7 @@ LINEWIDTH=`
 `
 
 verbose=
-default_block_size=32768
+default_block_size=`expr 1024 \* 1024`
 block_size=$default_block_size
 mode=
 chdir=
@@ -223,6 +264,7 @@ create() {
 					die "If -T is used, no non-option" \
 						"arguments are supported!"
 			esac
+			nl=`printf '\n:'`; nl=${nl%:}
 			i=$#
 			while test $i != 0
 			do
@@ -232,6 +274,9 @@ create() {
 					|| die "'$1' does not exist!"
 				fi
 				case $1 in
+					*"$nl"*)
+						die "'$1' contains ASCII NL!"
+						;;
 					-*) set -- "$@" ./"$1";;
 					*) set -- "$@" "$1"
 				esac
@@ -262,15 +307,39 @@ create() {
 				println "$f"
 			done
 			;;
-		*) find "$@" ! -path . ! -type d
+		*) find -H "$@" -xdev ! -type d
 	esac \
-	| sed 's|^[.]/||' \
+	| {
+		IFS=/; set -f
+		while read -r p
+		do
+			case $p in
+				/*)
+					echo
+					die "'$p': absolute paths" \
+						"are forbidden!"
+			esac
+			set -- $p
+			i=$#
+			while test $i != 0
+			do
+				case $1 in
+					..)
+						echo
+						die "'$1' not allowed in '$p'!"
+						;;
+					. | '') ;;
+					*) set -- "$@" "$1"
+				esac
+				shift
+				i=`expr $i - 1 || :`
+			done
+			println "$*"
+		done
+	} \
 	| LC_COLLATE=POSIX sort \
 	| while IFS= read -r f
 	do
-		case $f in
-			/*) die "'$f': absolute paths are forbidden!"
-		esac
 		set -- `ls -og -- "$f" | cut -d ' ' -f 1,3`
 		sf=$f
 		case $strip in

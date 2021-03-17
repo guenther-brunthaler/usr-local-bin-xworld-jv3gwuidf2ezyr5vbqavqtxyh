@@ -1,0 +1,50 @@
+#! /bin/sh
+# Feature-restricted extractor for .dfa archives.
+#
+# Only executable and non-executable files can be extracted. There is no
+# support for symlinks. Extracted files must not be too large, as they will be
+# read entirely into a memory buffer during extraction.
+#
+# The archive will be read from standard input. Extracted files will always be
+# created relative to the current directory.
+#
+# Version 2021.76
+# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+println() {
+	printf '%s\n' "$*"
+}
+
+die() {
+	println "$*" >& 2
+	false || exit
+}
+
+test $# = 0
+while IFS=' ' read -r t sz f
+do
+	case $f in
+		/*) die "Absolute pathnames are forbidden: '$f'!"
+	esac
+	d=${f%/*}
+	case $d in
+		"$f") ;;
+		*) mkdir -p -- "$d"
+	esac
+	case $t in
+		F | X)
+			dd bs=$sz count=1 2> /dev/null > "$f"
+			case $t in
+				X) chmod +x -- "$f"
+			esac
+			;;
+		*)
+			die "Unsupported type '$t' in entry '$f'!"
+	esac
+done
