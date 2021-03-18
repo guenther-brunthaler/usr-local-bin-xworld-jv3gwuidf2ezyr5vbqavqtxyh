@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2021.77
+$APP Version 2021.77.1
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -13,11 +13,18 @@ exit_help() {
 	cat << ===; echo; exit_version
 $APP - convert HTML to ASCII text (and any tables to ASCII-art)
 
-Usage: $APP [ <options> ... [--] ] < input.html > output.txt
+Usage:
+$APP [ <options> ... [--] ] < input.html > output.txt
+$APP [ <options> ... [--] ] file1.html file2.html ...
+
+The first usage variant lets $APP act like a filter.
+
+The second variant creates *.txt files for all input files.
 
 Supported options:
 
 -w <columns>: Format output with that many columns (default: $default_width)
+-f: Enforce overwriting of output files which already exist
 -h: show this help and exit
 -V: show version information and exit
 ===
@@ -28,9 +35,11 @@ set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 default_width=72
 width=$default_width
-while getopts w:hV opt
+force=false
+while getopts fw:hV opt
 do
 	case $opt in
+		f) force=true;;
 		w) width=$OPTARG;;
 		h) exit_help;;
 		V) exit_version;;
@@ -59,8 +68,39 @@ do
 done
 $all || exit
 
-tidy -asxhtml --quote-nbsp no --show-warnings no --show-info no 2> /dev/null \
-| xmlstarlet pyx \
-| sed '/^Aborder/d; /^(table/!b; p; s/.*/Aborder 1/' \
-| xmlstarlet p2x \
-| w3m -cols "$width" -O US-ASCII -T text/html -graph
+filter() {
+	tidy -asxhtml --quote-nbsp no --show-warnings no --show-info no \
+		2> /dev/null \
+	| xmlstarlet pyx \
+	| sed '/^Aborder/d; /^(table/!b; p; s/.*/Aborder 1/' \
+	| xmlstarlet p2x \
+	| w3m -cols "$width" -O US-ASCII -T text/html -graph
+}
+
+case $# in
+	0) filter;;
+	*)
+		for a
+		do
+			test -f "$a" || {
+				echo "Input file '$a' does not exist!"
+				false || exit
+			}
+			o=${a%.*}.txt
+			test ! -e "$o" && continue
+			echo
+			echo "Output file '$o' already exists!"
+			if $force
+			then
+				echo "(Overwriting)"
+			else
+				echo "(Use -f to enforce overwriting.)"
+				false || exit
+			fi
+		done >& 2
+		for a
+		do
+			o=${a%.*}.txt
+			filter < "$a" > "$o"
+		done
+esac
