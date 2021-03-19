@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2021.77.1
+$APP Version 2021.78
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -50,7 +50,7 @@ shift `expr $OPTIND - 1 || :`
 
 all=true
 pkg=
-for need in tidy w3m xmlstarlet
+for need in icu-devtools: uconv tidy w3m xmlstarlet
 do
 	case $need in
 		*:) pkg=${need%:};;
@@ -68,13 +68,28 @@ do
 done
 $all || exit
 
+unumlaut() {
+	uconv -x "::de-ASCII;"
+}
+
 filter() {
 	tidy -asxhtml --quote-nbsp no --show-warnings no --show-info no \
 		2> /dev/null \
+	| unumlaut \
 	| xmlstarlet pyx \
 	| sed '/^Aborder/d; /^(table/!b; p; s/.*/Aborder 1/' \
 	| xmlstarlet p2x \
 	| w3m -cols "$width" -O US-ASCII -T text/html -graph
+}
+
+asciify() {
+	unumlaut \
+	| LC_ALL=C tr -c '[:alnum:]' _ \
+	| sed 's/___*/_/g; s/^_//; s/_$//'
+}
+
+asciify_txt() {
+	result=`printf '%s\n' "${1%.[Hh][Tt][Mm]*}" | asciify`.txt
 }
 
 case $# in
@@ -86,10 +101,10 @@ case $# in
 				echo "Input file '$a' does not exist!"
 				false || exit
 			}
-			o=${a%.*}.txt
-			test ! -e "$o" && continue
+			asciify_txt "$a"
+			test ! -e "$result" && continue
 			echo
-			echo "Output file '$o' already exists!"
+			echo "Output file '$result' already exists!"
 			if $force
 			then
 				echo "(Overwriting)"
@@ -100,7 +115,7 @@ case $# in
 		done >& 2
 		for a
 		do
-			o=${a%.*}.txt
-			filter < "$a" > "$o"
+			asciify_txt "$a"
+			filter < "$a" > "$result"
 		done
 esac
