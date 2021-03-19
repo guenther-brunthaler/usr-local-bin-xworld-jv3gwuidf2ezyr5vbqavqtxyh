@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2021.78
+$APP Version 2021.78.1
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -16,10 +16,15 @@ $APP - convert HTML to ASCII text (and any tables to ASCII-art)
 Usage:
 $APP [ <options> ... [--] ] < input.html > output.txt
 $APP [ <options> ... [--] ] file1.html file2.html ...
+$APP [ <options> ... [--] ] < file.html
 
 The first usage variant lets $APP act like a filter.
 
 The second variant creates *.txt files for all input files.
+
+The third variant shows an ASCII-fied version of the file
+in the "w3c" text-mode web browser, using pretty line-art
+graphics characters rather than ASCII art for tables.
 
 Supported options:
 
