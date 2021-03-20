@@ -1,0 +1,97 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2021.79
+Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	cat << ===; echo; exit_version
+$APP - pipe text to or from the X11 clipboard to/from standard output/input
+
+Usage:
+$APP [ -g | -f ] | <command> ...
+command | $APP [ -s | -t | -p ]
+$APP <text> ...
+
+The first usage pipes data from to clipboard to <command>.
+
+The second usage replaces the current contents of the
+clipboard with the output of <command>.
+
+The third usage just sets the concatenation of all arguments, separated by the
+current value of the IFS variable, as the new contents of the clipboard.
+
+Example: Replace the contents of the clipboard with a base-64 encoded version
+of its current contents:
+
+\$ $APP -g | base64 | $APP -s
+
+
+Supported options:
+
+-g, -f: get data from clipboard and write to standard output. This is the
+default unless the name of the command '$APP' contains the letter "s".
+
+-s, -t, -p: set data read from standard input as new clipboard contents. This
+is the default if the name of the command '$APP' contains the letter "s".
+
+-h: show this help and exit
+-V: show version information and exit
+===
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+case `basename -- "$0"` in
+	*s*) get=false;;
+	*) get=true;;
+esac
+while getopts gfstphV opt
+do
+	case $opt in
+		[gf]) get=true;;
+		[stp]) get=false;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+all=true
+pkg=
+for need in xclip
+do
+	case $need in
+		*:) pkg=${need%:};;
+		*)
+			: ${pkg:="$need"}
+			command -v -- "${need}" > /dev/null 2>& 1 || {
+				echo
+				echo "Required utility '$need' is missing!"
+				echo "On some systems it can be installed with"
+				echo "\$ sudo apt-get install $pkg"
+				all=false
+			} >& 2
+			pkg=
+	esac
+done
+$all || exit
+
+case $# in
+	0)
+		if $get
+		then
+			xclip -o -selection clipboard
+		else
+			xclip -i -selection clipboard
+		fi
+		;;
+	*) printf '%s\n' "$*" | xclip -i -selection clipboard
+esac
