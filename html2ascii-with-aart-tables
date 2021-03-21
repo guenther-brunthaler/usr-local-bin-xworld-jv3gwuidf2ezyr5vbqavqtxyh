@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2021.78.1
+$APP Version 2021.80
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -53,9 +53,8 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
-all=true
-pkg=
-for need in icu-devtools: uconv tidy w3m xmlstarlet
+all=true; # An *: entry must be first for initializing $pkg.
+for need in icu-devtools: uconv : tidy w3m xmlstarlet
 do
 	case $need in
 		*:) pkg=${need%:};;
@@ -72,7 +71,7 @@ do
 	esac
 done
 $all || exit
-
+exit
 unumlaut() {
 	uconv -x "::de-ASCII;"
 }
