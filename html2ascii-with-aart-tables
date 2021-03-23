@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2021.80
+$APP Version 2021.82
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -71,7 +71,7 @@ do
 	esac
 done
 $all || exit
-exit
+
 unumlaut() {
 	uconv -x "::de-ASCII;"
 }
