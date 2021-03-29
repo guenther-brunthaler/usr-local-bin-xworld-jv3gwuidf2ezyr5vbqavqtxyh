@@ -1,12 +1,16 @@
 #! /bin/sh
 # Run a shell in a temporary directory to be removed when the shell exits.
-# Version 2020.5
+# Version 2021.88
 
 set -e
 cleanup() {
 	rc=$?
 	cd
-	test -n "$T" && rm -rf -- "$T"
+	if test -n "$T"
+	then
+		find "$T" -xdev -depth ! -type d -exec rm -- {} +
+		find "$T" -xdev -depth -type d -exec rmdir -- {} +
+	fi
 	test $rc = 0 || echo "$APP failed!" >& 2
 }
 APP=${0##*/}
