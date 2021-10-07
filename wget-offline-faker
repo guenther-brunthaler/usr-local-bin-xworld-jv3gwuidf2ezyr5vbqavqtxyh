@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2021.280.1
+$APP Version 2021.280.2
 
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
@@ -19,8 +19,14 @@ Rather than actually downloading any files, it rather redirects any downloads
 into copying files from the same directory where the script (or as a symlink
 to the script) can be found.
 
-In order to use it, create a symlink named "wget" pointing to THIS script
-inside the directory where the already-downloaded data files are present.
+When a requested file has not yet been downloaded for copying locally, "$APP"
+creates a shell script "$fixer" in the copy source directory which contains
+the "wget" commands needed to actually download the scripts to the source
+directory.
+
+In order to use the script, create a symlink named "wget" pointing to THIS
+script inside the directory where the already-downloaded data files are
+present.
 
 If "$APP" is in \$PATH, this can be achieved by
 
@@ -34,13 +40,18 @@ like this:
 
 ===
 	cat << '==='
-$ cat > wget < 'EOF' && chmod +x wget
+$ cat > wget << 'EOF' && chmod +x wget
 #! /bin/sh
-exec wget-offline-faker ${1+"$@"}
+exec wget-offline-faker -P :"$0" ${1+"$@"}
 EOF
 
 ===
 	wr << ===
+An argument of option "-P" starting with ":" is intercepted by "$APP" in order
+to provide the path of the stub script. This path needs to be known by "$APP"
+when it is exec'ed by the stub script for locating the download directory. This
+is not necessary when a symlink is used rather than the stub script.
+
 After creating the symlink or stub script, make sure that the download
 directory has been put within \$PATH before the directory where the real
 "wget" can be found.
@@ -153,31 +164,87 @@ LINEWIDTH=`
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
-script_dir=$0
-case $script_dir in
-	/*) ;;
-	*) script_dir=$PWD/$script_dir
-esac
-test -f "$script_dir"
-script_dir=`dirname -- "$script_dir"`
-test -d "$script_dir"
+# Protect arguments from shell by quoting, but only if necessary.
+qin() {
+	#local arg out
+	for arg
+	do
+		case $arg in
+			\#* | *\"* | *\'* | *" "* | *\|*)
+				case $arg in
+					*\'*) arg=\"$arg\";;
+					*) arg="'$arg'"
+				esac
+		esac
+		out=$out${out:+ }$arg
+	done
+	printf '%s\n' "$out"
+}
 
+# Build original command string, but filter out -P options starting with ":"
+# because this script will use such options for itself for overriding the
+# script path within the offline download directory.
+filter_args() {
+	args=
+	opt_P=false
+	for opt
+	do
+		case $opt_P in
+			true)
+				opt_P=false
+				case $opt in
+					:*) continue
+				esac
+				args="$args -P"
+		esac
+		case $opt in
+			-P:*) continue;;
+			-P) opt_P=true;;
+			*) args="$args `qin "$opt"`"
+		esac
+	done
+	printf '%s\n' "$args"
+}
+
+ocmd=`filter_args ${1+"$@"}`
 cont=false
 more=true
 out=
 opfx=.
-while getopts co:P:hV opt
+script=$0
+fixer=download_missing_files.sh
+while getopts cO:P:hV opt
 do
 	case $opt in
-		P) test -d "$OPTARG"; opfx=$OPTARG;;
+		P)
+			case $OPTARG in
+				:?*)
+					script=${OPTARG#:}
+					test -f "$script"
+					;;
+				*)
+					test -d "$OPTARG"
+					opfx=$OPTARG
+			esac
+			;;
 		c) cont=true;;
-		o) test "$OPTARG"; out=$OPTARG;;
+		O) test "$OPTARG"; out=$OPTARG;;
 		h) exit_help;;
 		V) exit_version;;
 		*) false || exit
 	esac
 done
 shift `expr $OPTIND - 1 || :`
+
+ocmd=wget$ocmd
+case $script in
+	/*) ;;
+	*) script=$PWD/$script
+esac
+test -f "$script"
+offline_source_dir=`dirname -- "$script"`
+test -d "$offline_source_dir"
+fixer=$offline_source_dir/$fixer
 
 case $# in
 	0) false || exit
@@ -192,8 +259,13 @@ do
 	case $f in
 		"$u") false || exit
 	esac
-	src=$script_dir/$f
-	test -f "$src"
+	src=$offline_source_dir/$f
+	test -f "$src" || {
+		echo "Missing downloaded offline-file: $src" >& 2
+		>> "$fixer"
+		printf '%s\n' "$ocmd" | sort -o "$fixer" -u - "$fixer"
+		false || exit
+	}
 	case $out in
 		'') f=$opfx/$f;;
 		*) f=$out; more=false
