@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2021.280
+$APP Version 2021.280.1
 
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
@@ -29,8 +29,21 @@ $ ln -s "\`command -v $APP\`" wget
 Otherwise, you need to explicitly specify where the "$APP" resides when
 creating the symlink.
 
-Then make sure that directory has been put within \$PATH before the directory
-where the real "wget" can be found.
+Alternatively, create a stub script in the download directory invoking "$APP"
+like this:
+
+===
+	cat << '==='
+$ cat > wget < 'EOF' && chmod +x wget
+#! /bin/sh
+exec wget-offline-faker ${1+"$@"}
+EOF
+
+===
+	wr << ===
+After creating the symlink or stub script, make sure that the download
+directory has been put within \$PATH before the directory where the real
+"wget" can be found.
 
 This can then be used to trick scripts which invokes "wget" to actually use
 "$APP" instead, therefore redirecting the downloads from the files in the
