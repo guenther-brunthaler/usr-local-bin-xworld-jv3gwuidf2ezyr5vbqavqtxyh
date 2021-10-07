@@ -1,0 +1,192 @@
+#! /bin/sh
+exit_version() {
+	wr -s << ===; exit
+$APP Version 2021.280
+
+Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=`readlink -f -- "$0"` && APP=${APP##*/}
+
+exit_help() {
+	wr << ===
+"$APP" is a fake-replacement for "wget".
+
+Rather than actually downloading any files, it rather redirects any downloads
+into copying files from the same directory where the script (or as a symlink
+to the script) can be found.
+
+In order to use it, create a symlink named "wget" pointing to THIS script
+inside the directory where the already-downloaded data files are present.
+
+If "$APP" is in \$PATH, this can be achieved by
+
+$ ln -s "\`command -v $APP\`" wget
+
+Otherwise, you need to explicitly specify where the "$APP" resides when
+creating the symlink.
+
+Then make sure that directory has been put within \$PATH before the directory
+where the real "wget" can be found.
+
+This can then be used to trick scripts which invokes "wget" to actually use
+"$APP" instead, therefore redirecting the downloads from the files in the
+local directory.
+
+For tricking arbitrary scripts or installers, first change into to the
+directory containing the "wget" symlink and the already-downloaded files, then
+execute the following commands there:
+
+$ fakepath=\$PWD:\$PATH
+
+Now run the installer script
+
+$ PATH=\$fakepath ./some_installer_script_using_wget
+
+Alternatively, you can also temporarily change \$PATH like this:
+
+$ oldpath=\$PATH; PATH=\$PWD:\$PATH; hash -r
+===
+	wr << ===
+$ ./some_installer_script_using_wget
+
+and later restore \$PATH like this
+
+$ PATH=\$oldpath; hash -r; unset oldpath
+
+so that the real "wget" will be found again.
+
+Another usage of "$APP" is to trick "apt", "apt-get", "dpkg" and
+"dpkg-reconfigure" to copy files which have already been downloaded in advance
+rather than downloading them from the Internet.
+
+Note that this is only necessary for files other than *.deb files, because
+such files could be directly put into "/var/cache/apt/archives" rather than
+using "$APP".
+
+"$APP" is only useful for enforcing offline-installation of packages which
+invoke "wget" in their post-installation hook scripts, such as
+"rocksndiamonds" or "firmware-b43-installer".
+
+For tricking such packages, first perform the steps explained above for
+downloading the actual files into some directory and creating a "wget" symlink
+there which actually points to "$APP".
+
+Then change into that directory and excute the following commands
+
+$ eval "`apt-config shell opath DPkg::Path`"
+===
+	wr << '==='
+$ set -- -o DPkg::Path "$PWD:$opath"; unset opath
+
+Then use "$@" as additional options when invoking "apt" or "apt-get" in your
+command line, i. e.
+
+$ sudo apt-get "$@" install firmware-b43-installer
+
+or
+
+$ sudo apt "$@" install firmware-b43-installer
+
+This will then load the firmware file from the same directory as the script
+rather than actually accessing the Internet (provided the firmware file has
+already been downloaded before, of course).
+
+This allows offline-installation of package firmware-b43-installer and
+similar package downloaders which would otherwise not be supported because
+they invoke wget directly in their postinstallation scripts.
+
+The above "set" command will also set $3 to the proper $PATH containing the
+fake "wget" symlink, which needs to be set for "dpkg" and "dpkg-reconfigure"
+in order to make use of the fake downloader. For instance,
+
+$ PATH=$3 sudo dpkg-reconfigure rocksndiamonds
+===
+	echo; exit_version
+}
+
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+script_dir=$0
+case $script_dir in
+	/*) ;;
+	*) script_dir=$PWD/$script_dir
+esac
+test -f "$script_dir"
+script_dir=`dirname -- "$script_dir"`
+test -d "$script_dir"
+
+cont=false
+more=true
+out=
+opfx=.
+while getopts co:P:hV opt
+do
+	case $opt in
+		P) test -d "$OPTARG"; opfx=$OPTARG;;
+		c) cont=true;;
+		o) test "$OPTARG"; out=$OPTARG;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+case $# in
+	0) false || exit
+esac
+
+for u
+do
+	case $more in
+		false) false || exit
+	esac
+	f=${u##*/}
+	case $f in
+		"$u") false || exit
+	esac
+	src=$script_dir/$f
+	test -f "$src"
+	case $out in
+		'') f=$opfx/$f;;
+		*) f=$out; more=false
+	esac
+	case $cont in
+		false) test ! -e "$f"
+	esac
+	cp -- "$src" "$f"
+done
