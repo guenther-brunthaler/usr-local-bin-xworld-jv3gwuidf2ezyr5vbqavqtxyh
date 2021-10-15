@@ -1,10 +1,19 @@
 #! /bin/sh
 # Generate a base-64 password: 256 bits without arguments, or 128 bits
-# otherwise. May block until enough entropy becomes available in /dev/random.
+# otherwise.
 #
-# Version 2018.346
+# Uses neither /dev/random nor /dev/urandom, because both cannot guarantee any
+# entropy any longer since Linux changed /dev/random in 2020 and made it
+# basically the same as /dev/urandom.
+#
+# Instead, another script is used for providing the entropy, which gathers
+# entropy using the HAVEGE algorithm and in addition uses a hardware random
+# number generator, if one is available.
+#
+# Version 2021.288
+
 set -e
-trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 if command -v openssl > /dev/null 2>& 1
 then
 	alias b64='openssl base64'
@@ -13,4 +22,4 @@ else
 fi
 bits=256
 test $# != 0 && bits=128
-dd if=/dev/random bs=1 count=`expr $bits / 8` 2> /dev/null | b64 | tr -d =
+keygen-octets-by-harvesting-entropy `expr $bits / 8` | b64 | tr -d =
