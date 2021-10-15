@@ -7,7 +7,7 @@
 # will be assumed that $HW is a hardware random number generator and its output
 # will be XORed to that of haveged.
 #
-# Version 2021.288
+# Version 2021.288.1
 #
 # Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 #
@@ -19,11 +19,11 @@ HW=/dev/hwrng
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
-quiet=false
-while getopts H:q opt
+verbose=false
+while getopts H:v opt
 do
 	case $opt in
-		q) quiet=true;;
+		v) verbose=true;;
 		H) test "$OPTARG"; HW=$OPTARG;;
 		*) false || exit
 	esac
@@ -60,8 +60,8 @@ then
 		software_entropy | xor /dev/fd/5
 	}
 else
-	case $quiet in
-		true) ;;
+	case $verbose in
+		false) ;;
 		*) cat <<- "---" >& 2
 			WARNING: Only software entropy gathering is active!
 			If a hardware random number generator is available,
