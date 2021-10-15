@@ -1,0 +1,73 @@
+#! /bin/sh
+# Write N full-entropy binary octets to standard output. N must be a positive
+# integer and the only argument to the script.
+#
+# The script always generates octets using haveged, which must be installed.
+# But if xor is also installed and $HW is a readable character devices, it
+# will be assumed that $HW is a hardware random number generator and its output
+# will be XORed to that of haveged.
+#
+# Version 2021.288
+#
+# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+HW=/dev/hwrng
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+quiet=false
+while getopts H:q opt
+do
+	case $opt in
+		q) quiet=true;;
+		H) test "$OPTARG"; HW=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+case $# in
+	1) count=$1;;
+	*) false || exit
+esac
+
+expr x"$count" : x'[1-9][0-9]*$' > /dev/null
+
+PATH=/usr/local/sbin:/sbin:/opt/sbin:$PATH
+command -v haveged > /dev/null 2>& 1 || {
+	echo "'haveged' needs to be installed!" >& 2
+	false || exit
+}
+
+software_entropy() {
+	haveged -f - -n $count 2> /dev/null
+}
+
+hardware_entropy() {
+	dd if="$HW" bs=1 count=$count 2> /dev/null
+}
+
+if
+	test -c "$HW" && test -r "$HW" \
+	&& command -v xor > /dev/null 2>& 1
+then
+	hardware_entropy | {
+		exec 5<& 0
+		software_entropy | xor /dev/fd/5
+	}
+else
+	case $quiet in
+		true) ;;
+		*) cat <<- "---" >& 2
+			WARNING: Only software entropy gathering is active!
+			If a hardware random number generator is available,
+			'xor' should be installed in order to combine its
+			output with the result of the software gathering.
+---
+	esac
+	software_entropy
+fi
