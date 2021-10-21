@@ -1,5 +1,5 @@
 #! /bin/sh
-# Generate a base-64 password: 256 bits without arguments, or 128 bits
+# Generate a base-62 password: 256 bits without arguments, or 128 bits
 # otherwise.
 #
 # Uses neither /dev/random nor /dev/urandom, because both cannot guarantee any
@@ -14,12 +14,7 @@
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
-if command -v openssl > /dev/null 2>& 1
-then
-	alias b64='openssl base64'
-else
-	alias b64=base64
-fi
+
 bits=256
 test $# != 0 && bits=128
-keygen-octets-by-harvesting-entropy `expr $bits / 8` | b64 | tr -d =
+keygen-octets-by-harvesting-entropy `expr $bits / 8` | base62encode

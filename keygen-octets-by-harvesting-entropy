@@ -7,7 +7,7 @@
 # will be assumed that $HW is a hardware random number generator and its output
 # will be XORed to that of haveged.
 #
-# Version 2021.288.1
+# Version 2021.294
 #
 # Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 #
@@ -37,7 +37,7 @@ esac
 
 expr x"$count" : x'[1-9][0-9]*$' > /dev/null
 
-PATH=/usr/local/sbin:/sbin:/opt/sbin:$PATH
+PATH=/usr/local/sbin:/usr/sbin:/sbin:/opt/sbin:$PATH
 command -v haveged > /dev/null 2>& 1 || {
 	echo "'haveged' needs to be installed!" >& 2
 	false || exit
