@@ -1,0 +1,66 @@
+#! /bin/sh
+# Convert standard input to base-62 or to a different radix base specified by
+# the only argument (in range 2 through 64). Uses non-standard custom
+# alphabets for all bases except those from 2 through 16.
+#
+# Version 2021.294
+#
+# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+od -vt u1 | awk -v base="$1" -f /dev/fd/5 5<< 'EOF'
+
+# Globals: base, a, i, d[], n, bits.
+
+BEGIN {
+	if (base == "") base= 62
+	a= "0123456789"
+	a= a "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	a= a "abcdefghijklmnopqrstuvwxyz"
+	a= a "+/"
+	if (base < 2 || base > length(a)) exit system("false")
+}
+
+{ for (i= 2; i <= NF; ++i) append($i) }
+
+END {
+	print toasc()
+}
+
+function append(octetval    , i, s, j, x) {
+	for (i= 8; i--; ) {
+		if (s= octetval >= 128) octetval-= 128
+		for (j= 0; j < n; ++j) {
+			x= d[j]
+			if ((s+= x + x) >= base) {
+				d[j]= s - base; s= 1
+			} else {
+				d[j]= s; s= 0
+			}
+		}
+		if (s) d[n++]= s
+		octetval+= octetval
+	}
+	bits+= 8
+}
+
+function toasc(    b, s, j, x, p) {
+	while (bits--) {
+		s= 1
+		for (j= 0; j < n; ++j) {
+			x= p[j]
+			if ((s+= x + x) >= base) {
+				p[j]= s - base; s= 1
+			} else {
+				p[j]= s; s= 0
+			}
+		}
+		if (s) p[n++]= s
+	}
+	while (n--) b= b substr(a, d[n] + 1, 1)
+	return b
+}
+
+EOF
