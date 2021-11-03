@@ -181,7 +181,7 @@ verify_installed() {
 }
 
 # Ensure we can find "haveged", even if it is only in root's $PATH.
-PATH=/usr/local/sbin:/usr/sbin:/sbin:/opt/sbin:$PATH
+PATH=$PATH:/usr/local/sbin:/usr/sbin:/sbin:/opt/sbin
 
 verify_installed \
 	haveged: haveged \

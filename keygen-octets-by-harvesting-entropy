@@ -3,11 +3,11 @@
 # integer and the only argument to the script.
 #
 # The script always generates octets using haveged, which must be installed.
-# But if xor is also installed and $HW is a readable character devices, it
-# will be assumed that $HW is a hardware random number generator and its output
-# will be XORed to that of haveged.
+# But $HW is a readable character devices, the same amount of data will be
+# drawn from it and be mixed into the output of haveged. Also, data from
+# /dev/urandom will be mixed in the same way.
 #
-# Version 2021.294
+# Version 2021.307
 #
 # Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 #
@@ -37,37 +37,66 @@ esac
 
 expr x"$count" : x'[1-9][0-9]*$' > /dev/null
 
-PATH=/usr/local/sbin:/usr/sbin:/sbin:/opt/sbin:$PATH
-command -v haveged > /dev/null 2>& 1 || {
-	echo "'haveged' needs to be installed!" >& 2
-	false || exit
+PATH=$PATH:/usr/local/sbin:/usr/sbin:/sbin:/opt/sbin
+
+verify_installed() {
+	pkg=
+	missing=false
+	for needed
+	do
+		case $needed in
+			*:) pkg=${needed%:};;
+			*)
+				command -v "$needed" > /dev/null 2>& 1 \
+					&& continue
+				echo "Required utility '$needed' is" \
+					" missing!" >& 2
+				echo "On some systems, it may be installed" \
+					" with:" >& 2
+				printf '$ ' >& 2
+				echo "sudo apt-get install $pkg"
+				echo >& 2
+				missing=true
+		esac
+	done
+	if $missing
+	then
+		echo "Please install the missing packages," \
+			" then try again!" >& 2
+		false || exit
+	fi
 }
 
-software_entropy() {
-	haveged -f - -n $count 2> /dev/null
+verify_installed \
+	haveged: haveged \
+	openssl: openssl \
+
+gather_entropy_block() {
+	{
+		{
+			dd if=/dev/urandom bs=1 count="$1"
+			haveged -f - -n "$1"
+			if test -r "$HW" && test -c "$HW"
+			then
+				dd if="$HW" bs=1 count=32
+			fi
+		} | openssl sha256 -binary | dd bs="$1" count=1
+	} 2> /dev/null
 }
 
-hardware_entropy() {
-	dd if="$HW" bs=1 count=$count 2> /dev/null
-}
-
-if
-	test -c "$HW" && test -r "$HW" \
-	&& command -v xor > /dev/null 2>& 1
-then
-	hardware_entropy | {
-		exec 5<& 0
-		software_entropy | xor /dev/fd/5
-	}
-else
-	case $verbose in
-		false) ;;
-		*) cat <<- "---" >& 2
-			WARNING: Only software entropy gathering is active!
-			If a hardware random number generator is available,
-			'xor' should be installed in order to combine its
-			output with the result of the software gathering.
----
+# Harvest the specified number of entropy bytes and write them to standard
+# output in binary form.
+gather_entropy_bytes() {
+	left=$1
+	while test "$left" -ge 32
+	do
+		gather_entropy_block 32
+		left=`expr $left - 32 || :`
+	done
+	case $left in
+		0) ;;
+		*) gather_entropy_block "$left"
 	esac
-	software_entropy
-fi
+}
+
+gather_entropy_bytes "${1:-32}"
