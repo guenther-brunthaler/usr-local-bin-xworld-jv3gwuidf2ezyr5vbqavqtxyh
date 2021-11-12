@@ -1,0 +1,44 @@
+#! /bin/sh
+# Take command line options as expected by "notify-send" and dispatch them
+# to different backend depending on what is locally installed.
+#
+# The current order of preference is (from most to least preferred):
+#
+# * herbe
+# * notify-send
+# * libnotify-notify-send
+#
+# v2021.316
+
+set -e
+
+have() {
+	command -v "$1" 2> /dev/null || return
+}
+
+if
+	c=herbe
+	have $c
+then
+	while getopts i:t: opt
+	do
+		case $opt in
+			*) ;;
+		esac
+	done
+	shift `expr $OPTIND - 1 || :`
+	herbe ${1+"$@"} && rc=$? || rc=$?
+	case $rc in
+		0 | 2) ;; # "Accept" (RMB) or "Dismiss" (LMB).
+	esac
+	exit
+elif
+	c=notify-send
+	have $c
+then
+	:
+else
+	c=libnotify-notify-send
+	have $c || exit
+fi
+exec $c ${1+"$@"}

@@ -14,9 +14,9 @@
 # "libnotify-bin" package. (Those package names refer to Debian-based
 # distributions).
 #
-# Version 2018.77
+# Version 2021.316
 #
-# Copyright (c) 2013-2018 Guenther Brunthaler. All rights reserved.
+# Copyright (c) 2013-2021 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -58,5 +58,5 @@ do
 	sleep 1
 done
 convert "$T" -quality 0 "$N"
-notify-send -i info -t 5000 "Screenshot saved as '$N'."
+notify-send-frontend -i info -t 5000 "Screenshot saved as '$N'."
 OK=Y

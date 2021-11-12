@@ -2,8 +2,8 @@
 # Take a screenshot. Will try different methods once this script has been
 # extended to support different methods.
 #
-# Version 2016.37
-# Copyright (c) 2015-2016 Guenther Brunthaler. All rights reserved.
+# Version 2021.316
+# Copyright (c) 2015-2021 Guenther Brunthaler. All rights reserved.
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 set -e
@@ -21,7 +21,9 @@ exec 3>& 2
 T=`mktemp "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
 trap cleanup 0
 exec 2> "$T"
-for tool in xwininfo import notify='libnotify-notify-send|notify-send'
+for tool in \
+	xwininfo import \
+	notify='notify-send-frontend|libnotify-notify-send|notify-send'
 do
 	var=${tool%%=*}; test x"$var" != x"$tool" && tool=${tool#*=}
 	executable=
