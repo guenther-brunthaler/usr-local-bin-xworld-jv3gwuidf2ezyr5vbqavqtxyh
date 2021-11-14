@@ -1,0 +1,145 @@
+#! /bin/sh
+# Version 2021.318
+#
+# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+uuid_opt=-r
+user_specific=false
+absolute=false
+while getopts aut opt
+do
+	case $opt in
+		a) absolute=true;;
+		u) user_specific=true;;
+		t) uuid_opt=-t;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+case $# in
+	0) dir=$PWD; somewhere=true;;
+	1) dir=$1; somewhere=false;;
+	*) false || exit
+esac
+test "$dir"
+
+case $dir in
+	/*) ;;
+	*) dir=$PWD/$dir; somewhere=true
+esac
+# Make $dir relative to fsroot.
+t=${dir##/}
+test "$t" != "$dir"
+dir=${t%%/}
+test "$dir"
+
+# Cleans up $1 into $result.
+# Globals: $oldIFS, $restore_flags.
+cleanpath() {
+	set -f; IFS=/; set -- $1; IFS=$oldIFS; set $restore_flags
+	n=$#
+	while :
+	do
+		case $1 in
+			..) false || exit;;
+			. | '') ;;
+			*)
+				case $2 in
+					..) shift;;
+					*) set -- "$@" "$1"
+				esac
+		esac
+		shift
+		n=`expr $n - 1` || break
+	done
+	IFS=/; result=$*; IFS=$oldIFS
+}
+oldIFS=$IFS
+case $- in
+	*f*) restore_flags=-f;;
+	*) restore_flags=+f
+esac
+
+cleanpath "$dir"; dir=$result
+
+# Make relative to $HOME directory, if possible.
+cleanpath "$HOME"; home=$result
+t=${dir#"$home/"}
+if test "$t" != "$dir"
+then
+	dir=$t
+	case $user_specific in
+		true)
+			case $LOGNAME in
+				'') user=`id -un`;;
+				*) user=$LOGNAME
+			esac
+			;;
+		*) user=anyone
+	esac
+	test "$user"
+	user="~$user/"
+else
+	user=
+fi
+case $somewhere:$absolute in
+	true:false) dir=someplace/`basename -- "$dir"`
+esac
+
+if test -d .git
+then
+	extract_uuid() {
+		b='[^[:alnum:]]';
+		sed "
+			s/.*/,&,/; t1; :1
+			s/.*$b[Bb]ranch UUID: /,UUID /; t ok
+			s/.*$b[Uu]pdate /,/; t ok
+			s/.*$b[Nn]ew /,/; t ok
+			d
+			:ok
+			s|.*${b}"'UUID \([0-9a-np-z]\{25\}\)'"$b.*|\1|; t
+			d
+		"
+	}
+	uuid=`git log --graph --first-parent | extract_uuid | tail -n 1`
+else
+	uuid=
+fi
+case $uuid in
+	'')
+		echo "WARNING: No UUID - generating new one" >& 2
+		uuid=`base35uuid $uuid_opt`
+esac
+
+println() {
+	printf '%s\n' "$*"
+}
+
+escape() {
+	println "$1" | sed '
+		s/[-_]/&&/g
+		y|/|_|
+		s|~|tilde_|
+	'
+}
+
+tags() {
+	git config -l | sed '
+		s/.*\.insteadof=\(tag:[-.0-9a-z]\{3,\},[0-9]\{4\}.*\)$/\1/
+		t; d
+	' \
+	|  uniq -c | sort -nr | head -n 1 | sed 's/^ *[1-9][^ ]* //'
+}
+burl=`LC_NUMERIC=C tags`
+case $burl in
+	'') burl='https://github.com/REPONAME'
+esac
+
+println "$burl`escape "$user$dir"`-$uuid.git"
