@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2021.318.1
+# Version 2021.318.2
 #
 # Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 #
@@ -13,13 +13,15 @@ uuid_opt=-r
 user_specific=false
 absolute=false
 execute=false
-while getopts autx opt
+uuid_override=
+while getopts autxU: opt
 do
 	case $opt in
 		a) absolute=true;;
 		u) user_specific=true;;
 		t) uuid_opt=-t;;
 		x) execute=true;;
+		U) uuid_override=$OPTARG;;
 		*) false || exit
 	esac
 done
@@ -95,7 +97,14 @@ case $somewhere:$absolute in
 	true:false) dir=someplace/`basename -- "$dir"`
 esac
 
-if test -d .git
+if test "$uuid_override"
+then
+	uuid=$uuid_override
+	expr x"$uuid" : x'[0-9a-np-z]\{25\}$' > /dev/null || {
+		echo "Invalid base-35 UUID!" >& 2
+		false || exit
+	}
+elif test -d .git
 then
 	extract_uuid() {
 		b='[^[:alnum:]]';
