@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2021.318
+# Version 2021.318.1
 #
 # Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 #
@@ -12,12 +12,14 @@ trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 uuid_opt=-r
 user_specific=false
 absolute=false
-while getopts aut opt
+execute=false
+while getopts autx opt
 do
 	case $opt in
 		a) absolute=true;;
 		u) user_specific=true;;
 		t) uuid_opt=-t;;
+		x) execute=true;;
 		*) false || exit
 	esac
 done
@@ -125,7 +127,7 @@ println() {
 escape() {
 	println "$1" | sed '
 		s/[-_]/&&/g
-		y|/|_|
+		y|/|-|
 		s|~|tilde_|
 	'
 }
@@ -142,4 +144,8 @@ case $burl in
 	'') burl='https://github.com/REPONAME'
 esac
 
-println "$burl`escape "$user$dir"`-$uuid.git"
+url=$burl`escape "$user$dir"`-$uuid.git
+case $execute in
+	true) git remote add origin "$url";;
+	*) println "$url"
+esac
