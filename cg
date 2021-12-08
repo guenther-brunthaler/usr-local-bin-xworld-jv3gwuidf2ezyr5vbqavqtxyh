@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2021.79
+$APP Version 2021.342
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -14,8 +14,8 @@ exit_help() {
 $APP - pipe text to or from the X11 clipboard to/from standard output/input
 
 Usage:
-$APP [ -g | -f ] | <command> ...
-command | $APP [ -s | -t | -p ]
+$APP [ -x | -c ] [ -g | -f ] | <command> ...
+command | $APP [ -x | -c ] [ -s | -t | -p ]
 $APP <text> ...
 
 The first usage pipes data from to clipboard to <command>.
@@ -34,6 +34,14 @@ of its current contents:
 
 Supported options:
 
+-c: use the clipboard rather than the primary X11 selection for the specified
+operation. This is the default unless the name of the command '$APP' contains
+the letter 'x'.
+
+-x: use the primary X11 selection rather than the clipboard for the specified
+operation. This is the default if the name of the command '$APP' contains the
+letter 'x'.
+
 -g, -f: get data from clipboard and write to standard output. This is the
 default unless the name of the command '$APP' contains the letter "s".
 
@@ -48,13 +56,21 @@ APP=${0##*/}
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
-case `basename -- "$0"` in
+
+case $APP in
 	*s*) get=false;;
 	*) get=true;;
 esac
-while getopts gfstphV opt
+case $APP in
+	*x*) selection=primary;;
+	*) selection=clipboard;;
+esac
+
+while getopts xcgfstphV opt
 do
 	case $opt in
+		x) selection=primary;;
+		c) selection=clipboard;;
 		[gf]) get=true;;
 		[stp]) get=false;;
 		h) exit_help;;
@@ -88,10 +104,10 @@ case $# in
 	0)
 		if $get
 		then
-			xclip -o -selection clipboard
+			xclip -o -selection $selection
 		else
-			xclip -i -selection clipboard
+			xclip -i -selection $selection
 		fi
 		;;
-	*) printf '%s\n' "$*" | xclip -i -selection clipboard
+	*) printf '%s\n' "$*" | xclip -i -selection $selection
 esac
