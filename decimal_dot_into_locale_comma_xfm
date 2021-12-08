@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2021.321
+# Version 2021.342
 #
 # Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 #
@@ -9,10 +9,14 @@
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+decimal_point=
+eval `locale -k decimal_point` 2> /dev/null
+test -z "$decimal_point" && decimal_point=.
 inplace=false
-while getopts i opt
+while getopts c:i opt
 do
 	case $opt in
+		c) decimal_point=$OPTARG;;
 		i) inplace=true;;
 		*) false || exit
 	esac
@@ -21,11 +25,12 @@ shift `expr $OPTIND - 1 || :`
 
 d='[0-9]\{1,\}'
 D='[^[:alnum:]]'
+c=$decimal_point
 set '
 	s/.*/ & /
-	s/\('"$D"'\)\.\('"$d$D"'\)/\1,\2/g
-	s/\('"$D$d"'\)\.\('"$D"'\)/\1,\2/g
-	s/\('"$D$d"'\)\.\('"$d$D"'\)/\1,\2/g
+	s/\('"$D"'\)\.\('"$d$D"'\)/\1'"$c"'\2/g
+	s/\('"$D$d"'\)\.\('"$D"'\)/\1'"$c"'\2/g
+	s/\('"$D$d"'\)\.\('"$d$D"'\)/\1'"$c"'\2/g
 	s/ $//; s/^ //
 ' ${1+"$@"}
 $inplace && set -- -i "$@"
