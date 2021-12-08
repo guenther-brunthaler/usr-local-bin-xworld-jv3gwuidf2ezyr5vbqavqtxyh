@@ -1,16 +1,30 @@
 #! /bin/sh
-size=50
+# v2021.342
+size=130
+upd=1
+fmt='%T'
+alt_size=85
+alt_upd=30
+alt_fmt='%a, %d. %02H:%M'
 
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 
-while getopts '' opt
+case $0 in
+	*SS) alternate=false;;
+	*) alternate=true
+esac
+while getopts oa opt
 do
 	case $opt in
+		o) alternate=false;;
+		a) alternate=true;;
 		*) false || exit
 	esac
 done
 shift `expr $OPTIND - 1 || :`
+
+$alternate && size=$alt_size upd=$alt_upd fmt=$alt_fmt
 
 if test $# = 1
 then
@@ -20,4 +34,4 @@ fi
 
 cd /
 xclock > /dev/null 2>& 1 < /dev/null \
-	-digital -update 1 -strftime %T -face "Times New Roman-$size" &
+	-digital -update $upd -strftime "$fmt" -face "Times New Roman-$size" &
