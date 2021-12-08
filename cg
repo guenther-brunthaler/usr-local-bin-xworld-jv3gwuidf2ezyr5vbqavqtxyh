@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2021.342
+$APP Version 2021.342.1
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -10,43 +10,51 @@ Distribution is permitted under the terms of the GPLv3.
 }
 
 exit_help() {
+	case $selection in
+		primary) selection='primary X11 selection';;
+		*) selection='X11 clipboard'
+	esac
 	cat << ===; echo; exit_version
-$APP - pipe text to or from the X11 clipboard to/from standard output/input
+$APP - pipe text from/to the $selection
+to/from standard output/input
 
 Usage:
 $APP [ -x | -c ] [ -g | -f ] | <command> ...
 command | $APP [ -x | -c ] [ -s | -t | -p ]
-$APP <text> ...
+$APP [ -x | -c ] <text> ...
 
-The first usage pipes data from to clipboard to <command>.
+The first usage pipes data from to $selection to <command>.
 
 The second usage replaces the current contents of the
-clipboard with the output of <command>.
+$selection with the output of <command>.
 
-The third usage just sets the concatenation of all arguments, separated by the
-current value of the IFS variable, as the new contents of the clipboard.
+The third usage just sets the concatenation of all arguments,
+separated by the current value of the IFS variable, as the new
+contents of the $selection.
 
-Example: Replace the contents of the clipboard with a base-64 encoded version
-of its current contents:
+Example: Replace the contents of the $selection
+with a base-64 encoded version of its current contents:
 
 \$ $APP -g | base64 | $APP -s
 
 
 Supported options:
 
--c: use the clipboard rather than the primary X11 selection for the specified
-operation. This is the default unless the name of the command '$APP' contains
-the letter 'x'.
+-c: use the X11 clipboard rather than the primary X11 selection for the
+specified operation. This is the default unless the name of the command '$APP'
+contains the letter 'x'.
 
--x: use the primary X11 selection rather than the clipboard for the specified
-operation. This is the default if the name of the command '$APP' contains the
-letter 'x'.
+-x: use the primary X11 selection rather than the X11 clipboard for the
+specified operation. This is the default if the name of the command '$APP'
+contains the letter 'x'.
 
--g, -f: get data from clipboard and write to standard output. This is the
-default unless the name of the command '$APP' contains the letter "s".
+-g, -f: get data from $selection and write to standard output.
+This is the default unless the name of the command '$APP' contains the letter
+"s".
 
--s, -t, -p: set data read from standard input as new clipboard contents. This
-is the default if the name of the command '$APP' contains the letter "s".
+-s, -t, -p: set data read from standard input as new $selection
+contents. This is the default if the name of the command '$APP' contains
+the letter "s".
 
 -h: show this help and exit
 -V: show version information and exit
@@ -109,5 +117,5 @@ case $# in
 			xclip -i -selection $selection
 		fi
 		;;
-	*) printf '%s\n' "$*" | xclip -i -selection $selection
+	*) printf %s "$*" | xclip -i -selection $selection
 esac
