@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP Version 2021.342.1
+$APP Version 2021.342.2
 Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -56,6 +56,10 @@ This is the default unless the name of the command '$APP' contains the letter
 contents. This is the default if the name of the command '$APP' contains
 the letter "s".
 
+-n: For the third usage variant only, adds a newline character at the end
+of the concatenated arguments. By default, no newline is added for this
+variant.
+
 -h: show this help and exit
 -V: show version information and exit
 ===
@@ -74,9 +78,11 @@ case $APP in
 	*) selection=clipboard;;
 esac
 
-while getopts xcgfstphV opt
+fmt=%s
+while getopts nxcgfstphV opt
 do
 	case $opt in
+		n) fmt='%s\n';;
 		x) selection=primary;;
 		c) selection=clipboard;;
 		[gf]) get=true;;
@@ -117,5 +123,5 @@ case $# in
 			xclip -i -selection $selection
 		fi
 		;;
-	*) printf %s "$*" | xclip -i -selection $selection
+	*) printf "$fmt" "$*" | xclip -i -selection $selection
 esac
