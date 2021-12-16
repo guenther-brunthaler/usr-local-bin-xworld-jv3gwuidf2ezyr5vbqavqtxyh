@@ -2,7 +2,7 @@
 # Determine the maximum line length (in characters) for
 # stdin or all of files specified as arguments.
 #
-# Version 2021.350
+# Version 2021.350.1
 #
 # (c) 2012-2021 by Guenther Brunthaler.
 # This source file is free software.
@@ -13,6 +13,8 @@ exec awk -f /dev/fd/5 -- ${1+"$@"} 5<< 'EOF'
 # Globals: max, error
 
 BEGIN {max= error= 0}
+
+/\t/ {die("Tab character encountered (filter through 'expand' first)!")}
 
 /[^[:print:]]/ {die("Character with unknown width encountered (replace it)!")}
 
