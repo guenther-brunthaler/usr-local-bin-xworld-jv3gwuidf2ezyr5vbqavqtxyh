@@ -1,0 +1,37 @@
+#! /bin/sh
+# Determine the maximum line length (in characters) for
+# stdin or all of files specified as arguments.
+#
+# Version 2021.350
+#
+# (c) 2012-2021 by Guenther Brunthaler.
+# This source file is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+exec awk -f /dev/fd/5 -- ${1+"$@"} 5<< 'EOF'
+
+# Globals: max, error
+
+BEGIN {max= error= 0}
+
+/[^[:print:]]/ {die("Character with unknown width encountered (replace it)!")}
+
+/[[:space:]]$/ {die("Whitespace present at end of line (strip or pad it)!")}
+
+length > max {max= length}
+
+END {
+	if (error) exit error
+	print max
+}
+     
+function die(problem    , msg) {
+	msg= FILENAME
+	if (msg == "-") msg= "(standard input)"
+	msg= msg ":" FNR ": Error: " problem
+	print msg > "/dev/stderr"
+	error= system("false")
+	exit
+}
+
+EOF
