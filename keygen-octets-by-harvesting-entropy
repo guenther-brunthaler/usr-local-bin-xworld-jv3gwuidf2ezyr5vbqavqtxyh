@@ -1,13 +1,14 @@
 #! /bin/sh
 # Write N full-entropy binary octets to standard output. N must be a positive
-# integer and the only argument to the script.
+# integer and the only argument to the script. If omitted, N defaults to 32
+# (i.e. 256 random bits).
 #
 # The script always generates octets using haveged, which must be installed.
 # But $HW is a readable character devices, the same amount of data will be
 # drawn from it and be mixed into the output of haveged. Also, data from
 # /dev/urandom will be mixed in the same way.
 #
-# Version 2021.307
+# Version 2021.350
 #
 # Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
 #
@@ -31,6 +32,7 @@ done
 shift `expr $OPTIND - 1 || :`
 
 case $# in
+	0) count=32;;
 	1) count=$1;;
 	*) false || exit
 esac
@@ -74,11 +76,15 @@ verify_installed \
 gather_entropy_block() {
 	{
 		{
-			dd if=/dev/urandom bs=1 count="$1"
 			haveged -f - -n "$1"
+			# May invoke haveged again if running as a service.
+			dd if=/dev/urandom bs=1 count="$1"
 			if test -r "$HW" && test -c "$HW"
 			then
-				dd if="$HW" bs=1 count=32
+				# May still fail - sometimes the device node
+				# is there, but it triggers an error message
+				# when trying to actually read from it.
+				dd if="$HW" bs=1 count=32 || :
 			fi
 		} | openssl sha256 -binary | dd bs="$1" count=1
 	} 2> /dev/null
@@ -99,4 +105,4 @@ gather_entropy_bytes() {
 	esac
 }
 
-gather_entropy_bytes "${1:-32}"
+gather_entropy_bytes "$count"
