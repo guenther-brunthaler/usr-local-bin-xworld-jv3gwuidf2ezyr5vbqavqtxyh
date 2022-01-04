@@ -8,9 +8,9 @@
 # drawn from it and be mixed into the output of haveged. Also, data from
 # /dev/urandom will be mixed in the same way.
 #
-# Version 2021.350
+# Version 2022.4
 #
-# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+# Copyright (c) 2021-2022 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -73,10 +73,14 @@ verify_installed \
 	haveged: haveged \
 	openssl: openssl \
 
+HAVGE() {
+	haveged -f - -n "$1"
+}
+
 gather_entropy_block() {
 	{
 		{
-			haveged -f - -n "$1"
+			HAVGE "$1"
 			# May invoke haveged again if running as a service.
 			dd if=/dev/urandom bs=1 count="$1"
 			if test -r "$HW" && test -c "$HW"
@@ -105,4 +109,26 @@ gather_entropy_bytes() {
 	esac
 }
 
+
+xbyte() {
+	HAVGE 1 2> /dev/null | od -A n -t x1
+}
+
+i=16 b0=
+while :
+do
+	b1=`xbyte`
+	case $b0 in
+		'') b0=$b1;;
+		"$b1") ;;
+		*) break
+	esac
+	i=`expr $i - 1` || break
+done
+case $i in
+	0)
+		echo "'haveged' does not seem to work!" >& 2
+		HAVGE > /dev/null
+		false || exit
+esac
 gather_entropy_bytes "$count"
