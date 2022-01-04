@@ -1,9 +1,9 @@
 #! /bin/sh
 exit_version() {
 	wr -s << . && exit
-$APP version 2021.306
+$APP version 2022.4
 
-Copyright (c) 2018-2021 Guenther Brunthaler. All rights reserved.
+Copyright (c) 2018-2022 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -12,6 +12,7 @@ Distribution is permitted under the terms of the GPLv3.
 APP=${0##*/}
 
 default_bits=4096
+egu=keygen-octets-by-harvesting-entropy
 exit_help() {
 	wr << . && echo && echo && exit_version
 $APP - a safer ssh-keygen
@@ -27,10 +28,7 @@ numbers from /dev/urandom may be of poor quality, deterministic or even be
 completely predictable.
 
 $APP emulates ssh-keygen's behaviour regarding key generation, but uses
-entropy harvested by the "haveged" executable (which must be installed but
-does not need to be running as a daemon) for gathering the required random
-bytes. For additional security, it also requests the same amount of random
-numbers from /dev/urandon and mixes it with the entropy gathered by hageged.
+entropy harvested by the "$egu" utility.
 
 This should result in high-quality random numbers with full entropy - which is
 exactly what one usually wants for cryptographic keys.
@@ -39,21 +37,6 @@ exactly what one usually wants for cryptographic keys.
 random numbers once. But a change made to the Linux kernel in 2020 effectively
 ruined /dev/random, making it no better than and basically the same as
 /dev/urandom.)
-
-As an option, one might to consider installing package "rng-tools" if the
-local platform has a random number generator. If installed, its daemon will
-feed entropy from the hardware random number generator to the kernel, which
-will at least improve (but not enough to ensure entropy) the quality of
-/dev/urandom.
-
-As an alternative to "rng-tools" for systems without a hardware random number
-generator, consider running "haveged" as a daemon. It will also feed entropy
-into the kernel and improve the quality of /dev/urandom, but like rng-tools it
-cannot fix the damage done to /dev/random in 2020 either.
-
-Note that running the "rng-tools" or "haveged" daemons is indeed optional -
-$APP will use haveged directly as an executable in any case for gathering
-entropy, whether it is running as a daemon or not.
 
 Options:
 
@@ -164,10 +147,13 @@ verify_installed() {
 					&& continue
 				echo "Required utility '$needed' is" \
 					" missing!" >& 2
-				echo "On some systems, it may be installed" \
-					" with:" >& 2
-				printf '$ ' >& 2
-				echo "sudo apt-get install $pkg"
+				if test "$pkg"
+				then
+					echo "On some systems, it may be installed" \
+						" with:" >& 2
+					printf '$ ' >& 2
+					echo "sudo apt-get install $pkg"
+				fi
 				echo >& 2
 				missing=true
 		esac
@@ -184,6 +170,7 @@ verify_installed() {
 PATH=$PATH:/usr/local/sbin:/usr/sbin:/sbin:/opt/sbin
 
 verify_installed \
+	"$egu" \
 	haveged: haveged \
 	openssh-client:	ssh-keygen \
 	openssl: openssl \
@@ -200,36 +187,6 @@ do
 done
 
 TDIR=`mktemp -d -- "${TMPDIR:-/tmp}/$APP".XXXXXXXXXX`
-
-# Gather a block of $1 (no more than 32) full-entropy random bytes.
-gather_entropy_block() {
-	{
-		{
-			dd if=/dev/urandom bs=1 count="$1"
-			haveged -f - -n "$1"
-			hr=/dev/hwrng
-			if test -r "$hr" && test -c "$hr"
-			then
-				dd if="$hr" bs=1 count=32
-			fi
-		} | openssl sha256 -binary | dd bs="$1" count=1
-	} 2> /dev/null
-}
-
-# Harvest the specified number of entropy bytes and write them to standard
-# output in binary form.
-gather_entropy_bytes() {
-	left=$1
-	while test "$left" -ge 32
-	do
-		gather_entropy_block 32
-		left=`expr $left - 32 || :`
-	done
-	case $left in
-		0) ;;
-		*) gather_entropy_block "$left"
-	esac
-}
 
 # Calculate additional bytes of entropy to provide for the last openssl
 # invocation. This will be used to "re-charge" openssl's randomness seeding
@@ -269,8 +226,8 @@ do
 		# This will be the last invocation of openssl by this script.
 		e=`expr $e + $recharge_seeding_bytes`
 	fi
-	echo "Collecting $e bytes of entropy (may take a few seconds)..." >& 2
-	gather_entropy_bytes "$e" > "$TDIR"/rnd
+	echo "Collecting $e bytes of entropy (may take several seconds)..." >& 2
+	"$egu" "$e" > "$TDIR"/rnd
 	openssl genrsa -out "$t".prv -rand "$TDIR"/rnd "$bits"
 	chmod 600 -- "$t".prv
 	ssh-keygen -yf "$t".prv > "$t".tmp
