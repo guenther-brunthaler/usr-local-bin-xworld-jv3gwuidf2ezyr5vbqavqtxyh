@@ -1,73 +1,66 @@
 #! /bin/sh
-# Displays the combined up- and download byte count on the specified interface
-# (defaults to ppp0) since the interface was brought up.
+# Displays the current up- and download counters (as bytes) for all network
+# interfaces since the interfaces where brought up. When feeding a former
+# output of the script to via standard input to itself, displays the traffic
+# produced since then instead.
+#
+# For the latter case only, an a list of network interfaces to show may be
+# specified either as multiple arguments or separated by arbitraty separators
+# within one or more arguments:
+#
+# $this_script > snap.txt # Snaphot the starting counters.
+# $this_script < snap.txt # Display counter differences for all interfaces.
+# $this_script eth0 < snap.txt # Display only differences for interface eth0.
+# $this_script eth0 lo < snap.txt # Display only for interfaces eth0 and lo.
+# $this_script eth0,lo < snap.txt # Same.
+# $this_script eth0+lo < snap.txt # Same.
+# $this_script "eth0 & lo" < snap.txt # Same.
+# $this_script "eth0 "&" lo" < snap.txt # Same.
+# $this_script "eth0, lo" < snap.txt # Same.
+# $this_script "eth0 :: lo" < snap.txt # Same.
+#
+# Version 2022.10
+#
+# Copyright (c) 2009-2022 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
 set -e
-log=/var/log/ppp-traffic.log
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
-trap 'test $? = 0 || echo "${0##*/} failed!" >& 2' 0
-export PATH=/sbin:/usr/sbin:/usr/local/sbin:$PATH
+only_ifcs=
+verbose=0
+while getopts v opt
+do
+	case $opt in
+		v) verbose=1;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
 
-now=`date +%s`
-start=`date -d "@$now" +'%Y-%m-%d'`
-start=`date -d "$start" +%s`
-{
-	test -e "$log" && awk '
-		# csv_line := "" | csv_line "," csv_field.
-		# csv_field := "\"" qfield
-		BEGIN {nv= q= 0}
-		{
-			i= 1; n= length
-			if (q) {
-				s= v[nv]
-				while (i <= n) {
-                                        if (e= index(substr($0, i), "\"")) {
-                                        	e+= i - 1
-                                        	
-                                                ni= (e+= i - 1) + 1
-                                        } else {
-                                                ni= e= n + 1
-                                        }
-                                        v[nv++]= substr($0, i, e - i)
-
-				}
-			}
-			nv= 0
-			while (i <= n) {
-				if (substr($0, i, 1) == "\"") {
-					av= ""; i+= 1
-					
-				} else {
-					if (e= index(substr($0, i), ",")) {
-						ni= (e+= i - 1) + 1
-					} else {
-						ni= e= n + 1
-					}
-					v[nv++]= substr($0, i, e - i)
-				}
-				i= ni
-			}
-			if (/^"/)
-			if (/^[1-9]/) {
-				if (nohdr) exit 1
-			} else {
-				
-			}
-		}
-	' "$log"
-	{ LC_ALL=C ifconfig 2> /dev/null || true; } | awk '
+report() {
+	{
+		export LC_ALL=C PATH=/sbin:/usr/sbin:/usr/local/sbin:"$PATH"
+		ifconfig 2> /dev/null || :
+	} | awk -v now=`date +%s` -f /dev/fd/5 5<< '.'
 		function z() {
 			r= t= 0; ifc= noifc
 		}
+
 		function p() {
-			print ifc "," "'"$now"'," r "," t
+			print ifc "," now "," r "," t
 			z()
 		}
+
 		BEGIN {noifc= ""; z()}
+
 		/^[^:[:space:]]+:/ {
 			if (ifc != noifc) p()
 			ifc= substr($0, 1, index($0, ":") - 1)
 		}
+
 		$1 ~ "[RT]X" && /bytes/ {
 			v= 0
 			for (i= 1; i <= NF; ++i) {
@@ -75,16 +68,86 @@ start=`date -d "$start" +%s`
 			}
 			if ($1 == "RX") r= v; else t= v
 		}
+
 		END {p()}
-	'
+.
 }
 
-exit
- | awk -F, '
-	$1 ~ /^[1-9]/ && $1 >= '$start' {s+= $2 + $3}
-	END {printf "%.2f\n", s / 2 ^ 20}
-' | {
-	c=`locale -k LC_NUMERIC | grep decimal_point`
+if test -t 0
+then
+	report
+	exit
+fi
+{
+	cat
+	echo
+	report
+} \
+| { awk -v details=$verbose -v only="$*" -F, -f /dev/fd/5 5<< '.'
+
+	BEGIN {
+		split("bytes,kB,MB,GB,TB,EB,ZB,YB", u)
+		if (i= split(only, t, "[^-_[:alnum:]]{1,}")) {
+			while (i) ifc_ok[t[i--]]= 1
+			only= 1
+		}
+		split("seconds,60,minutes,60,hours,60,days,24,weeks,7", t)
+	}
+
+	$1 == "" {phase= 2; next}
+	
+	phase != 2 {
+		ifc= $1
+		for (i= 2; i <= NF; ++i) {
+			if (i == 2 && v[ifc, i] > $i) break
+			v[ifc, i]= $i
+		}
+		next
+	}
+	
+	{
+		ifc= $1
+		if (only && !(ifc in ifc_ok)) next
+		if (!((ifc, 2) in v)) next
+		for (i= 2; i <= NF; ++i) v[ifc, i]= $i - v[ifc, i]
+		details= details ? sprintf( \
+			" (%s read, %s written)" \
+			, fmt(v[ifc, 3]), fmt(v[ifc, 4]) \
+		) : ""
+		printf \
+			"%s: %s total%s" \
+			" since your snapshot from %s ago.\n" \
+			, ifc, fmt(v[ifc, 3] + v[ifc, 4]) \
+			, details, tfmt(v[ifc, 2])
+	}
+	
+	function fmt(bytes    , i) {
+		for (i= 1; bytes > 1000; ++i) bytes/= 1000
+		bytes= sprintf("%.2f", bytes)
+		sub(/[.]0*$/, "", bytes)
+		return bytes " " pl(bytes, u[i])
+	}
+	
+	function pl(count, unit) {
+		if (count == 1) sub(/s$/, "", unit)
+		return unit
+	}
+	
+	function tfmt(seconds    , ts, i, v) {
+		for (i= 1; seconds && i in t; i+= 2) {
+			if (v= seconds % t[i + 1]) {
+				if (ts != "") ts= " " ts
+				ts= v " " pl(v, t[i]) ts
+			}
+			seconds= int(seconds / t[i + 1])
+		}
+		if (ts == "") ts= seconds " " pl(seconds, t[1])
+		return ts
+	}
+	
+.
+} | {
+	c=`locale -k decimal_point`
 	decimal_point='.'; eval "$c"
-	sed -e "s/[.]/$decimal_point/" -e 's/$/ MiB/'
+	sed -e "s/[.]\([0-9]\)/$decimal_point\1/g"
 }
