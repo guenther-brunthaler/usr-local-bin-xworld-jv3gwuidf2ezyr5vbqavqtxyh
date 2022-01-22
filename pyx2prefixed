@@ -1,0 +1,120 @@
+#! /bin/sh
+# Convert 'pyx' output from 'xmlstarlet' into per-line context-free format.
+# Can be losslessly converted back to 'pyx' using the "-u" option.
+#
+# This format is less space-efficient than 'pyx' but allows to process the
+# lines individually using the usual UNIX text processing tools.
+#
+# Version 2022.22
+#
+# Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+undo=false
+while getopts u opt
+do
+	case $opt in
+		u) undo=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test $# = 0
+
+if $undo
+then
+	exec awk -f /dev/fd/5 5<< '.'
+
+		BEGIN {L= 0}
+		
+		{
+			#print "LINE " NR " WHOLE >>>" $0 "<<<"
+			if (substr($0, 1, 1) != "/") syntax_error()
+			line= substr($0, 2)
+			#print "REDUCED >>>" line "<<<"
+			if (!(i= index(line, "//"))) syntax_error();
+			nc= split(substr(line, 1, i - 1), c, "/")
+			#print "NC: " nc
+			line= substr(line, i + 2)
+			#print "ARG >>>" line "<<<"
+			cm= nc < L ? nc : L
+			for (i= 1; i <= cm; ++i) {
+				if (c[i] != s[i]) {
+					die( \
+						"Unbalanced tags - \"" c[i] \
+						"\" when \"" s[i] \
+						"\" was expected)!" \
+					)
+				}
+			}
+			if (nc == L + 1) {
+				print "(" (s[++L]= c[nc])
+			} else if (nc > L) {
+				die("Too many opening tags!")
+			} else if (nc + 1 == L) {
+				print ")" s[L--]
+			} else if (nc != L) {
+				die("Too few closing tags!")
+			}
+			if (line != "") print line
+		}
+		
+		END {
+			if (L > 0) print ")" s[L--]
+			if (L) {die("Premature end of file!")}
+		}
+		
+		function syntax_error() {
+			die("Syntax error!")
+		}
+		
+		function die(msg) {
+			print "stdin line " NR ": " msg >> "/dev/stderr"
+			exit system("false")
+		}
+
+.
+else
+	exec awk -f /dev/fd/5 5<< '.'
+
+		BEGIN {L= 0}
+		
+		sub(/^\(/, "") {
+			s[L++]= $0
+			print prefix()
+			next
+		}
+		
+		sub(/^\)/, "") {
+			if (!L) die("Junk after outermost closing tag!")
+			if ("x" s[--L] != "x" $0) {
+				die("Unbalanced closing tags!")
+			}
+			next
+		}
+		
+		{print prefix() $0}
+		
+		function prefix(    p, i) {
+			p= ""
+			for (i= 0; i < L; ++i) p= p "/" s[i]
+			return p "//"
+		}
+
+		END {
+			if (L) {die("Premature end of file!")}
+		}
+		
+		function die(msg) {
+			print "stdin line " NR ": " msg >> "/dev/stderr"
+			exit system("false")
+		}
+
+.
+fi
