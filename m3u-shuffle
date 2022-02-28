@@ -1,0 +1,53 @@
+#! /bin/sh
+
+# Shuffles a *.m3u playlist read from standard input, completely determined by
+# the arbitrary seed string (may therefore also be a number) specified as the
+# only argument.
+#
+# Version 2022.59
+#
+# Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test $# != 0
+rsq_cur() {
+	printf %s:%s $rsq "$seed" | openssl md5 -binary | od -An -vt u4
+}
+seed=$1; shift
+rsq=0
+
+test $# = 0
+
+command -v openssl > /dev/null
+
+state=0
+tbrk=1 # Tie breaker.
+while IFS= read -r line
+do
+	case $state in
+		0) echo "0:0:0:$line"; state=1;;
+		1)
+			case $# in
+				0) set `rsq_cur`; rsq=`expr $rsq + 1`
+			esac
+			echo "$1:1:$tbrk:$line"; state=2
+			;;
+		*)
+			echo "$1:2:$tbrk:$line"
+			shift; tbrk=`expr $tbrk + 1`
+			state=1
+	esac
+done | sort -t : -k 1,3n | cut -d : -f 4-
