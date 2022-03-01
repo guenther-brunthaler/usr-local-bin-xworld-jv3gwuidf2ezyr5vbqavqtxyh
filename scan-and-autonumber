@@ -1,8 +1,8 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2021.63
-Copyright (c) 2019-2021 Guenther Brunthaler. All rights reserved.
+$APP Version 2022.60
+Copyright (c) 2019-2022 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -46,11 +46,12 @@ shorter. Specifying <digits> explicitly can be used to make all file names the
 same length, allowing them to be sorted by counter automatically when
 displaying the file names sorted alphabetically.
 
--N <startcounter>: Ignore the last saved counter value and use <startcounter>
-instead as the counter value to be used for saving the scanned page. In either
-case, the next counter value after scanning is saved into a state file
-"$counter" which will become the default counter value for the next scan. If
-no such state file exists yet in the current directory,
+-N <startcounter>: Set the starting value for the counter used to create the
+sequence number in the created files. The default value without this option is
+1. Note that $APP always checks whether an output file with the current value
+already exists, and if so increments the counter until the resulting output
+file will no longer overwrite any pre-existing file. In other words, $APP
+never overwrites any existing files.
 
 -g: Enable grayscale mode. By default, color scans will be made. B/W scans are
 not supported by this script, because improper B/W-threshold settings and
@@ -95,7 +96,6 @@ Useful to understand what the script would do when run without this option.
 	echo; exit_version
 }
 
-counter=scan_counter.txt
 digits=3
 outfmt='infile-%0${digits}u.%s'
 toutext=pnm
@@ -146,7 +146,7 @@ trim=true
 rotate180=false
 interactive=true
 custom_opts=
-n=
+n=1
 while getopts CLo:ID:Trd:N:gGnhV opt
 do
 	case $opt in
@@ -191,21 +191,19 @@ simrun() {
 }
 
 get_n() {
-	exec 5>> "$counter"
-	flock 5
-	if test -z "$n"
-	then
-		read n 2> /dev/null < "$counter" || n=1
-	fi
-	echo `expr $n + 1` > "$counter"
-	exec 5>& -
+	while :
+	do
+		toutfile=`printf "$outfmt" $n "$toutext"`
+		if test ! -e "$toutfile"
+		then
+			foutfile=`printf "$outfmt" $n "$foutext"`
+			test ! -e "$foutfile" && break
+		fi
+		n=`expr $n + 1`
+	done
 }
 
 process() {
-	toutfile=`printf "$outfmt" $n "$toutext"`
-	foutfile=`printf "$outfmt" $n "$foutext"`
-	n=
-
 	outfile=$foutfile; test -z "$out_opt" && outfile=$toutfile
 	echo "Scanning to $outfile..." >& 2
 	set scanimage --mode=$mode$custom_opts --resolution=$dpi
@@ -234,6 +232,7 @@ then
 			*) break
 		esac
 		process
+		n=`expr $n + 1`
 	done
 else
 	get_n
