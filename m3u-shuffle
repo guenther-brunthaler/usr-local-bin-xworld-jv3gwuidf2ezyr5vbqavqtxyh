@@ -1,10 +1,44 @@
 #! /bin/sh
 
-# Shuffles a *.m3u playlist read from standard input, completely determined by
-# the arbitrary seed string (may therefore also be a number) specified as the
-# only argument.
+# Shuffles a *.m3u playlist file. Arguments are the input playlist *.mp3 file
+# and the output pathname where the shuffled result will be written.
 #
-# Version 2022.59
+# Alteratively, when invoked without any (non-option-) arguments, the script
+# acts as a filter, reading a playlist file from standard input and writing
+# the shuffled version of it to standard output.
+#
+# A third alternative is using the "-i" option for in-place replacement of a
+# single playlist file argument with a shuffled version of its previous
+# contents.
+#
+# The shuffling operation is driven internally by pseudo-random numbers
+# derived from an arbitrary seed string (which may therefore also be a
+# number). Which means there is actually no coincidence involved at all in the
+# shuffling operation; it is completely determined by the input file and the
+# seed string.
+#
+# The seed can be specified by option "-s". This allows to re-create the exact
+# same shuffling sequence later, provided the input file also stays the same.
+#
+# For instance, you could create a new shuffled version of some template
+# playlist every day and use the day's date as the seed. Keeping the same
+# template playlist around, you can now re-create the daily playlist for every
+# day of the past without actually storing it somewhere.
+#
+# If you do not care about repeatability and just want to shuffle your
+# playlist, omit the -s option. In this case, the current date and time will
+# be used as the seed automatically. This should ensure the seed will be
+# different from any seeds before, and thus result in a new shuffling
+# sequence.
+#
+# The -c option can be used to make the script maintain a named text file
+# containing a fixed base seed and a counter value. In this case, the actual
+# seed will be derived from both the base seed and the current counter value.
+# After every successful invocation of the script, the counter value in the
+# file will be incremented automatically, ensuring a new shuffling sequence
+# being generated on the next invocation.
+#
+# Version 2022.60
 #
 # Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
 #
@@ -12,42 +46,86 @@
 # Distribution is permitted under the terms of the GPLv3.
 
 set -e
-trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+cleanup() {
+	rc=$?
+	test "$TFILE" && rm -- "$TFILE"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TFILE=
+trap cleanup 0
+trap 'exit $?' INT TERM QUIT HUP
 
-while getopts '' opt
+seed=
+inplace=false
+ctr_file=
+while getopts is:c: opt
 do
 	case $opt in
+		i) inplace=true;;
+		s) seed=$OPTARG;;
+		c) ctr_file=$OPTARG;;
 		*) false || exit
 	esac
 done
 shift `expr $OPTIND - 1 || :`
 
-test $# != 0
+if
+	test "$ctr_file" && test -f "$ctr_file" \
+	&& ctr= save_seed= && IFS=: read -r ctr save_seed < "$ctr_file"
+then
+	if test "$seed"
+	then
+		save_seed=$seed
+	else
+		seed=$ctr:$save_seed:$ctr
+	fi
+else
+	ctr=0
+fi
+
 rsq_cur() {
 	printf %s:%s $rsq "$seed" | openssl md5 -binary | od -An -vt u4
 }
-seed=$1; shift
-rsq=0
-
-test $# = 0
-
 command -v openssl > /dev/null
+rsq=0
+case $seed in
+	"") seed=`date`; save_seed=$seed
+esac
 
-state=0
-tbrk=1 # Tie breaker.
-while IFS= read -r line
-do
-	case $state in
-		0) echo "0:0:0:$line"; state=1;;
-		1)
-			case $# in
-				0) set `rsq_cur`; rsq=`expr $rsq + 1`
-			esac
-			echo "$1:1:$tbrk:$line"; state=2
-			;;
-		*)
-			echo "$1:2:$tbrk:$line"
-			shift; tbrk=`expr $tbrk + 1`
-			state=1
-	esac
-done | sort -t : -k 1,3n | cut -d : -f 4-
+shuffle() {
+	state=0
+	tbrk=1 # Tie breaker.
+	while IFS= read -r line
+	do
+		case $state in
+			0) echo "0:0:0:$line"; state=1;;
+			1)
+				case $# in
+					0) set `rsq_cur`; rsq=`expr $rsq + 1`
+				esac
+				echo "$1:$tbrk:1:$line"; state=2
+				;;
+			*)
+				echo "$1:$tbrk:2:$line"
+				shift; tbrk=`expr $tbrk + 1`
+				state=1
+		esac
+	done | sort -t : -k 1,3n | cut -d : -f 4-
+}
+
+case $# in
+	0) shuffle;;
+	1)
+		$inplace
+		TFILE=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+		shuffle < "$1" > "$TFILE"
+		cat < "$TFILE" > "$1"
+		;;
+	2) test -f "$1"; test -d "`dirname -- "$2"`"; shuffle < "$1" > "$2";;
+	*) false || exit
+esac
+
+if test "$ctr_file"
+then
+	echo "`expr $ctr + 1`:$save_seed" > "$ctr_file"
+fi
