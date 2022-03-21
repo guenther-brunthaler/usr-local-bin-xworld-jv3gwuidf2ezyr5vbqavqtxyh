@@ -4,8 +4,8 @@ version() {
 Watch the current directory for .html files which can be updated by asciidoc
 from corresponding .txt (and .asciidoc and .adoc) files.
 
-Version 2020.109
-Copyright (c) 2019-2020 Guenther Brunthaler. All rights reserved.
+Version 2022.80
+Copyright (c) 2019-2022 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -83,7 +83,7 @@ unwrap() {
 			*) printf %s "$sep$line"; sep=' '
 		esac
 	done
-	test -n "$sep" && echo
+	test -z "$sep" || echo
 }
 
 process() {
@@ -92,7 +92,7 @@ process() {
 		*.txt | *.asciidoc | *.adoc)
 			h=${1%.*}.html
 			test -f "$h" || continue
-			is_newer "$1" "$h" && convert "$1" "$h"
+			is_newer "$1" "$h" && convert "$1" "$h" || :
 	esac
 }
 
