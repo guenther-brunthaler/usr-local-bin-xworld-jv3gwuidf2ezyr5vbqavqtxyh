@@ -1,14 +1,1 @@
-#! /bin/sh
-
-# 'joe' editor wrapper for hard-wrapped text with tabulation-based indentation
-#
-# Indentation inserts single horizontal tabulation characters, which are set
-# to use the ANSI terminal standard width of 8 columns for the tabulation
-# zones of the display.
-#
-# This is the best mode for classic e-mail text files where the space at the
-# end of folded paragraph lines must be avoided.
-#
-# Version 2021.39
-
-exec joe -rmargin 72 -wordwrap --flowed --spaces -indentc 9 -istep 1 ${1+"$@"}
+joe-nowrap-i1t

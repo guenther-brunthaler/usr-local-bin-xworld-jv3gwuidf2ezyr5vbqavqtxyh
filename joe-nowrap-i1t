@@ -1,18 +1,288 @@
 #! /bin/sh
 
-# 'joe' editor wrapper for non-wrapped text with tabulation-based indentation
+# Combined "joe" wrapper script.
 #
-# For manual reformatting of paragraphs only, the line length has been set to
-# 79 columns. This will otherwise have no effect, because word-wrapping has
-# been disabled.
+# Version 2022.122
+# Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
 #
-# Indentation inserts single horizontal tabulation characters, which are set
-# to use the ANSI terminal standard width of 8 columns for the tabulation
-# zones of the display.
-#
-# This is the best setting for generic text configuration files, shell scripts
-# or Makefiles expected by the POSIX 'make' utility.
-#
-# Version 2020.137
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
-exec joe -rmargin 79 --wordwrap --flowed --spaces -indentc 9 -istep 1 ${1+"$@"}
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+case $0 in
+	/*) me=$0;;
+	*) me=$PWD/$0
+esac
+
+flowed() {
+	o="-rmargin $1 -wordwrap -flowed -spaces -indentc 32 -istep 4"
+}
+
+nowrap() {
+	case $2 in
+		t) o='--spaces -indentc 9';;
+		s)
+			o="-tab $1 -spaces -indentc 32 -smarthome"
+			o=$o" -smartbacks -indentfirst"
+	esac
+	o=$o" -istep $1 -rmargin 79 --wordwrap --flowed"
+}
+
+wrap() {
+	o="-rmargin $1 -wordwrap --flowed --spaces -indentc 9 -istep 1"
+}
+
+while :
+do
+	test -f "$me"
+	case $me in
+		*-flowed-66c-i4s)
+			# 'joe' editor wrapper optimized for human readers
+			#
+			# Recommended for free-text documents like README
+			# files, and uses a line wid generally considered most
+			# human-friendly for reading.
+			#
+			# It also uses "RFC 3676"-style reversible hard
+			# word-wrapping ("flow-text"), as would be indicated
+			# by a MIME type
+			#
+			# Content-Type: text/plain; charset=UTF-8;
+			# format=flowed
+			#
+			# except that the charset may differ. This style puts
+			# a space at the end of hard-wrapped lines within a
+			# paragraph, but not on its last line. This is exactly
+			# the same format 'fold -sw' produces. It allows to
+			# reflow such documents safely to a different line
+			# width, without screwing up preformatt text (because
+			# such text will normally not have any spaces at the
+			# end of it lines).
+			flowed 66
+			break
+			;;
+		*-flowed-72c-i4s)
+			# 'joe' editor wrapper for "format=flowed" e-mail
+			# text.
+			#
+			# This is the text format used by many mail user
+			# agents like Thunderbird whe composing plain-text
+			# (non-HTML) e-mail messages.
+			#
+			# It uses "RFC 3676"-style reversible hard
+			# word-wrapping ("flow-text"), as would be indicated
+			# by a MIME type
+			#
+			# Content-Type: text/plain; charset=UTF-8;
+			# format=flowed
+			#
+			# except that the charset may differ. This style puts
+			# a space at the end of hard-wrapped lines within a
+			# paragraph, but not on its last line. This is exactly
+			# the same format 'fold -sw' produces. It allows to
+			# reflow such documents safely to a different line
+			# width, without screwing up preformatt text (because
+			# such text will normally not have any spaces at the
+			# end of it lines).
+			flowed 72
+			break
+			;;
+		*-flowed-79c-i4s)
+			# 'joe' editor wrapper for minimizing the number of
+			# output lines produced fo a 80-column terminal. This
+			# might be useful in situations where a shorter line
+			# width would otherwise make the terminal scroll the
+			# beginning of the text out of view.
+			#
+			# It uses "RFC 3676"-style reversible hard
+			# word-wrapping ("flow-text"), as would be indicated
+			# by a MIME type
+			#
+			# Content-Type: text/plain; charset=UTF-8;
+			# format=flowed
+			#
+			# except that the charset may differ. This style puts
+			# a space at the end of hard-wrapped lines within a
+			# paragraph, but not on its last line. This is exactly
+			# the same format 'fold -sw' produces. It allows to
+			# reflow such documents safely to a different line
+			# width, without screwing up preformatt text (because
+			# such text will normally not have any spaces at the
+			# end of it lines).
+			flowed 79
+			break
+			;;
+		*-nowrap-i1t)
+			# 'joe' editor wrapper for non-wrapped text with
+			# tabulation-based indentatio
+			#
+			# For manual reformatting of paragraphs only, the line
+			# length has been set t 79 columns. This will
+			# otherwise have no effect, because word-wrapping has
+			# been disabled.
+			#
+			# Indentation inserts single horizontal tabulation
+			# characters, which are set to use the ANSI terminal
+			# standard width of 8 columns for the tabulation zones
+			# of the display.
+			#
+			# This is the best setting for generic text
+			# configuration files, shell scrip or Makefiles
+			# expected by the POSIX 'make' utility.
+			nowrap 1 t
+			break
+			;;
+		*-nowrap-i2s)
+			# 'joe' editor wrapper for hard-wrapped source files
+			# with 2-space indentatio
+			#
+			# This is preferred by languages which use frequently
+			# need many indentation levels, such as LISP and other
+			# functional languages.
+			#
+			# Indentation inserts space characters instead of
+			# horizontal tabulation characters, which will make
+			# the text display the same way (and thus
+			# consistently) no matter what tabulation width may
+			# have been set in someone editor or terminal.
+			#
+			# The enabled hard-wrapping is just a safety measure,
+			# informing the programm that she just attempted to
+			# exceed the 79th column in a source-text line, which
+			# is generally disencouraged.
+			nowrap 2 s
+			break
+			;;
+		*-nowrap-i3s)
+			# 'joe' editor wrapper for hard-wrapped source files
+			# with 3-space indentatio
+			#
+			# This is the author’s favorite setting. It also seems
+			# to be popular with C+ engineers at IBM. The
+			# indentation is clearly visible, yet still allows a l
+			# of indentation levels before the line width is
+			# exhausted.
+			#
+			# Indentation inserts space characters instead of
+			# horizontal tabulation characters, which will make
+			# the text display the same way (and thus
+			# consistently) no matter what tabulation width may
+			# have been set in someone editor or terminal.
+			#
+			# The enabled hard-wrapping is just a safety measure,
+			# informing the programm that she just attempted to
+			# exceed the 79th column in a source-text line, which
+			# is generally disencouraged.
+			nowrap 3 s
+			break
+			;;
+		*-nowrap-i4s)
+			# 'joe' editor wrapper for hard-wrapped source files
+			# with 4-space indentatio
+			#
+			# This is probably the most-widely employed scheme.
+			# For instance, most Python-developers seem to prefer
+			# it.
+			#
+			# Indentation inserts space characters instead of
+			# horizontal tabulation characters, which will make
+			# the text display the same way (and thus
+			# consistently) no matter what tabulation width may
+			# have been set in someone editor or terminal.
+			#
+			# The enabled hard-wrapping is just a safety measure,
+			# informing the programm that she just attempted to
+			# exceed the 79th column in a source-text line, which
+			# is generally disencouraged.
+			nowrap 4 s
+			break
+			;;
+		*-wrap-66c-i1t)
+			# 'joe' editor wrapper for hard-wrapped text with
+			# tabulation-based indentati
+			#
+			# Indentation inserts single horizontal tabulation
+			# characters, which are set to use the ANSI terminal
+			# standard width of 8 columns for the tabulation zones
+			# of the display.
+			#
+			# This is the most human-friendly mode for classic
+			# text files intended to be read by humans without
+			# further reformatting.
+			wrap 66
+			;;
+		*-wrap-72c-i1t)
+			# 'joe' editor wrapper for hard-wrapped text with
+			# tabulation-based indentati
+			#
+			# Indentation inserts single horizontal tabulation
+			# characters, which are set to use the ANSI terminal
+			# standard width of 8 columns for the tabulation zones
+			# of the display.
+			#
+			# This is the best mode for classic e-mail text files
+			# where the space at the end of folded paragraph lines
+			# must be avoided.
+			wrap 72
+			break
+			;;
+		*-wrap-79c-i1t)
+			# 'joe' editor wrapper for hard-wrapped text with
+			# tabulation-based indentati
+			#
+			# Indentation inserts single horizontal tabulation
+			# characters, which are set to use the ANSI terminal
+			# standard width of 8 columns for the tabulation zones
+			# of the display.
+			#
+			# This is the best mode for classic text files where
+			# the space at the end of folded paragraph lines must
+			# be avoided. It represents also the right settings
+			# for shell scripts or Makefiles expected by the POSIX
+			# 'make' utili under the condition that those files
+			# shall be restricted to a maximum line length of 79
+			# columns.
+			#
+			# joe can still re-flow such paragraphs, but they need
+			# to be selected as blocks not containing
+			# pre-formatted paragraphs.
+			#
+			# In case of preformatted text (shell scripts and
+			# Makefiles) rather than hard-flowed text, the enabled
+			# hard-wrapping is just a safety measure, informing
+			# the programmer that she just attempted to exceed the
+			# 79th column in a source-text line, which is
+			# generally disencouraged.
+			wrap 79
+			break
+	esac
+	test -L "$me"
+	tgt=`readlink -- "$me"`
+	case $tgt in
+		/*) me=$tgt;;
+		*) me=`dirname -- "$me"`/$tgt
+	esac
+done
+
+case $# in
+	0) set -- $o;;
+	*)
+		i=$#
+		while :
+		do
+			set -- "$@" $o "$1"
+			shift
+			i=`expr $i - 1` || break
+		done
+esac
+exec joe "$@"
