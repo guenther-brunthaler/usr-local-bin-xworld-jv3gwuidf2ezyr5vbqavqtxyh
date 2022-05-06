@@ -1,4 +1,21 @@
 #! /bin/sh
+
+# Remove or restore common line-prefixes and -suffixes.
+#
+# The presence of $marker in the first line triggers restoration. It adds
+# the prefix before $marker and the suffix after $marker to all the remaining
+# lines.
+#
+# Otherwise, removal operation takes place. It determines the longest common
+# prefix and suffix of all lines and removes them. Then it adds a new first
+# line containing $marker and the removed pre- and suffixes.
+#
+# Version 2022.125
+# Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
+#
+# This document is free documentation.
+# Distribution is permitted under the terms of the GFDL-1.3.
+
 set -e
 cleanup() {
 	rc=$?
@@ -10,12 +27,10 @@ T=
 redir5=false
 trap cleanup 0
 marker='$QSTR$'
-width=79
 while getopts m:w: opt
 do
 	case $opt in
 		m) marker=$OPTARG;;
-		w) width=$OPTARG;;
 		*) false || exit
 	esac
 done
@@ -44,9 +59,6 @@ do
 				test x"$prefix$marker$suffix" = x"$line" || {
 					die "Ambiguous marker!"
 				}
-				strip=`expr ${#prefix} + ${#suffix} + 1`
-				strip=`printf '%*s' $strip x`
-				strip=${strip%x}
 				exec 5>& 1; redir5=true
 				continue
 				;;
@@ -60,23 +72,19 @@ do
 		esac
 	elif $revert
 	then
-		tline=${line#"$strip"}
-		test x"$tline" != x"$line" || {
-			die "Corrupted line indendation for stripping!"
-		}
-		line=$prefix$tline$suffix
+		line=$prefix$line$suffix
 	else
 		any_other=true
-		while test -n "$suffix"
+		while test "$suffix"
 		do
 			tline=${line%"$suffix"}
-			test x"$tline" != x"$line" && break
+			test "$tline" != "$line" && break
 			suffix=${suffix#?}
 		done
-		while test -n "$prefix"
+		while test "$prefix"
 		do
 			tline=${line#"$prefix"}
-			test x"$tline" != x"$line" && break
+			test "$tline" != "$line" && break
 			prefix=${prefix%?}
 		done
 	fi
@@ -85,13 +93,9 @@ done
 redir_5=false; exec 5>& -
 $revert && exit
 $any_other || { prefix=; suffix=; }
-indent=`expr ${#prefix} + ${#suffix} || :`
-test $indent -gt $width && indent=$width
-indent=`expr $indent + 1`
-indent=`printf '%*s' $indent x`; indent=${indent%x}
 printf '%s%s%s\n' "$prefix" "$marker" "$suffix"
 while IFS= read -r line
 do
 	line=${line%"$suffix"}
-	printf '%s%s\n' "$indent" "${line#"$prefix"}"
+	printf '%s\n' "${line#"$prefix"}"
 done < "$T"
