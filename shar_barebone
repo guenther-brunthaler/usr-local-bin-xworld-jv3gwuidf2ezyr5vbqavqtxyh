@@ -8,7 +8,7 @@
 # Only regular files are supported on standard input. Directories will be
 # created automatically as required. Executability will be preserved.
 #
-# Version 2022.147.1
+# Version 2022.147.2
 # Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -41,7 +41,7 @@ arg1() {
 	arg "$@"
 }
 
-m=-----------
+defsep='====='
 nfirst=false
 ldir=
 case $1 in
@@ -50,6 +50,8 @@ case $1 in
 esac \
 | while IFS= read -r f
 do
+	test ! -L "$f"
+	test -f "$f"
 	$nfirst && echo
 	nfirst=true
 	d=`dirname -- "$f"`
@@ -58,6 +60,13 @@ do
 		*) echo mkdir -p "`arg1 "$d"`";;
 	esac
 	ldir=$d
+	m=$defsep
+	c=2
+	while grep -Fxq -- "$m" "$f"
+	do
+		m=$defsep$c
+		c=`expr $c + 1`
+	done
 	echo "cat > "`arg "$f"`" << '$m'"
 	cat < "$f"
 	println "$m"
