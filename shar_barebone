@@ -8,13 +8,42 @@
 # Only regular files are supported on standard input. Directories will be
 # created automatically as required. Executability will be preserved.
 #
-# v2022.147
+# Version 2022.147.1
+# Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+println() {
+	printf '%s\n' "$*"
+}
+
+arg() {
+	o= s='[.*"$`\\]' r='\\&'
+	for a
+	do
+		if expr x"$a" : x'[-+_%/=,.A-Za-z0-9]*$' = 0 > /dev/null
+		then
+			a="\"`println "$a" | sed "s/$s/$r/g"`\""
+		fi
+		o=$o${o:+ }$a
+	done
+	println "$o"
+}
+
+arg1() {
+	case $1 in
+		-*) set -- -- "$@"
+	esac
+	arg "$@"
+}
+
 m=-----------
 nfirst=false
+ldir=
 case $1 in
 	-S) cat;;
 	*) LC_COLLATE=C sort
@@ -24,9 +53,13 @@ do
 	$nfirst && echo
 	nfirst=true
 	d=`dirname -- "$f"`
-	test "$d" != . && echo mkdir -p -- "$d"
-	echo "cat > "$f" << '$m'"
+	case $d in
+		. | "$ldir") ;;
+		*) echo mkdir -p "`arg1 "$d"`";;
+	esac
+	ldir=$d
+	echo "cat > "`arg "$f"`" << '$m'"
 	cat < "$f"
-	printf '%s\n' "$m"
-	test ! -x "$f" || echo chmod +x "$f"
+	println "$m"
+	test ! -x "$f" || echo chmod +x "`arg "$f"`"
 done
