@@ -5,10 +5,10 @@
 # created in the same order, unless option -S is specified to disable
 # pathname sorting.
 #
-# Only regular files are supported on standard input. Directories will be
-# created automatically as required. Executability will be preserved.
+# Only regular files and symlinks are supported on standard input. Directories
+# will be created automatically as required. Executability will be preserved.
 #
-# Version 2022.147.2
+# Version 2022.147.3
 # Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -50,7 +50,6 @@ case $1 in
 esac \
 | while IFS= read -r f
 do
-	test ! -L "$f"
 	test -f "$f"
 	$nfirst && echo
 	nfirst=true
@@ -60,15 +59,21 @@ do
 		*) echo mkdir -p "`arg1 "$d"`";;
 	esac
 	ldir=$d
-	m=$defsep
-	c=2
-	while grep -Fxq -- "$m" "$f"
-	do
-		m=$defsep$c
-		c=`expr $c + 1`
-	done
-	echo "cat > "`arg "$f"`" << '$m'"
-	cat < "$f"
-	println "$m"
-	test ! -x "$f" || echo chmod +x "`arg "$f"`"
+	if test -L "$f"
+	then
+		t=`readlink -- "$f"`
+		echo ln -s "`arg1 "$t"`" "`arg "$f"`"
+	else
+		m=$defsep
+		c=2
+		while grep -Fxq -- "$m" "$f"
+		do
+			m=$defsep$c
+			c=`expr $c + 1`
+		done
+		echo "cat > "`arg "$f"`" << '$m'"
+		cat < "$f"
+		println "$m"
+		test ! -x "$f" || echo chmod +x "`arg "$f"`"
+	fi
 done
