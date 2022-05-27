@@ -1,0 +1,32 @@
+#! /bin/sh
+
+# Output a shell script which will recreate the files of which the relative
+# path names will be read from standard input. The files will always be
+# created in the same order, unless option -S is specified to disable
+# pathname sorting.
+#
+# Only regular files are supported on standard input. Directories will be
+# created automatically as required. Executability will be preserved.
+#
+# v2022.147
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+m=-----------
+nfirst=false
+case $1 in
+	-S) cat;;
+	*) LC_COLLATE=C sort
+esac \
+| while IFS= read -r f
+do
+	$nfirst && echo
+	nfirst=true
+	d=`dirname -- "$f"`
+	test "$d" != . && echo mkdir -p -- "$d"
+	echo "cat > "$f" << '$m'"
+	cat < "$f"
+	printf '%s\n' "$m"
+	test ! -x "$f" || echo chmod +x "$f"
+done
