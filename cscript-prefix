@@ -2,7 +2,7 @@
 # Prepend the output of this script to a C source file and "chmod +x" it. The
 # C program can then be run as a normal shell script.
 #
-# Version 2022.179.1
+# Version 2022.179.2
 # Copyright (c) 2021-2022 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -37,7 +37,7 @@ test -t 0 && exit || exec cat
 }
 report=echo; TD=; trap cleanup 0; trap 'exit $?' INT QUIT HUP TERM
 bn=${0##*/}; TD=`mktemp -d -- "${TMPDIR:-/tmp}/$bn.XXXXXXXXXX"`
-{ printf '.POSIX:\n.c:\n\t$(CC) -D NDEBUG -O $(CFLAGS) ';
+{ printf '.POSIX:\n.c:\n\t$(CC) -D NDEBUG -O $(CFLAGS) '
 echo '$(LDFLAGS) -o $@ $<$LIBS'; } > "$TD"/Makefile
 sed '1,/exit$/ s/.*//' < "$0" > "$TD/$bn.c"; (cd -- "$TD" && make -s "$bn")
 rm -- "$TD"/Makefile; report=:; "$TD/$bn" ${1+"$@"} && exit || exit
