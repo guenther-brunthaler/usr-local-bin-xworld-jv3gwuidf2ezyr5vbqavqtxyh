@@ -2,16 +2,18 @@
 # Prepend the output of this script to a C source file and "chmod +x" it. The
 # C program can then be run as a normal shell script.
 #
-# Version 2021.33
-# Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+# Version 2022.179
+# Copyright (c) 2021-2022 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
 cmd=
-while getopts psV opt
+libs=
+while getopts l:psV opt
 do
 	case $opt in
+		l) libs=$libs" -l$OPTARG";;
 		'?') false || exit;;
 		*) cmd=$opt
 	esac
@@ -24,7 +26,7 @@ case $cmd in
 	V) sed '/Version/,/^$/!d; /^#/!d; s/# *//' < "$0"; exit;;
 esac
 ver=`sed 's/^# Version //; t1; d; :1; q' < "$0"`
-sed '1d; s/$'VERSION/$ver'/g; t; /^#!/,$!d; $s/$/\n/' < "$0"
+sed '1d; s/$'VERSION/$ver'/g; s/$'LIBS/"$libs"'/g; t; /^#!/,$!d; $s/$/\n/' < "$0"
 test $# = 1 && test -f "$1" && exec cat < "$1"
 test -t 0 && exit || exec cat
 
@@ -35,7 +37,7 @@ test -t 0 && exit || exec cat
 }
 report=echo; TD=; trap cleanup 0; trap 'exit $?' INT QUIT HUP TERM
 bn=${0##*/}; TD=`mktemp -d -- "${TMPDIR:-/tmp}/$bn.XXXXXXXXXX"`
-sed '1,/exit$/ s/.*//' < "$0" > "$TD/$bn.c"; (
-	cd -- "$TD" && make -f /dev/null -s -- \
-		CFLAGS='-D NDEBUG -O' LDFLAGS='' "$bn"; )
+{ printf '.POSIX:\n.c:\n\t$(CC) -D NDEBUG -O $(CFLAGS) ';
+echo '$(LDFLAGS) -o $@ $<$LIBS'; } > "$TD"/Makefile
+sed '1,/exit$/ s/.*//' < "$0" > "$TD/$bn.c"; (cd -- "$TD" && make -s "$bn")
 report=:; "$TD/$bn" ${1+"$@"} && exit || exit
