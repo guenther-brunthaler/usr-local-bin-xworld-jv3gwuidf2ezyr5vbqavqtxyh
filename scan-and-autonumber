@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2022.60
+$APP Version 2022.227
 Copyright (c) 2019-2022 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -206,7 +206,7 @@ get_n() {
 process() {
 	outfile=$foutfile; test -z "$out_opt" && outfile=$toutfile
 	echo "Scanning to $outfile..." >& 2
-	set scanimage --mode=$mode$custom_opts --resolution=$dpi
+	set scanimage --mode=$mode$custom_opts --resolution=$dpi --format=pnm
 	simrun "$* > $toutfile" || "$@" > "$toutfile"
 	test -z "$out_opt" && return
 
