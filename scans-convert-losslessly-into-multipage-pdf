@@ -1,0 +1,103 @@
+#! /bin/sh
+# Convert bitmap image files without into a single multipage PDF file
+# and avoid changing the existing compression state of the input files.
+#
+# The pathnames of the image files will either be taken from the command line
+# arguments or will otherwise be read one pathname per line from standard
+# input. The latter method allows an unrestricted number of input files.
+#
+# This script is basically a wrapper around img2pdf. It tries to minimize the
+# number of required process invocations by converting as many images as
+# possible during each invocation, combining the resulting partial output
+# files into a combined single output file. In the optimum case, only a single
+# process invocation will result from this approach and the combination step
+# will be skipped.
+#
+# Version 2022.305
+# Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+internal='__internal_hujqn2x6qrzxir9muwk7gyw52__'
+set -e
+cleanup() {
+	rc=$?
+	if test "$TF"
+	then
+		rm -- "$TF"
+	fi
+	if test "$TF2"
+	then
+		rm -- "$TF2"
+	fi
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TF=
+TF2=
+trap cleanup 0
+trap 'exit $?' INT HUP QUIT TERM
+
+case $1 in
+	$internal)
+		outfile=$2; set $3; shift 3
+		if test -s "$outfile"
+		then
+			case $outfile in
+				-) tpl=./$outfile;;
+				*) tpl=$outfile
+			esac
+			TF=`mktemp "$tpl".XXXXXXXXXX`; out=$TF
+		else
+			out=$outfile
+		fi
+		img2pdf -o "$out" -- ${1+"$@"}
+		if test "$out" != "$outfile"
+		then
+			TF2=`mktemp "$tpl".XXXXXXXXXX`
+			pdfunite "$tpl" "$out" "$TF2"
+			mv "$TF2" "$tpl"; TF2=
+			rm "$TF"; TF=
+		fi
+		exit
+esac
+
+outfile=
+debug=+xv
+while getopts Do: opt
+do
+	case $opt in
+		o) outfile=$OPTARG;;
+		D) debug='-xv';;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+for f in img2pdf mktemp:coreutils pdfunite:poppler-utils
+do
+	tool=${f%%:*}
+	command -v $tool > /dev/null 2>& 1 && continue
+	f=${f#*:}
+	case $f in
+		$tool) f=;;
+		*) f=" from the $f tool suite"
+	esac
+	echo "Please install required utility '$tool'$f!" >& 2
+	false || exit
+done
+
+if test -z "$outfile"
+then
+	outfile=`date +%Y%m%d-%H%M%S.pdf`
+fi
+> "$outfile"
+
+case $# in
+	0) cat;;
+	*)
+		for arg
+		do
+			printf '%s\n' "$arg"
+		done
+esac | sed 's/./\\&/g' | xargs "$0" $internal "$outfile" "$debug"
