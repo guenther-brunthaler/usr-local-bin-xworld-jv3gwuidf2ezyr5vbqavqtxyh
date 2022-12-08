@@ -1,0 +1,86 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2022.342
+
+Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << ===; echo; exit_version
+	
+$APP - shrink PDF files by reducing resolution of embedded images
+
+Usage $APP [ options ] <file1>.pdf ...
+
+$APP uses Ghostscript to generate a new PDF file which uses a
+lower resolution for embedded image files.
+
+This usually results in a size reduction, unless the input file
+already contains low-resolution images.
+
+The specified PDF files will be replaced with the lower-resolution
+versions. However, the original files will not be overwritten
+by rather be renamed to new names as backup.
+
+Options:
+
+-f: Overwrite pre-existing backup files instead of
+    aborting in such a case.
+-h: Display this help
+-V: Display version information
+===
+}
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+overwrite=false
+while getopts fhV opt
+do
+	case $opt in
+		f) overwrite=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+for f in gs:ghostscript
+do
+	tool=${f%%:*}
+	command -v $tool > /dev/null 2>& 1 && continue
+	f=${f#*:}
+	case $f in
+		$tool) f=;;
+		*) f=" from the $f tool suite"
+	esac
+	echo "Please install required utility '$tool'$f!" >& 2
+	false || exit
+done
+
+for pdf
+do
+	case $pdf in
+		*.pdf | *.PDF) ;;
+		*) false || exit
+	esac
+	test -f "$pdf"
+	bak=${pdf%.*}-original.pdf
+	if test -e "$bak"
+	then
+		"$overwrite"
+	fi
+	tmp=$pdf.new
+	gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.6 \
+		-dPDFSETTINGS=/ebook -dNOPAUSE -dQUIET -dBATCH \
+		-sOutputFile="$tmp" "$pdf"
+	mv -- "$pdf" "$bak"
+	mv -- "$tmp" "$pdf"
+done
