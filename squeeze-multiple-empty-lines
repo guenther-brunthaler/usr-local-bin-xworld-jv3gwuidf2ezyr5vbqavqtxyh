@@ -1,0 +1,81 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2023.9
+Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << ===; echo; exit_version
+	
+$APP - remove unnecessary empty lines
+
+Usage $APP [ options ] < <input.txt> > <output.txt>
+
+$APP is a filter, processing text from standard
+input and writing the result to standard output.
+
+First of all, it replaces all lines containing only whitespace
+characters with empty lines.
+
+After that preprocessing step, it removes all leading and trailing
+empty lines.
+
+Also, multiple consecutive empty lines within the text are replaced by
+a single empty line.
+
+In other words, $APP "cleans up" unnecessary
+empty lines in the input.
+
+Options:
+-n: Also normalize whitespace within a line. This means leading and
+    trailing whitespace is removed, and any sequence of whitespace
+    within the line will be replaced by a single ASCII space character.
+-h: Display this help
+-V: Display version information
+===
+}
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+normalize_line_contents=false
+while getopts nhV opt; do
+	case $opt in
+		n) normalize_line_contents=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift $((OPTIND - 1))
+
+ws=$(printf ' \f\t\v\b\r:'); ws=${ws%:}
+case $normalize_line_contents in
+	true)
+		normalize_line_contents='; s/['"$ws"']\{1,\}/ /g'`:
+			`'; s/^ //; s/ $//'
+		;;
+	*) normalize_line_contents=
+esac
+
+sed 's/^['"$ws"']*$//'"$normalize_line_contents" \
+| awk '
+	BEGIN {FS= OFS= "|"}
+
+	/^$/ {delayed_empty_lines= 1; next}
+	
+	{
+		if (delayed_empty_lines) {
+			if (nfirst) print ""
+			delayed_empty_lines= 0
+		}
+		print
+		nfirst= 1
+	}
+'
