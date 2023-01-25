@@ -1,0 +1,4 @@
+#! /bin/sh
+# Pass the title to be set as argument(s).
+# v2023.20
+exec printf '\033]2;%s\007' "$*"

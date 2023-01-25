@@ -6,8 +6,8 @@
 # need to match the number of arguments. Excess entries on either side will
 # silently be ignored.
 #
-# Version 2018.230
-# Copyright (c) 2017-2018 Guenther Brunthaler. All rights reserved.
+# Version 2023.25
+# Copyright (c) 2017-2023 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -18,9 +18,9 @@ use Getopt::Std;
 
 getopts('f:') or die;
 if (defined $opt_f) {
-   open IN, '<', $opt_f;
-   splice @ARGV, scalar(@ARGV), 0, map {chomp, $_} <IN>;
-   close IN;
+   open my $in, '<', $opt_f;
+   splice @ARGV, scalar(@ARGV), 0, map {chomp, $_} <$in>;
+   close $in;
 }
 
 my @replacements= <STDIN>;
