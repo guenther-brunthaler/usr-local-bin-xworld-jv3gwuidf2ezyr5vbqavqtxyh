@@ -1,0 +1,39 @@
+#! /bin/sh
+# Version 2023.34
+# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+# Set $REPLY to a quoted representation of all the arguments
+# ready for 'eval set -- $REPLY' to reconstruct the arguments.
+qin() {
+	#local REST S Q R
+	REPLY=
+	for S
+	do
+		Q=; R=
+		while test -n "$S"
+		do
+			REST=${S#?}; S=${S%"$REST"}
+			case $S in
+				\$ | \` | \" | \\) S=\\\\$S;;
+				\' | " " | "$NL" | "$TAB") Q=Y;;
+			esac
+			R=$R$S; S=$REST
+		done
+		test -n "$Q" && R=\"$R\"
+		REPLY=$REPLY${REPLY:+ }$R
+	done
+}
+# Construct required constants $TAB and $NL.
+NL=`printf '\t\n:'`; TAB=${NL%??}; NL=${NL%?}; NL=${NL#?}
+
+set -- "$0" ${1+"$@"}
+i=0
+for arg
+do
+	qin "$arg"
+	echo "argv[$i] = $REPLY"
+	i=$(($i + 1))
+done
