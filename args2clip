@@ -1,0 +1,6 @@
+#! /bin/sh
+# v2023.34
+for arg
+do
+	printf "%s\n" "$arg"
+done | cs
