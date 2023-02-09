@@ -1,0 +1,231 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2023.40
+Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << ===; echo; exit_version
+	
+$APP - convert text into words or words back to text
+
+Usage $APP [ options ] < <input.txt> > <output.txt>
+
+$APP is a filter, processing text from standard
+input and writing the result to standard output.
+
+In default mode, it reads normal text an converts it into
+a format where whitespace format lines and lines containing a
+single word alternate, starting and stopping with a format line.
+
+When feeding that output back into $APP
+and specifying the -u option, this will undo the transformation,
+resulting in the original text.
+
+Whitespace format lines consist of a (possible empty) sequence of
+whitespace replacement characters which also look like (nonsense)
+words. The following replacement characters will be used
+(specified here as "C" character constants):
+
+'\t' --> 'H'
+' ' --> 'S'
+'\v --> 'V'
+'\f --> 'F'
+'\b --> 'B'
+'\n --> 'N'
+'\r --> 'R'
+'\033' --> 'E'
+'' --> 'D'
+
+The 'D' is only used in format lines which would otherwise be empty,
+which can be visually confusing. And even then it is only used if the
+-D option has also been specified.
+
+Options:
+-u: Undo the transformation
+-i: Indent words. This has no negative affect on a later -u.
+-D: Put a 'D' in format lines which would be otherwise empty. This
+    has no negative affect on a later -u.
+-h: Display this help
+-V: Display version information
+===
+}
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TD" && rm -r -- "$TD"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TD=
+trap cleanup 0
+
+undo=false
+indent=false
+emptiness_symbol=false
+while getopts DiuhV opt; do
+	case $opt in
+		i) indent=true;;
+		D) emptiness_symbol=true;;
+		u) undo=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift $((OPTIND - 1))
+
+from=`printf ' \t\v\f\b\n\r\033':`; from=${from%:}
+empty='D'
+into='SHVFBNRE'
+intoL=`echo $into | tr A-Z a-z`
+
+if $undo; then
+	sed '
+		# Pattern space empty: Currently on a whitespace format line.
+		x
+		s/^$/w/; t fmt
+		# We are on a word line.
+		s/.*//
+		x
+		# Remove optional indent.
+		s/ *//
+		# Escape everthing looking like whitespace substitution
+		# characters in a format line.
+		s/[Q'$into']/Q&/g
+		y/'$into'/'$intoL'/
+		b
+		:fmt
+		# We are on a format line.
+		x; s/'$empty'//g # Remove decorative emptiness placeholders.
+		# Output it otherwise unaltered.
+		b
+	' | tr -d '\n' | tr "$into" "$from" | { cat; echo; } \
+	| sed '
+		x; s/.*//; x # Hold == ""
+		:again
+		# At this point:
+		# Hold space shall contain the line $res restored so far.
+		# Pattern space contains unprocessed $unpr remainder of line.
+		G; h # Hold == "$unpr" \n "$res".
+		s/\n.*// # Pattern == "$unpr"
+		# Try to isolate text $qpfx before first remaining "Q"-escape.
+		t 1; :1; s/Q.*//; t escape
+		# No more escapes. Append unprocessed text to restored text
+		# and emit the result as the resulting line.
+		g; s/\([^\n]*\)\n\(.*\)/\2\1/; b
+		:escape
+		H # Hold == "$unpr" \n "$res" \n "$qpfx".
+		g; s/^\([^\n]*\n[^\n]*\)\n\(.*\)/\1\2/
+		h # Hold == "$unpr" \n "$res$qpfx"
+		s/\n.*// # Pattern == "$unpr".
+		# Isolate Text $qsfx after first "Q"-escape sequence.
+		s/^[^Q]*Q.//
+		H # Hold == "$unpr" \n "$res$qpfx" \n "$qsfx".
+		# Fetch $unpr.
+		g; s/\n.*//
+		# Restore escaped character as $rst.
+		s/^[^Q]*Q\(.\).*/\1/; y/'$intoL'/'$into'/
+		H # Hold == "$unpr" \n "$res$qpfx" \n "$qsfx" \n "$rst".
+		# Update restored line and write into hold space.
+		g; s/^[^\n]*\n\([^\n]*\)\n[^\n]*\n\(.*\)/\1\2/
+		x; # Hold == "$res$qpfx$rst"
+		# Pattern == "$unpr" \n "$res$qpfx" \n "$qsfx" \n "$rst".
+		s/^[^\n]*\n[^\n]*\n\([^\n]*\)\n.*/\1/
+		# Pattern == "$qsfx"
+		b again
+	' | awk '
+		# Remove the additional newline appended earlier so that "sed"
+		# could also process the last line if it was not properly
+		# newline-terminated.
+
+		NR > 1 {print last}
+		{last = $0}
+		END {if (NR) printf "%s", last}
+	'
+	exit
+fi
+
+raw2dec() {
+	od -v -t u1 \
+	| sed 's/  */ /g; s/^[^ ]* \{0,1\}//; /^$/d; y/ /\n/'
+}
+
+dec2raw() {
+	xargs printf ' \\\\%03o' | fold -sw $mxpl | xargs printf '%b'
+}
+mxpl=`getconf LINE_MAX || echo 255`; mxpl=$((mxpl - 2))
+
+TD=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXXX`
+iconv > "$TD"/orig.raw # Ensure the input contains valid text.
+tr -- "$from" "$into" < "$TD"/orig.raw | raw2dec > "$TD"/subst
+echo | raw2dec > "$TD"/nl
+{ $emptiness_symbol && printf %s "$empty"; } | raw2dec > "$TD"/empty
+{ $indent && printf ' '; } | raw2dec > "$TD"/indent
+raw2dec < "$TD"/orig.raw > "$TD"/orig
+rm -- "$TD"/orig.raw
+awk -f /dev/fd/5 5<< 'EO_AWK' -- \
+	"$TD"/orig "$TD"/subst "$TD"/nl "$TD"/indent "$TD"/empty | dec2raw
+
+BEGIN {main()}
+
+function die(msg    , e) {
+	e = "/dev/stderr"
+	print msg >> e
+	close(e)
+	exit system("false")
+}
+
+function eof(rc) {
+	if (rc < 0) die("Read error")
+	return !rc
+}
+
+function awr(a    , n, i) {
+	n = a[0]
+	for (i = 1; i <= n; ++i) print(a[i])
+}
+
+function main(    f_orig, orig, f_subst, subst, nl, ind, empty, fmt) {
+	f_orig = ARGV[1]; f_subst = ARGV[2]
+	argf2a(nl, 3); argf2a(ind, 4); argf2a(empty, 5)
+	# 0: text line, 1: format line empty so far, 2: non-empty format line.
+	fmt = 1
+	while (!eof(getline orig < f_orig)) {
+		if (eof(getline subst < f_subst)) {
+			die("internal error: different sizes")
+		}
+		if (orig != subst) {
+			if (!fmt) awr(nl)
+			fmt = 2
+		} else {
+			if (fmt) {
+				if (fmt == 1) awr(empty)
+				awr(nl); awr(ind); fmt = 0
+			}
+		}
+		print subst
+	}
+	if (!fmt) {
+		# Last line must be a format line.
+		awr(nl); awr(empty)
+	}
+	awr(nl) # Complete last format line.
+}
+
+# Read a sequence as ASCII decimal byte values from file ARGV[argv_i] and
+# write it to a[1 ... a[0]].
+function argf2a(a, argv_i    , in_file, n, this) {
+	in_file = ARGV[argv_i]
+	while (!eof(getline this < in_file)) a[++n] = this
+	close(in_file)
+	a[0] = n
+}
+
+EO_AWK
