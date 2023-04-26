@@ -1,0 +1,290 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2023.44
+Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << ===; echo; exit_version
+	
+$APP - back up files in the same directory as the original files
+
+Usage $APP [ options ] <file1> ...
+
+$APP backs up all specified files into the same directory where the original
+file is stored. The arguments can be arbitrary path names, there is no
+requirement that all files live in the same directory.
+
+It works similarly to RCS' "ci" command, except that it used word-based diffs
+for text files and binary diffs for binary files, whatever is shorter. It also
+tries to compress the resulting deltas.
+
+Also different from "ci", it does not store the deltas in an archive, but
+rather creates individual numbered files for every backup and original file.
+
+It is supposed to create space-efficient backups for arbitrary file types; if
+compression or deltifying does not save space it just creates plain copies
+of the original files.
+
+It uses numbered backup files to back up each specified file <fileN>.
+
+The backup files are named "<fileN>-<meth1>.1.bak",
+"<fileN>-<meth2>.2.bak" etc.
+
+where "<fileN>" is the name of the original file and "<methN>" specifies
+the kind of backup method used by this backup file.
+
+The following methods are defined:
+
+"copy" - a plain copy of the original file.
+"rev-wdiff" - a reverse "word" diff (see below)
+"rev-vcdiff" - a reverse VCDIFF (see below)
+
+This methods may optionally be followed by one of the following:
+
+".xz" - compressed with "xz -9"
+".bz2" - compressed with "bzip2 -9"
+".gz" - compressed with "gzip -9"
+
+rev-wdiff:
+
+This is an "ed"-style "diff" of the transformed current version of the file
+and the transformed last backed-up version of the file (the backup numbered
+"1").
+
+The transformation applied to both files before comparison is the one
+applied by the script "text-to-words-revertible". This essentially transforms
+the created "diff" from a line-based one into a word-based one.
+
+rev-wdiff only works for text files encoded using the current locale.
+
+rev-vdiff:
+
+This is only supported if the xdelta3 utility is installed. If this is the
+case, a reverse delta from the current version of the file and the last
+backed-up version will be created.
+
+copy:
+
+If neither rev-wdiff nor rev-vdiff can be created, this method is used as a
+last resort. It is just a plain copy of the original file, although usually
+compressed.
+
+Selection of method:
+
+The latest generation backup (named with the highest numeric index) will
+always use the "copy" method (possibly compressed), because otherwise the
+older backups could not be reconstructed as soon as the original file gets
+modified or accidentally deleted. The latest backup is therefore the root
+anchor for reconstruction of all the older backups, which are always stored as
+reverse deltas to the next older version.
+
+For all backups older than the latest generation backup, all methods are
+tried, with all possible compressions (including uncompressed). The smallest
+resulting file and method is chosen as the actual backup file.
+
+There is no automated help for reconstruction. This must be done manually.
+
+Basically, uncompress (if compressed) the latest generation backup and all the
+older backups, then apply either word diff or xdelta reconstruction in order
+to restore the next older version. This version can then be used to
+reconstruct the version before it, and so on, up to the oldest version.
+
+Backup files are not renumbered when the next backup is created. Instead, the
+new backup gets one version number higher than the highest numbered backup so
+far.
+
+Note that because all backups are reverse deltas, older backup files are
+never necessary to reconstruct younger ones. It the backups use up too
+much space, just iteratively delete the oldest backup file until there is
+enough space again.
+
+The latest generation backup index number is found by reading the current
+directory, so it does not matter if lower-numbered backups cannot be found
+because they have been deleted.
+
+Delta conversion:
+
+Actually, the backup process is a little more complicated than explained
+so far. When the latest-generation is created, the "copy"-method is always
+used, possibly compressed (if the result is shorter).
+
+However, the penultimate-generation backup is converted into a reverse-delta
+from the now-latest generation backup, unless the "-c" option is specified
+which leaves the penultimate-generation backup as-is.
+
+For creating the delta, an uncompressed copy of the latest and penultimate
+generation backups is created first. Then both methods are attempted, VCDIFF
+and word-diff. Also, compressing the older file rather than deltifying is
+attempted. And the deltas are attempted to be compressed, too. The shortest
+variant wins. Word-diffs are normal "diff --ed -d"-invocation on text files
+transformed into one-word-per-line files by the "text-to-words-revertible"
+script also present in the same place as $APP.
+
+The GNU version of "diff" is required in order to create "ed"-style diffs. If
+this does not work, "diff" is attempted without any options besides "-d". This
+will create less efficient deltas, but should do as a fallback.
+
+For reconstructing the previous version using an "ed"-style diff, just use the
+GNU version of "patch" with the "--ed" option. If no GNU version is available,
+just create a copy of the reconstructed newer version of the file, apply the
+"text-to-words-revertible" script to it, then open it using "ed", passing the
+(uncompressed) "ed"-style diff as ed's standard input. The diff will actually
+be "ed" commands for restoring the next older
+"text-to-words-revertible"-transformed version of the file. Finally, undo the
+transformation applied by "text-to-words-revertible" by passing the "-u"
+option to the script. The result will then be the reconstructed literal next
+older backup. Note that if "patch" is used for reconstruction, it should apply
+without "fuzz". Delta creation is always exact, unless the backup files have
+been damaged.
+
+Options:
+-c: Use the "copy" method instead of attempting to create a reverse delta.
+    When this is done from time to time, it ensures that the deltas before
+    such backups can be reconstructed even if the latest-generation backup
+    (which always used the "copy" method) should be damaged or deleted.
+-h: Display this help
+-V: Display version information
+===
+}
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TD" && rm -r -- "$TD"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TD=
+trap cleanup 0
+
+no_delta=false
+emptiness_symbol=false
+while getopts DiuhV opt; do
+	case $opt in
+		c) no_delta=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift $((OPTIND - 1))
+
+die() {
+	echo "ERROR: $*" >& 2
+	false || exit
+}
+
+warn() {
+	echo "WARNING: $*" >& 2
+}
+
+for tool in \
+	diff:'No text-based deltas can be created!' \
+	gzip:'No deflate-based compression available!' \
+	bzip2:'No Burrows-Wheeler compression preprocessing available!' \
+	iconv \
+	text-to-words-revertible:=ttw \
+	xdelta3:'No binary deltas can be created!' \
+	xz:'No LZMA-based compression available!'
+do
+	arg=${tool#*:}
+	case $arg in
+		"$tool") arg=;;
+		*) tool=${tool%%:*}
+	esac
+	case $arg in
+		=*) vn=${arg#=}; arg=;;
+		*) vn=$tool
+	esac
+	cmd=`command -v -- "$tool"` > /dev/null 2>& 1 || {
+		if [ -z "$arg" ]; then
+			die "Required utility '$tool' is missing!"
+		fi
+		warn "Utility '$tool' is missing - $arg"
+	}
+	eval $vn=\$cmd
+done
+if [ "$diff" ]; then
+	if "$diff" --version 2> /dev/null | grep -q 'GNU diff'; then
+		ed_diff=true
+	else
+		warn "'diff' has no GNU extensions - 'ed'-style diffs" \
+			"not available."
+		ed_diff=false
+	fi
+fi
+
+# Try to compress file $dir/$orig to file $1$csfx$2 where $csf is the
+# compression suffix of the most effectiv compression method. If no
+# compression is shorter than the original file, do not compress the copy of
+# the file and use and empty string as $csfx. The output file must not yet
+# exist. Store a copy of $dir/$orig as "$TD/copy".
+compress_best() {
+	cp -- "$dir/$orig" "$TD"/cand/
+	for cm in "$gzip" "$bzip2" "$xz"; do
+		test "$cm" || continue
+		$cm -9 -k "$TD/cand/$orig"
+	done
+	ls -Srd -- "$TD"/cand/* | head -n -1 > "$TD"/best
+	IFS= read -r best < "$TD"/best
+	csfx=`basename -- "$best"`
+	csfx=${csfx#"$orig"}
+	out=$1$csfx$2
+	test ! -e "$out"
+	cp -- "$best" "$out"
+	mv -- "$TD/cand/$orig" "$TD"/copy
+	rm -f -- "$TD"/cand/*
+}
+
+# Try to uncompress "$TD/copy". Will work even if that file is compressed
+# using any of the supported archivers multiple times. (In this case, all the
+# compressions will be undone.) If the file is not compressed, do not change
+# it.
+try_uncompress() {
+	while :
+	do
+		any=false
+		for cm in "$gzip" "$bzip2" "$xz"; do
+			test "$cm" || continue
+			if $cm -dc < "$TD/copy" > "$TD"/uncomp; then
+				mv -- "$TD"/uncomp "$TD"/copy
+				any=true
+				break
+			fi
+		done
+		$any || break
+	done 2> /dev/null
+}
+
+die "not yet implemented; work in progress."
+TD=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+mkdir -- "$TD"/cand "$TD"/meth
+
+for orig; do
+	dir=`dirname -- "$orig"`
+	orig=`basename -- "$orig"`
+	test -f "$dir/$orig"
+	ls -d -- "$dir/$orig"-*.[1-9]*.bak > "$TD"/baks 2> /dev/null || :
+	sed 's/.*\.\([1-9][0-9]*\)\.bak$/\1:&/' "$TD"/baks \
+	| sort -t : -n -r | head -n 1 > "$TD"/lbak
+	# Get new backup index number ($nbn) and last backup pathname ($lbak).
+	if IFS=: read -r nbn lbak < "$TD"/lbak; then
+		nbn=$((nbn + 1))
+	else
+		nbn=1 lbak=
+	fi
+	compress_best "$dir/$orig-copy" ".$nbn.bak"
+	if [ $no_delta = false ]; then
+		try_uncompress
+		mv -- "$TD"/copy "$TD"/current
+		cp -- "$lbak" "$TD"/copy
+		try_uncompress
+		mv -- "$TD"/copy "$TD"/lbak
+	fi
+done

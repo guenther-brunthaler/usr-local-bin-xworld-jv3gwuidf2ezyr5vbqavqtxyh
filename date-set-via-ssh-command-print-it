@@ -1,0 +1,65 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2023.16
+Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+normalize_line_contents=false
+while getopts '' opt; do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift $((OPTIND - 1))
+
+# Set $REPLY to a quoted representation of all the arguments
+# ready for 'eval set -- $REPLY' to reconstruct the arguments.
+qin() {
+	#local REST S Q R
+	REPLY=
+	for S
+	do
+		Q=; R=
+		while test -n "$S"
+		do
+			REST=${S#?}; S=${S%"$REST"}
+			case $S in
+				\$ | \` | \" | \\) S=\\$S;;
+				" " | "$NL" | "$TAB") Q=Y;;
+			esac
+			R=$R$S; S=$REST
+		done
+		test -n "$Q" && R=\"$R\"
+		REPLY=$REPLY${REPLY:+ }$R
+	done
+}
+# Construct required constants $TAB and $NL.
+NL=`printf '\t\n:'`; TAB=${NL%??}; NL=${NL%?}; NL=${NL#?}
+
+die "Not yet implemented. work-in-progess."
+
+# GNU/Busybox variant.
+qin '%Y-%m-%d %H:%M:%S'
+qin "date -u -s +$REPLY"
+pln1=$REPLY
+
+# POSIX variant as fallback.
+qin 'date -u +%m%d%H%M%Y'
+pln2=$REPLY
+
+# Try busybox first, fallback to POSIX.
+qin "$pln1 || $pln2"
+
+# Wrap pipeline with in "sh" invocation.
+qin "sh -c $REPLY"
+
+echo "$REPLY"

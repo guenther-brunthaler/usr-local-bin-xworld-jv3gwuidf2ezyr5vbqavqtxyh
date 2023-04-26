@@ -1,9 +1,9 @@
 #! /bin/sh
 exit_version() {
 	wr -s << . && exit
-$APP version 2018.101.1
+$APP version 2023.116
 
-Copyright (c) 2018 Guenther Brunthaler. All rights reserved.
+Copyright (c) 2018-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -45,6 +45,12 @@ extracted. By default, all pages are examined.
 extracted. By default, all pages are examined.
 
 -p: Include actual page numbers in output file names.
+
+-t: Enforce .tiff output format. Do not use if lossy JBIG2 compression is
+present, or the conversion might be lossy. Useful if the default output
+generates *.ccitt rax fax group 3/4 files instead of TIFF files.
+
+-n: Show what would be done, but don't actually do anything.
 
 -V: Display version information and exit.
 
@@ -88,9 +94,12 @@ trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 
 uo=" -all"
 out=true
-while getopts lpb:e:hV opt
+dry_run=false
+while getopts tnlpb:e:hV opt
 do
 	case $opt in
+		n) dry_run=true;;
+		t) uo=`printf '%s\n' "$uo" | sed 's| -all| -tiff|'`;;
 		b) test "$OPTARG"; uo=$uo" -f $OPTARG";;
 		e) test "$OPTARG"; uo=$uo" -l $OPTARG";;
 		l) uo=$uo" -list"; out=false;;
@@ -131,4 +140,5 @@ test $# = 0 # No excess arguments.
 
 set -- "$utility"$uo "$pdf"
 $out && set -- "$@" "$obase"
+$dry_run && set printf '%s\n' "$*"
 exec "$@"
