@@ -19,9 +19,9 @@
 # $this_script "eth0, lo" < snap.txt # Same.
 # $this_script "eth0 :: lo" < snap.txt # Same.
 #
-# Version 2022.10
+# Version 2023.123
 #
-# Copyright (c) 2009-2022 Guenther Brunthaler. All rights reserved.
+# Copyright (c) 2009-2023 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -86,7 +86,7 @@ fi
 | { awk -v details=$verbose -v only="$*" -F, -f /dev/fd/5 5<< '.'
 
 	BEGIN {
-		split("bytes,kB,MB,GB,TB,EB,ZB,YB", u)
+		split("bytes,kB,MB,GB,TB,PB,EB,ZB,YB,RB,QB", u)
 		if (i= split(only, t, "[^-_[:alnum:]]{1,}")) {
 			while (i) ifc_ok[t[i--]]= 1
 			only= 1
