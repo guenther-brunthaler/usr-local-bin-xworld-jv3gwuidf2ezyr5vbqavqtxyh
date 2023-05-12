@@ -8,7 +8,11 @@
 # or symlinks into /dev, and only symlink aliases of thoses paths will be
 # shown.
 #
-# Version 2023.132.1
+# An argument like "8:5" will be transformed into both "/dev/block/8:5" and
+# "/dev/char/8:5", which allows searching for particular block and character
+# devices quickly.
+#
+# Version 2023.132.2
 # Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -29,7 +33,17 @@ then
 	do
 		case $1 in
 			/dev/*) set -- "$@" "$1";;
-			*) set -- "$@" "/dev/$1"
+			*)
+				if
+					expr x"$1" \
+					: x'[0-9]\{1,\}:[0-9]\{1,\}$' \
+					> /dev/null
+				then
+					set -- "$@" "/dev/block/$1"
+					set -- "$@" "/dev/char/$1"
+				else
+					set -- "$@" "/dev/$1"
+				fi
 		esac
 		shift
 		i=`expr $i - 1` || break
