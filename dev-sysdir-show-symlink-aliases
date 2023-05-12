@@ -1,0 +1,17 @@
+#! /bin/sh
+
+# Show all resolved symlinks in /dev, allowing "grep" to detect aliases.
+#
+# Version 2023.132
+# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+find /dev ! -type d | while IFS= read -r f
+do
+	test ! -e "$f" && continue
+	r=`readlink -f -- "$f"`
+	test "$f" = "$r" && continue
+	echo "$r // $f"
+done | LC_COLLATE=C sort
