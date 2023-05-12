@@ -1,12 +1,53 @@
 #! /bin/sh
 
-# Show all resolved symlinks in /dev, allowing "grep" to detect aliases.
+# Without arguments, show all resolved symlinks in /dev, allowing "grep" to
+# detect aliases.
 #
-# Version 2023.132
+# If arguments are given, "/dev/" will be prepended to them except to those
+# which already have this prefix. Then the resulting arguments must be paths
+# or symlinks into /dev, and only symlink aliases of thoses paths will be
+# shown.
+#
+# Version 2023.132.1
 # Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+if test $# != 0
+then
+	i=$#
+	while :
+	do
+		case $1 in
+			/dev/*) set -- "$@" "$1";;
+			*) set -- "$@" "/dev/$1"
+		esac
+		shift
+		i=`expr $i - 1` || break
+	done
+	grepargs() {
+		sed -f /dev/fd/5 5<< '.'
+			s/^^/\\&/
+			s/[$]$/\\&/
+			s/[[\\*.]/\\&/g
+			s/'/'\\''/g
+			s|.*|^& // |
+			s/.*/-e '&'/
+.
+	}
+	eval set grep `readlink -f -- "$@" | LC_COLLATE=C sort -u | grepargs`
+else
+	set cat
+fi
 
 find /dev ! -type d | while IFS= read -r f
 do
@@ -14,4 +55,4 @@ do
 	r=`readlink -f -- "$f"`
 	test "$f" = "$r" && continue
 	echo "$r // $f"
-done | LC_COLLATE=C sort
+done | LC_COLLATE=C sort | "$@"
