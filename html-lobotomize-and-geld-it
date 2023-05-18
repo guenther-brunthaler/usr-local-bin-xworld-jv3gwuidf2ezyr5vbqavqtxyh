@@ -1,0 +1,82 @@
+#! /bin/sh
+
+# Remove anything fancy from a HTML file, especially scripts, styles, etc.
+# Just plain text, hyperlinks, tables and images shall remain.
+#
+# Required the utilties xmlstarlet and tidy (htmltidy) to be installed.
+#
+# Version 2023.138.1
+# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+filter0() {
+	awk -f /dev/fd/5 5<< '===='
+
+	BEGIN {
+		keep = alt2rx( \
+			"body html p br table th tr td h1 h2 h3 h4 h5 a img" \
+			"li span meta title head div tbody sup sub ul" \
+		)
+		keep = "[()]" keep "$|[-D]"
+		keep = "^(" keep ")"
+		akeep = alt2rx( \
+			"alt charset content href src xmlns rel lang name" \
+			"dir colspan rowspan style" \
+		)
+		akeep = akeep "[[:space:]]|xml:"
+		akeep = "^A(" akeep ")"
+	}
+
+	$1 ~ "^[(]" {keepa = 1}
+	$1 ~ "^[^(A]" {keepa = 0}
+	keepa && $0 ~ akeep || $0 ~ keep {print}
+	
+	function alt2rx(alts) {
+		gsub(" ", "|", alts)
+		return "(" alts ")"
+	}
+====
+}
+
+filter() {
+	tidy -asxhtml --quote-nbsp no --show-warnings no --show-info no \
+		--custom-tags blocklevel 2> /dev/null \
+	| xmlstarlet pyx \
+	| filter0 \
+	| sed 's/[[:space:]]\{1,\}/ /g; s/^\(.\) /\1/' \
+	| uniq \
+	| xmlstarlet p2x
+}
+
+rc=`: && echo $?`
+bad=`false || echo $?`
+case $# in
+	0) filter || rc=$?;;
+	*)
+		for h
+		do
+			case $h in
+				*.html | *.htm | *.xml |  *.xhtml)
+					if test -f "$h"
+					then
+						nn=${h%.*}-plain.${h##*.}
+						filter < "$h" > "$nn"
+					else
+						echo "File \"$h\" does" \
+							" not exist!" \
+							>& 2
+						rc=$bad
+					fi
+					;;
+				*)
+					echo "Ignoring file \"$h\" with" \
+						" unsupported file" \
+						" extension!" \
+						>& 2
+					rc=$bad
+			esac
+		done
+esac
+exit $rc
