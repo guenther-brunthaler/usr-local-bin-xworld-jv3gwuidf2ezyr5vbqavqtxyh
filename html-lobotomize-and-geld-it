@@ -5,7 +5,7 @@
 #
 # Required the utilties xmlstarlet and tidy (htmltidy) to be installed.
 #
-# Version 2023.138.1
+# Version 2023.138.2
 # Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -17,7 +17,8 @@ filter0() {
 	BEGIN {
 		keep = alt2rx( \
 			"body html p br table th tr td h1 h2 h3 h4 h5 a img" \
-			"li span meta title head div tbody sup sub ul" \
+			"li span meta title head div tbody sup sub ul em" \
+			"pre" \
 		)
 		keep = "[()]" keep "$|[-D]"
 		keep = "^(" keep ")"
