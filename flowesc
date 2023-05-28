@@ -1,0 +1,46 @@
+#! /bin/sh
+
+# Convert between the following two formats after replacing "~" with " ":
+#
+# Some paragraph~
+# continued line.
+# 
+# Another paragraph~
+# another continued line.
+#
+# and
+#
+# Some paragraph~
+# continued line.\n
+# \n
+# Another paragraph~
+# another continued line.\n
+#
+# This script is intended to used together with "qstr" in order to edit
+# flow-text string literals embedded with in C source text. Use "qstr" first
+# to remove the quotes. Then use "flowesc" to get rid of the "\n" at the ends
+# of the last lines of all paragraphs. Now you can edit the text, provided your
+# text editor has mode for interpreting trailing spaced at the end of lines
+# as soft line breaks within longer paragraphs. After editing, re-apply both
+# filters in reverse order to get the C string literals back.
+#
+# It is basically the front end to a sed script. If any arguments are given,
+# they are passed through to sed. This allows, for instance, to use the highly
+# useful -i option.
+#
+# Version 2023.148
+# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+#
+# This document is free documentation.
+# Distribution is permitted under the terms of the GFDL-1.3.
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+exec sed -f /dev/fd/5 ${1+"$@"} 5<< 'EO_SED'
+
+s/\\n$//; t
+/ $/ b
+s/$/\\n/
+
+EO_SED
