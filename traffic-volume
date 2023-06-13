@@ -19,7 +19,7 @@
 # $this_script "eth0, lo" < snap.txt # Same.
 # $this_script "eth0 :: lo" < snap.txt # Same.
 #
-# Version 2023.123
+# Version 2023.164
 #
 # Copyright (c) 2009-2023 Guenther Brunthaler. All rights reserved.
 #
@@ -43,7 +43,7 @@ shift `expr $OPTIND - 1 || :`
 report() {
 	{
 		export LC_ALL=C PATH=/sbin:/usr/sbin:/usr/local/sbin:"$PATH"
-		ifconfig 2> /dev/null || :
+		ifconfig -a 2> /dev/null || :
 	} | awk -v now=`date +%s` -f /dev/fd/5 5<< '.'
 		function z() {
 			r= t= 0; ifc= noifc
