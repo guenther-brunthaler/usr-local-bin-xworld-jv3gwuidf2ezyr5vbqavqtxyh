@@ -1,9 +1,8 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2021.296
-
-Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+$APP Version 2023.187
+Copyright (c) 2021-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -197,6 +196,9 @@ do
 	# Any arguments are at $1 and onwards; must be shifted off.
 	case $copt in
 		--) break;; # Must be first!
+		--?*=*)	set -- "${copt#*=}" "$@"; copt=${copt%%=*}
+	esac
+	case $copt in
 		--directory-prefix | -P) test -d "$1"; opfx=$1; shift;;
 		--continue | -c) cont=true; ocmd="$ocmd -c";;
 		--output-document | -O) test "$1"; out=$1; shift;;
