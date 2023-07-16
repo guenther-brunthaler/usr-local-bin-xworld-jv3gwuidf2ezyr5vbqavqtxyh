@@ -1,0 +1,198 @@
+#! /bin/sh
+exit_version() {
+	wr << ===; exit
+$APP Version 2023.197
+Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << ===; echo; exit_version
+$APP - convert between wrapped and folded text formats
+
+Usage: $APP [ options ] [ file1 ... ]
+
+$APP is a filter which acts like 'cat', but converts its resulting input
+ stream into a different text format and writes the result to standard output.
+
+The concatenated input is saved to a temporary file because it must be
+ processed twice: First for format auto-detection, then for actual conversion.
+ The temporary file will by default be created in /tmp.
+
+This might be a problem in rare cases where the input is so large that /tmp
+ has insufficient free space. In this case, setting environment variable TMPDIR
+ to a different directory where there is enough free space will avoid the
+ problem. For instance, /var/tmp might frequently be a good choice for such an
+ alternative temporary directory.
+
+$APP converts between two different limited line-length representations of
+ paragraph-based flowtext. Conversion acts as a toggle between the formats: The
+ input format is auto-detected, and the other format is selected as the output
+ format.
+
+Line-length limited flowtext contains newline characters which will be
+ considered to be hard or soft depending on the format.
+
+Hard newlines will not be changed by the conversion, they will be left alone
+ and are considered to be actually part of the flowtext.
+
+Soft newlines however will be considered to only have been inserted
+ automatically in order to comply with some line lenght limit. So they are
+ technically present, but do not logically belong to the text and can be
+ removed or inserted without affecting the represented logical flowtext.
+
+The following two text formats can be converted into the other one:
+
+1. Wrapped flowtext
+
+In this format, "soft line wraps" are indicated by newline characters preceded
+ by a space character.
+
+Note that the space characters preceding the "soft line wrap newlines" *do*
+ belong to the text. Newlines not preceded by a space are considered real
+ "hard" newlines which are actually part of the text.
+
+This format cannot represent a space character being followed by a hard
+ newline, because this would make the newline be interpreted as a soft newline.
+ But it has no problems exactly telling apart indented lines from continuation
+ lines of a paragraph.
+
+A disadvantage of this format are the trailing spaces before newlines. First
+ of all, some editors just erase them silently. Secondly, they are invisible
+ to human readers and therefore confusing.
+
+2. Folded flowtext
+
+In this format, "soft line breaks" are indicated by newline characters being
+ followed by a space characters.
+
+Note that the space characters following the "soft line wrap newlines" *do*
+ belong to the text. Newlines not followed by a space are considered real
+ "hard" newlines which are actually part of the text.
+
+This format cannot represent space-intented text, because such lines would be
+ interpreted as continuation lines of the preceding paragraph.
+
+This format is better suited for inclusion within scripts because it avoids
+ the necessity for confusing trailing space characters.
+
+However, the indentation of continuation lines looks somewhat arbitrary and
+ is not intuitive.
+
+Options:
+-h: Display this help
+-V: Display version information
+===
+}
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TF=
+trap cleanup 0
+trap 'exit $?' INT QUIT TERM HUP
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
+
+while getopts Vh opt
+do
+	case $opt in
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+cat ${1+"$@"} > "$TF"
+
+dieln() {
+	echo "$* in line $lno!" >& 2
+	false || exit
+}
+
+to=
+lno=1
+while IFS= read -r line
+do
+	case $line in
+		" "*" ") dieln "Ambiguous format";;
+		" "*) new_to=wrap;;
+		*" ") new_to=fold;;
+		*) new_to=$to
+	esac
+	case $to in
+		"") to=$new_to;;
+		"$new_to") ;;
+		*) dieln "Contradictory format"
+	esac
+	lno=$(($lno + 1))
+done < "$TF"
+
+fold2wrap() {
+	unterminated=false
+	while IFS= read -r line
+	do
+		stripped=${line#" "}
+		case $stripped in
+			"$line")
+				# Not a folded continuation line.
+				$unterminated && echo
+				printf '%s' "$line"
+				;;
+			*)
+				# A continuation line.
+				printf ' \n%s' "$stripped"
+		esac
+		unterminated=true
+	done
+	$unterminated && echo
+}
+
+wrap2fold() {
+	unterminated=false
+	while IFS= read -r line
+	do
+		$unterminated && printf ' '
+		stripped=${line%" "}
+		case $stripped in
+			"$line")
+				# The last line of a paragraph.
+				printf '%s\n' "$line"
+				unterminated=false
+				;;
+			*)
+				# A line to be continued by the next line.
+				printf '%s\n' "$stripped"
+				unterminated=true
+		esac
+	done
+}
+
+case $to in
+	"") cat < "$TF";;
+	wrap) fold2wrap < "$TF";;
+	fold) wrap2fold < "$TF";;
+	*) false || exit
+esac

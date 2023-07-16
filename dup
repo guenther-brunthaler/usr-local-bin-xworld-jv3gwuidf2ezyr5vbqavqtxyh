@@ -1,0 +1,93 @@
+#! /bin/sh
+exit_version() {
+	wr << ===; exit
+$APP Version 2023.197
+Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << ===; echo; exit_version
+$APP - duplicate file contents to standard output
+
+Usage $APP [ options ] [ <file_1> ... ]
+
+$APP works like 'cat', except that it writes multiple copies of its
+ concatenated input files to standard output.
+
+If no files are specified as arguments, the contents of standard input are
+ duplicated.
+
+By default, 2 copies are written. Use option -n to specify a different number
+ of copies.
+
+$APP first concatenates its inputs and saves it to a temporary file, before
+ emitting multiple copies of it.
+
+By default, the temporary file is saved in /tmp. If the amount of data to be
+ duplicated is very large, this could become a problem if insufficient space
+ is available in /tmp.
+
+In this case, set the environment variable TMPDIR to a different temporary
+ directory where enough free space is availabe. For instance, /var/tmp might
+ often be a good choice in such a situation.
+
+Options:
+-n <count>: The number of copies to output. <count> can be any
+ non-negative integer, including 0.
+-h: Display this help
+-V: Display version information
+===
+}
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TF=
+trap cleanup 0
+trap 'exit $?' INT QUIT TERM HUP
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
+
+DUP_COUNT=2
+while getopts n:Vh opt
+do
+	case $opt in
+		n) DUP_COUNT=$OPTARG;;
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test "$DUP_COUNT" = 0 && exit
+
+expr x"$DUP_COUNT" : x'[1-9][0-9]*$' > /dev/null
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+cat ${1+"$@"} > "$TF"
+while :
+do
+	cat -- "$TF"
+	DUP_COUNT=`expr $DUP_COUNT - 1` || break
+done
