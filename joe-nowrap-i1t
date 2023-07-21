@@ -2,8 +2,8 @@
 
 # Combined "joe" wrapper script.
 #
-# Version 2022.122
-# Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
+# Version 2023.202
+# Copyright (c) 2022-2023 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -46,7 +46,7 @@ while :
 do
 	test -f "$me"
 	case $me in
-		*-flowed-66c-i4s)
+		*-softwrap-66c-i4s)
 			# 'joe' editor wrapper optimized for human readers
 			#
 			# Recommended for free-text documents like README
@@ -71,7 +71,7 @@ do
 			flowed 66
 			break
 			;;
-		*-flowed-72c-i4s)
+		*-softwrap-72c-i4s)
 			# 'joe' editor wrapper for "format=flowed" e-mail
 			# text.
 			#
@@ -97,7 +97,7 @@ do
 			flowed 72
 			break
 			;;
-		*-flowed-79c-i4s)
+		*-softwrap-79c-i4s)
 			# 'joe' editor wrapper for minimizing the number of
 			# output lines produced fo a 80-column terminal. This
 			# might be useful in situations where a shorter line
@@ -207,7 +207,7 @@ do
 			nowrap 4 s
 			break
 			;;
-		*-wrap-66c-i1t)
+		*-hardwrap-66c-i1t)
 			# 'joe' editor wrapper for hard-wrapped text with
 			# tabulation-based indentati
 			#
@@ -221,7 +221,7 @@ do
 			# further reformatting.
 			wrap 66
 			;;
-		*-wrap-72c-i1t)
+		*-hardwrap-72c-i1t)
 			# 'joe' editor wrapper for hard-wrapped text with
 			# tabulation-based indentati
 			#
@@ -236,7 +236,7 @@ do
 			wrap 72
 			break
 			;;
-		*-wrap-79c-i1t)
+		*-hardwrap-79c-i1t)
 			# 'joe' editor wrapper for hard-wrapped text with
 			# tabulation-based indentati
 			#
