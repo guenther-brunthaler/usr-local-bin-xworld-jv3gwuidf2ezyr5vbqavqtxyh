@@ -1,0 +1,114 @@
+#! /bin/sh
+
+# Overwrites all the files specified as arguments in-place with binary zeros.
+#
+# Do not truncate or change the size of the files or break any hard links
+# while doing so.
+#
+# All arguments must be regular files. Symlinks are not allowed.
+#
+# All files must be writable. Write permissions will be checked first before
+# writing anything at all.
+#
+# This script is intended to be a poor man's version of "wipe" (minus the
+# deletion feature) to be used on flash-based storage where repeated
+# overwriting would be pointless.
+#
+# Typically, one uses "find ... -exec" in order to invoke this script, then
+# do a "sync", then delete the overwritten files.
+#
+# Version 2023.208
+#
+# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+dry_run=false
+verbose=false
+blocksize=4M
+while getopts vnB: opt
+do
+	case $opt in
+		v) verbose=true;;
+		n) dry_run=true;;
+		B) blocksize=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+unit=`expr x"$blocksize" : x'[0-9]*\\(.*\\)' || :`
+blocksize=${blocksize%"$unit"}
+test "$blocksize"
+case $unit in
+	*iB) unit=${unit%??};;
+	*[Bb]) unit=${unit%?}
+esac
+case $unit in
+	'') ;;
+	[kK]) unit=1024;;
+	[mM]) unit=`expr 1024 \* 1024`;;
+	*) false || exit
+esac
+if test "$unit"
+then
+	blocksize=`expr $blocksize \* $unit`
+fi
+test $blocksize != 0
+unset unit
+
+all_ok=true
+for f
+do
+	if test -L "$f" || test ! -f "$f"
+	then
+		echo "Not a regular file: $f"
+		all_ok=false
+	elif test ! -w "$f"
+	then
+		echo "Not writable: $f"
+		all_ok=false
+	fi
+done
+$all_ok
+
+bytesize() {
+	TZ= LANG= LANGUAGE= LC_MESSAGES=C LC_TIME=C ls -nlL -- "$1" \
+	| cut -d ' ' -f 5
+}
+
+
+if $dry_run
+then
+	dry_run="SIMULATION: "
+else
+	dry_run=
+fi
+for f
+do
+	len=`bytesize "$f"`
+	blocks=`expr $len / $blocksize || :`
+	rest=`expr $len % $blocksize || :`
+	test "$len" = "`expr $blocks \* $blocksize + $rest || :`"
+	case $verbose in
+		true) echo "${dry_run}Overwriting all $len bytes of $f" >& 2
+	esac
+	case $dry_run in
+		'') ;;
+		*) continue
+	esac
+	{
+		case $blocks in
+			0) ;;
+			*) dd count=$blocks bs=$blocksize conv=notrunc
+		esac
+		case $rest in
+			0) ;;
+			*) dd count=1 bs=$rest conv=notrunc
+		esac
+	} < /dev/zero > "$f" 2> /dev/null
+done
