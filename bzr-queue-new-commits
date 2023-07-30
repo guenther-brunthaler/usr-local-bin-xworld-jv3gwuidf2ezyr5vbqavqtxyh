@@ -5,9 +5,9 @@
 #
 # The merge directive will be named like the branch nick.
 #
-# Version 2018.77
+# Version 2023.211
+# Copyright (c) 2012-2023 Günther Brunthaler. All rights reserved.
 #
-# Copyright (c) 2012-2018 Günther Brunthaler. All rights reserved.
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
@@ -35,7 +35,7 @@ getid() {
 
 
 cleanup() {
-	rm -rf --one-file-system "$TDIR" 2> /dev/null
+	rm -rf --one-file-system -- "$TDIR" 2> /dev/null
 }
 
 
@@ -118,6 +118,7 @@ fi
 
 system mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; TDIR=$REPLY
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 
 upstream=$TDIR/upstream
 if test -n "$lcid"

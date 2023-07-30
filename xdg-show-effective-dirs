@@ -1,18 +1,21 @@
 #! /bin/sh
+# v2023.211
+
 set -e
 cleanup() {
-	test -n "$T" && rm -- "$T"
+	test "$T" && rm -- "$T"
 	test $? = 0 || echo "Failed!" >& 2
 }
 T=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 T=`mktemp "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
 
 report() {
 	echo "$@" >> "$T"
 }
 
-test -n "$HOME"
+test "$HOME"
 test -d "$HOME"
 report HOME
 
@@ -78,9 +81,9 @@ report_path() {
 }
 
 check_sep() {
-	if test -n "$sep"
+	if test "$sep"
 	then
-		if test -n "$first"
+		if test "$first"
 		then
 			echo
 		else
@@ -117,7 +120,7 @@ do
 	else
 		check_sep
 		eval "
-			if test -n \"\${$1+Y}\"
+			if test \"\${$1+Y}\"
 			then
 				vc=\$$1;
 				echo "$1=\\\"\$vc\\\""

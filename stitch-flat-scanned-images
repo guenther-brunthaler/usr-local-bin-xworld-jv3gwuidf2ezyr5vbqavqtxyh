@@ -1,9 +1,8 @@
 #! /bin/sh
 exit_version() {
 	cat << EOF | wrs; exit
-$APP version 2019.334
-
-Copyright (c) 2015-2019 Guenther Brunthaler. All rights reserved.
+$APP version 2023.211
+Copyright (c) 2015-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -81,15 +80,16 @@ EOF
 set -e
 cleanup() {
 	rc=$?
-	test -n "$TD" && rm -rf -- "$TD"
-	test $rc = 0 || echo "$0 failed!" >& 2
+	test "$TD" && rm -rf -- "$TD"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
 }
 TD=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 
 if
 	test -t 0 && LINEWIDTH=`tput cols 2> /dev/null` \
-	&& test -n "$LINEWIDTH"
+	&& test "$LINEWIDTH"
 then
 	MAX=100
 	test $LINEWIDTH -gt $MAX && LINEWIDTH=$MAX
@@ -134,7 +134,7 @@ for tool in \
 	pano_modify hugin_executor pto_gen pto_lensstack pto_var
 do
 	x=`which -- "$tool"`
-	test -n "$x"; test -f "$x"; test -x "$x"
+	test "$x"; test -f "$x"; test -x "$x"
 	eval "$tool=\$x"
 done
 
@@ -156,10 +156,10 @@ do
 		-compress LZW "$TD/$of"
 	"$identify" -format '%x %y %U\n' "$TD/$of" > "$TD/ii.txt"
 	read n_xres n_yres n_resunits < "$TD/ii.txt"
-	test -n "$n_xres"
-	test -n "$n_yres"
-	test -n "$n_resunits"
-	if test -n "$resunits"
+	test "$n_xres"
+	test "$n_yres"
+	test "$n_resunits"
+	if test "$resunits"
 	then
 		test x"$n_xres" = x"$xres"
 		test x"$n_yres" = x"$yres"
@@ -171,7 +171,7 @@ do
 	bf=${f##*/}; cfp=$cfp${cfp:++}${bf%.*}
 	nf=`expr $nf + 1`
 done
-test -n "$cfp"
+test "$cfp"
 test -z "$outfile" && outfile=$cfp.tif
 
 Prefix=out

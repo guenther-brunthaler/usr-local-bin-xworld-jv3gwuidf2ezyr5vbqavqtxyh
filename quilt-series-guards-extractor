@@ -1,9 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 2018.77
-
-	Copyright (c) 2010-2018 Guenther Brunthaler. All rights reserved.
+	$APP version 2023.211
+	Copyright (c) 2010-2023 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -196,8 +195,8 @@ close7() {
 
 
 cleanup() {
-	test -n "$OUT7" && close7
-	test -z "$DEBUG" && rm -r "$TD"
+	test "$OUT7" && close7
+	test -z "$DEBUG" && test "$TD" && rm -r -- "$TD"
 }
 
 
@@ -408,21 +407,24 @@ test x"${OUTPUT_FILE##*/}" != x"series" || {
 test -n "$OUTPUT_FILE" && overwrite_check "$OUTPUT_FILE"
 OUT7=
 # Create temporary working directories.
+TD=
+trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 while :
 do
-	if test -n "$DEBUG"
+	if test "$DEBUG"
 	then
 		TD=`pwd`/wd
-		test -d "$TD" && rm -r --one-file-system "$TD"
-		mkdir -m700 "$TD" && break
+		test -d "$TD" && rm -r --one-file-system -- "$TD"
+		mkdir -m700 -- "$TD" && break
 	else
-		system mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; TD=$REPLY
+		system mktemp -d --"${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"
+		TD=$REPLY
 		break
 	fi
 done
 run mkdir "$TD"/p
 run mkdir "$TD"/s
-trap cleanup 0
 # Extract tags and create stripped copies.
 IFILES=0; ITAGS=0
 {

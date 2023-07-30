@@ -10,8 +10,8 @@
 # prefix and suffix of all lines and removes them. Then it adds a new first
 # line containing $marker and the removed pre- and suffixes.
 #
-# Version 2022.125
-# Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
+# Version 2023.211
+# Copyright (c) 2022-2023 Guenther Brunthaler. All rights reserved.
 #
 # This document is free documentation.
 # Distribution is permitted under the terms of the GFDL-1.3.
@@ -20,12 +20,13 @@ set -e
 cleanup() {
 	rc=$?
 	$redir5 && exec 5>& -
-	test -n "$T" && rm -- "$T"
-	test $rc = 0 || echo "$0 failed!" >& 2
+	test "$T" && rm -- "$T"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
 }
 T=
 redir5=false
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 marker='$QSTR$'
 while getopts m:w: opt
 do
@@ -42,7 +43,7 @@ die() {
 }
 
 tfile() {
-	mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"
+	mktemp -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"
 }
 
 first=true

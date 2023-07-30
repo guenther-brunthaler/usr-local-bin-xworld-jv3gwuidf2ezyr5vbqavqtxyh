@@ -1,9 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 2018.77
-
-	Copyright (c) 2010-2018 Guenther Brunthaler. All rights reserved.
+	$APP version 2023.211
+	Copyright (c) 2010-2023 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -290,10 +289,14 @@ close7() {
 
 
 cleanup() {
-	test -n "$IN6" && close6
-	test -n "$OUT7" && close7
-	test -z "$DEBUG" && rm -r "$TD"
+	test "$IN6" && close6
+	test "$OUT7" && close7
+	test -z "$DEBUG" && test "$TD" && rm -r -- "$TD"
 }
+DEBUG=
+IN6=
+OUT7=
+TD=
 
 
 sed1() {
@@ -334,19 +337,23 @@ inject() {
 	if test -z "$TD"
 	then
 		# Create temporary working directories.
+		trap cleanup 0
+		trap 'exit $?' HUP INT TERM QUIT
 		while :
 		do
-			if test -n "$DEBUG"
+			if test "$DEBUG"
 			then
 				TD=`pwd`/wd
-				test -d "$TD" && rm -r --one-file-system "$TD"
-				mkdir -m700 "$TD" && break
+				test -d "$TD" \
+					&& rm -r --one-file-system -- "$TD"
+				mkdir -m700 -- "$TD" && break
 			else
-				system mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; TD=$REPLY
+				system mktemp -d -- \
+					"${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"
+				TD=$REPLY
 				break
 			fi
 		done
-		trap cleanup 0
 		run mkdir "$TD"/h
 		run mkdir "$TD"/t
 	fi
@@ -508,9 +515,6 @@ then
 	shift
 fi
 test $# = 0 || die "Unexpected arguments: $*!"
-TD=
-IN6=
-OUT7=
 LINE_NUMBER=1
 ITAGS=0; IFILES=0
 while IFS= read REPLY

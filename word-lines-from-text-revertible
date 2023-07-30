@@ -65,6 +65,7 @@ cleanup() {
 }
 TD=
 trap cleanup 0
+trap 'exit $?' INT QUIT HUP TERM
 
 undo=false
 indent=false

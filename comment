@@ -1,11 +1,15 @@
 #! /bin/sh
 # Provides transactional -i support - either all files are changed or none.
+#
+# v2023.211
 set -e
 cleanup () {
 	rc=$?
-	test -n "$T" && rm -rf -- "$TD"
-	test $rc = 0 || echo "$APP failed!" >& 2
+	test "$TD" && rm -rf -- "$TD"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
 }
+TD=
+trap 'exit $?' HUP INT TERM QUIT
 APP=${0##*/}
 TD=
 trap cleanup 0

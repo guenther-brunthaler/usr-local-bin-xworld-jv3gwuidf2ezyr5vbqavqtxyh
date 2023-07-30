@@ -1,4 +1,5 @@
 #! /bin/sh
+# v2023.211
 QR_BYTES_MAX=190
 QR_WANTS_CODEPAGE=WINDOWS-1252
 SEPARATOR_CHAR='-'
@@ -9,9 +10,8 @@ set -e
 
 exit_version() {
 	wr -s <<- EOF; exit
-	$APP version 2017.356
-
-	Copyright (c) 2015-2017 Guenther Brunthaler. All rights reserved.
+	$APP version 2023.211
+	Copyright (c) 2015-2023 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -77,17 +77,17 @@ mxlw=100; test ${LINEWIDTH:=66} -gt $mxlw && LINEWIDTH=$mxlw
 
 cleanup() {
 	rc=$?
-	local t
 	for t in "$T1" "$T2"
 	do
-		test -n "$t" && rm -- "$t"
+		test "$t" && rm -- "$t"
 	done
-	test $rc = 0 || echo "$APP failed!" >& 2
+	test $rc = 0 || echo "\"$APP\" failed!" >& 2
 }
 APP=${0##*/}
 T1=
 T2=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 sep=`
 	dd if=/dev/zero bs=1 count="$SEPARATOR_CHARS_IN_SEPARATOR" \
 		2> /dev/null \

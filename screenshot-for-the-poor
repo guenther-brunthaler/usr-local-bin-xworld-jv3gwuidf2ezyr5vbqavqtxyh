@@ -14,16 +14,15 @@
 # "libnotify-bin" package. (Those package names refer to Debian-based
 # distributions).
 #
-# Version 2021.316
-#
-# Copyright (c) 2013-2021 Guenther Brunthaler. All rights reserved.
+# Version 2023.211
+# Copyright (c) 2013-2023 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
 cleanup() {
-	test -n "$T" && rm -- "$T"
-	test -n "$OK" || notify-send -i error -t 10000 "$APP failed!"
+	test "$T" && rm -- "$T"
+	test "$OK" || notify-send -i error -t 10000 "$APP failed!"
 }
 
 set -e
@@ -31,6 +30,7 @@ APP=${0##*/}
 OK=
 T=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 WINDOW=
 while getopts w OPT
 do
@@ -40,7 +40,7 @@ do
 	esac
 done
 shift `expr $OPTIND - 1 || :`
-if test -n "$WINDOW"
+if test "$WINDOW"
 then
 	m="Screenshot: Select a window by clicking into it!"
 	notify-send -i info -t 3000 "$m"

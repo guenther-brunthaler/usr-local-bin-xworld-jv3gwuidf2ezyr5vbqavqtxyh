@@ -1,9 +1,8 @@
 #! /bin/sh
 version() {
 	cat << .
-$APP version 2018.77
-
-Copyright (c) 2013-2018 Guenther Brunthaler. All rights reserved.
+$APP version 2023.211
+Copyright (c) 2013-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -292,7 +291,7 @@ say() {
 
 cleanup() {
 	test -z "$OK" && say 'Failed!'
-	test -n "$TDIR" && release_tmp_dir
+	test "$TDIR" && release_tmp_dir
 	test -n "$OK"
 }
 
@@ -952,6 +951,7 @@ set -e
 OK=
 TDIR=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 UUID=7rttpq19eb58ybhqm18dktllt
 APP=${0##*/}
 sys=`uname`

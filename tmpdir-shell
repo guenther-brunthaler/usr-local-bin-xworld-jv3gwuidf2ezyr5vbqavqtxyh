@@ -1,27 +1,28 @@
 #! /bin/sh
 # Run a shell in a temporary directory to be removed when the shell exits.
-# Version 2021.89
+# Version 2023.211
 
 set -e
 cleanup() {
 	rc=$?
 	cd
-	if test -n "$T"
+	if test "$T"
 	then
 		find "$T" -xdev ! -type d -exec rm -f -- {} +
 		find "$T" -xdev -depth -type d -exec rmdir -- {} +
 	fi
-	test $rc = 0 || echo "$APP failed!" >& 2
+	test $rc = 0 || echo "\"$APP\" failed!" >& 2
 }
 APP=${0##*/}
 T=
 trap cleanup 0
-T=`mktemp -d "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
+trap 'exit $?' HUP INT TERM QUIT
+T=`mktemp -d -- "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
 echo "Entering temporary shell directory '$T'." >& 2
-p=`pwd`
+p=$PWD
 echo "The previous current directory is available as \$p." >& 2
 echo "Enter 'exit' to leave and remove temporary directory." >& 2
-cd "$T"
+cd -- "$T"
 PS1='\u@\h [tmpshell] \$ ' # Most likely, this will be overwritten anyway.
 export PS1 p
 case ${SHELL:=/bin/sh} in

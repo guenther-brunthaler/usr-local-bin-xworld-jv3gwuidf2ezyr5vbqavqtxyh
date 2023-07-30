@@ -5,8 +5,8 @@
 # Specify a list of source files as arguments, or feed a single source file
 # as standard input.
 #
-# Version 2016.45
-# Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+# Version 2023.211
+# Copyright (c) 2016-2023 Guenther Brunthaler. All rights reserved.
 # 
 # This script file is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -14,13 +14,14 @@
 set -e
 cleanup() {
 	rc=$?
-	test -n "$NF" && rm -f -- "$NF"
-	test -n "$T" && rm -f -- "$T"
-	test $rc = 0 || echo "$0 failed!" >& 2
+	test "$NF" && rm -f -- "$NF"
+	test "$T" && rm -f -- "$T"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
 }
 NF=
 T=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 
 process() {
 	awk -v file="$1" -v day="$day" -v year="$year" '

@@ -1,13 +1,20 @@
 #! /bin/sh
 # Works like "man", but displays the "man" page formatted as PostScript.
 #
-# Version 2018.77
-#
-# Copyright (c) 2012-2018 Guenther Brunthaler. All rights reserved.
+# Version 2023.211
+# Copyright (c) 2012-2023 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
-T=`mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
-trap "rm -- \"$T\"" 0
+set -e
+cleanup() {
+	rc=$?
+	test "$T" && rm -- "$T"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+T=
+trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
+T=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
 man -t "$@" > "$T" && gv "$T"

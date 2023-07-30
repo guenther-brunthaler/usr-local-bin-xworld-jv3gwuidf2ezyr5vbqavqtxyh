@@ -6,6 +6,8 @@
 # text field for the OBEX FTP browsing command, followed with a single
 # argument "%d" (without the quotes, but separated with a space from the
 # script's pathname).
+#
+# v2023.211
 
 set -e
 
@@ -17,6 +19,7 @@ cleanup() {
 	fi
 	test $rc = 0 || whine "Failed!"
 }
+MP=
 
 whine() {
 	while :
@@ -100,8 +103,8 @@ then
 else
 	x=
 fi
-MP=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 script=${0##*/}
 APP=`printf %.10s "$script"`
 if test $# != 1

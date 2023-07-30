@@ -1,9 +1,9 @@
 #! /bin/sh
 exit_version() {
 	wr -s <<- . && OK=y && exit
-	$APP version 2018.252
+	$APP version 2023.211
+	(c) 2015-2023 by Guenther Brunthaler.
 
-	(c) 2015-2018 by Guenther Brunthaler.
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
 .
@@ -117,14 +117,16 @@ exit_help() {
 
 
 cleanup() {
-	rm -- "$cfg"
-	test -n "$OK" || echo 'Failed!' >& 2
+	test "$cfg" && rm -- "$cfg"
+	test "$OK" || echo 'Failed!' >& 2
 }
 
 set -e
 OK=
-cfg=`mktemp "${TMPDIR:-/tmp}/${0##*/}-XXXXXXXXXX.conf"`
+cfg=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
+cfg=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}-XXXXXXXXXX.conf"`
 
 interface=
 port=

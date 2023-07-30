@@ -1,17 +1,20 @@
 #! /bin/sh
 # Run a command in a new terminal window; then prompt the user to either close
 # the window, or drop into an interactive shell.
+#
+# v2023.211
 
 set -e
 cleanup() {
 	rc=$?
-	test -n "$T" && rm -f -- "$T"
+	test "$T" && rm -f -- "$T"
 	test $rc = 0 || echo "$0 failed!" >& 2
 }
 T=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 
-test -n "$SHELL"
+test "$SHELL"
 test -x "$SHELL"
 
 title=
@@ -74,14 +77,14 @@ echo "Press [Enter] to close this window"
 echo "or press [s] followed by [Enter] in order"
 echo "to start a shell within this terminal window."
 REPLY=
-if read -p "? " REPLY && test -n "$REPLY"
+if read -p "? " REPLY && test "$REPLY"
 then
 	exec "$SHELL" -i
 fi
 EOF
 } > "$T"
 set xterm
-test -n "$title" && set "$@" -T "$title"
+test "$title" && set "$@" -T "$title"
 set "$@" -e "$SHELL" -l "$T"
-test -n "$dir" && cd -- "$dir"
+test "$dir" && cd -- "$dir"
 "$@"

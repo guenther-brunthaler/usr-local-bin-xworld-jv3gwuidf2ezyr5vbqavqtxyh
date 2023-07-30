@@ -1,9 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 2018.77
-
-	Copyright (c) 2011-2018 Guenther Brunthaler. All rights reserved.
+	$APP version 2023.211
+	Copyright (c) 2011-2023 Guenther Brunthaler. All rights reserved.
 
 	This source file is free software.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -805,8 +804,9 @@ test -n "$MUTEX" && test $MUTEX != x && {
 	die "More than a single operation mode has been specified!"
 }
 system quote_slashes "$RECURSIVE"; RECURSIVE=$REPLY
-system mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; TDIR=$REPLY
-trap "rm -r '$TDIR'" 0
+system mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; TDIR=$REPLY
+trap "rm -r -- '$TDIR'" 0
+trap 'exit $?' HUP INT TERM QUIT
 system readlink -f "$TDIR"; TDIR=$REPLY
 T=$TDIR/checksums.tmp
 AF=$TDIR/args.tmp

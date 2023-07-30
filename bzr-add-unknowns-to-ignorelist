@@ -1,8 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr . <<- EOF
-	$APP Version 15.213
-	Copyright (c) 2009-2015 Guenther Brunthaler. All rights reserved.
+	$APP Version 2023.211
+	Copyright (c) 2009-2023 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.
 	Distribution is permitted under the terms of the GPLv3.
@@ -148,7 +148,8 @@ run test -f "$EDITOR"
 system "$BZR" root; ROOT=$REPLY
 run cd "$ROOT"
 system mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; TF=$REPLY
-trap 'rm "$TF"' 0
+trap 'rm -- "$TF"' 0
+trap 'exit $?' HUP INT TERM QUIT
 if test -e "$IGNOREFILE"; then
 	# Convert absolute paths into top-level relative ones.
 	run sed -e 's,^/,./,' < "$IGNOREFILE" | LC_ALL=C run sort -u > "$TF"

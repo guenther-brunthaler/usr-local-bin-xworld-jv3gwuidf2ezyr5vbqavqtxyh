@@ -1,9 +1,8 @@
 #! /bin/sh
 exit_version() {
 	wr -s << .; exit
-$APP version 2016.282
-
-Copyright (c) 2015-2016 Guenther Brunthaler. All rights reserved.
+$APP version 2023.211
+Copyright (c) 2015-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -67,11 +66,12 @@ fi
 set -e
 cleanup() {
 	rc=$?
-	test -n "$T" && rm -- "$T"
-	test $rc = 0 || echo "$APP failed!" >& 2
+	test "$T" && rm -- "$T"
+	test $rc = 0 || echo "\"$APP\" failed!" >& 2
 }
 T=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 verbose=true
 opts=
 while getopts qDhV opt
@@ -85,7 +85,7 @@ do
 	esac
 done
 shift `expr $OPTIND - 1 || :`
-T=`mktemp "${TMPDIR:-/tmp}/$APP".XXXXXXXXXX`
+T=`mktemp -- "${TMPDIR:-/tmp}/$APP".XXXXXXXXXX`
 for f
 do
 	jpegtran$opts -optimize -copy none -perfect "$f" > "$T"

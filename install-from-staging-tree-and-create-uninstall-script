@@ -1,6 +1,6 @@
 #! /bin/sh
 set -e
-VERSION=15.213
+VERSION=2015.213
 LIC1="Copyright (c) 2012-2015 Guenther Brunthaler. All rights reserved."
 LIC2="This script is free software."
 LIC3="Distribution is permitted under the terms of the GPLv3."
@@ -13,9 +13,9 @@ blkout() {
 
 cleanup() {
 	exec >& 2
-	test -n "$REDIR7" && exec 7>& -
-	test -n "$T" && rm "$T"
-	if test -n "$OK"
+	test "$REDIR7" && exec 7>& -
+	test "$T" && rm -- "$T"
+	if test "$OK"
 	then
 		echo "Done!"
 	else
@@ -28,6 +28,7 @@ OK=
 T=
 REDIR7=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 
 APP=${0##*/}
 if test $# != 3

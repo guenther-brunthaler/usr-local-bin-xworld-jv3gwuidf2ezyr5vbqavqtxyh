@@ -27,9 +27,8 @@ the contents of the reconstructed upstream version and the new
 locally modified version. After this, the reconstructed upstream
 version is deleted because it is no longer required.
 
-$APP version 2016.282
-
-Copyright (c) 2015-2016 Guenther Brunthaler. All rights reserved.
+$APP version 2023.211
+Copyright (c) 2015-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -42,12 +41,13 @@ say() {
 }
 cleanup() {
 	rc=$?
-	test -n "$T" && rm -- "$T"
-	test $rc = 0 || say "$APP failed!"
+	test "$T" && rm -- "$T"
+	test $rc = 0 || say "\"$APP\" failed!"
 }
 APP=${0##*/}
 T=
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
 force=false
 while getopts fh opt
 do

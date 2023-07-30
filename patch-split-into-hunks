@@ -1,9 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 2018.77
-
-	Copyright (c) 2010-2018 Guenther Brunthaler. All rights reserved.
+	$APP version 2023.211
+	Copyright (c) 2010-2023 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -97,8 +96,9 @@ LINEWIDTH=; tty -s && LINEWIDTH=`tput cols` || LINEWIDTH=; : ${LINEWIDTH:=70}
 
 
 cleanup() {
-	rm "$T"
+	test "$T" && rm "$T"
 }
+T=
 
 
 getchunk() {
@@ -122,8 +122,9 @@ TZ=UTC0
 export LC_ALL TZ
 PATCH=${1?Argument required: The patch to be split into chunks!}
 run test -f "$PATCH"
-system mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
 trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
+system mktemp -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
 HUNK_COUNT=0
 while :
 do

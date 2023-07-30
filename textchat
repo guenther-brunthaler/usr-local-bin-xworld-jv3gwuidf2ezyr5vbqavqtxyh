@@ -1,9 +1,9 @@
 #! /bin/sh
 show_version() {
 	cat <<- .
-	$APP version 2018.77
+	$APP version 2023.211
+	Copyright (c) 2012-2023 Guenther Brunthaler. All rights reserved.
 
-	Copyright (c) 2012-2018 Guenther Brunthaler. All rights reserved.
 	This source file is free software.
 	Distribution is permitted under the terms of the GPLv3.
 .
@@ -196,7 +196,8 @@ fi
 
 run test x$MODE = x"server"
 system mktemp "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"; T=$REPLY
-trap "rm '$T'" 0
+trap "rm -- '$T'" 0
+trap 'exit $?' HUP INT TERM QUIT
 trap 'false; exit' USR1
 PARENT=$$
 {
