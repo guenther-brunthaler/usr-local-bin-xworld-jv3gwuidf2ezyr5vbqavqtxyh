@@ -1,8 +1,8 @@
 #! /bin/sh
 exit_version() {
-	cat << ===; exit
-$APP Version 2021.342.2
-Copyright (c) 2021 Guenther Brunthaler. All rights reserved.
+	wr << ===; exit
+$APP Version 2023.211
+Copyright (c) 2021-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -14,51 +14,48 @@ exit_help() {
 		primary) selection='primary X11 selection';;
 		*) selection='X11 clipboard'
 	esac
-	cat << ===; echo; exit_version
-$APP - pipe text from/to the $selection
-to/from standard output/input
+	wr << ===; echo; exit_version
+$APP - pipe text from/to the $selection to/from standard output/input
 
-Usage:
-$APP [ -x | -c ] [ -g | -f ] | <command> ...
-command | $APP [ -x | -c ] [ -s | -t | -p ]
-$APP [ -x | -c ] <text> ...
+Usage 1: $APP [ -x | -c ] [ -g | -f ] | <command> ...
+Usage 2: <command> | $APP [ -x | -c ] [ -s | -t | -p ]
+Usage 3: $APP [ -x | -c ] [ -a ] [ -- ] <argument_1> ...
 
 The first usage pipes data from to $selection to <command>.
 
-The second usage replaces the current contents of the
-$selection with the output of <command>.
+The second usage replaces the current contents of the $selection with the
+ output of <command>.
 
-The third usage just sets the concatenation of all arguments,
-separated by the current value of the IFS variable, as the new
-contents of the $selection.
+The third usage sets the concatenation of all arguments, with a newline
+ character appended after every argument, as the new contents of the
+ $selection. In other words, it puts every argument on its own line within the
+ $selection.
 
-Example: Replace the contents of the $selection
-with a base-64 encoded version of its current contents:
+The fourth usage puts every arg
+
+Example: Replace the contents of the $selection with a base-64 encoded version
+ of its current contents:
 
 \$ $APP -g | base64 | $APP -s
 
-
 Supported options:
 
+-a: Enforce usage variant 3 (write arguments to $selection), even if no
+ arguments are present. Instead, set the $selection to an empty string in the
+ latter case, containing not even a lone newline character.
 -c: use the X11 clipboard rather than the primary X11 selection for the
-specified operation. This is the default unless the name of the command '$APP'
-contains the letter 'x'.
+ specified operation. This is the default unless the name of the command
+ '$APP' contains the letter 'x'.
 
 -x: use the primary X11 selection rather than the X11 clipboard for the
-specified operation. This is the default if the name of the command '$APP'
-contains the letter 'x'.
+ specified operation. This is the default if the name of the command '$APP'
+ contains the letter 'x'.
 
--g, -f: get data from $selection and write to standard output.
-This is the default unless the name of the command '$APP' contains the letter
-"s".
+-g, -f: get data from $selection and write to standard output. This is the
+ default unless the name of the command '$APP' contains the letter "s".
 
--s, -t, -p: set data read from standard input as new $selection
-contents. This is the default if the name of the command '$APP' contains
-the letter "s".
-
--n: For the third usage variant only, adds a newline character at the end
-of the concatenated arguments. By default, no newline is added for this
-variant.
+-s, -t, -p: set data read from standard input as new $selection contents. This
+ is the default if the name of the command '$APP' contains the letter "s".
 
 -h: show this help and exit
 -V: show version information and exit
@@ -69,6 +66,22 @@ APP=${0##*/}
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw $LINEWIDTH
+}
+LINEWIDTH=`tput cols || echo ${COLUMNS:-66}`
+
 case $APP in
 	*s*) get=false;;
 	*) get=true;;
@@ -78,11 +91,11 @@ case $APP in
 	*) selection=clipboard;;
 esac
 
-fmt=%s
-while getopts nxcgfstphV opt
+write_args=false
+while getopts axcgfstphV opt
 do
 	case $opt in
-		n) fmt='%s\n';;
+		a) write_args=true;;
 		x) selection=primary;;
 		c) selection=clipboard;;
 		[gf]) get=true;;
@@ -114,8 +127,8 @@ do
 done
 $all || exit
 
-case $# in
-	0)
+case $#:$write_args in
+	0:false)
 		if $get
 		then
 			xclip -o -selection $selection
@@ -123,5 +136,6 @@ case $# in
 			xclip -i -selection $selection
 		fi
 		;;
-	*) printf "$fmt" "$*" | xclip -i -selection $selection
+	0:true) : | xclip -i -selection $selection;;
+	*) printf '%s\n' "$@" | xclip -i -selection $selection
 esac
