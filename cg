@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr << ===; exit
-$APP Version 2023.211
+$APP Version 2023.228
 Copyright (c) 2021-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -31,7 +31,16 @@ The third usage sets the concatenation of all arguments, with a newline
  $selection. In other words, it puts every argument on its own line within the
  $selection.
 
-The fourth usage puts every arg
+The third usage is the default if any non-option arguments are present.
+
+Without any arguments, the default usage depends on the name of the command
+ '$APP' (or a symlink to it) which has been used to run '$APP'. The presence
+ of absence of the letters "s" or "x" in the name of '$APP' determines the
+ default usage.
+
+The presence of letter "s" implies option -s, otherwise -g. The presence of
+ letter "x" implies -x, otherwise -c. Explicit options can always be used to
+ override those defaults.
 
 Example: Replace the contents of the $selection with a base-64 encoded version
  of its current contents:
@@ -40,24 +49,28 @@ Example: Replace the contents of the $selection with a base-64 encoded version
 
 Supported options:
 
--a: Enforce usage variant 3 (write arguments to $selection), even if no
- arguments are present. Instead, set the $selection to an empty string in the
- latter case, containing not even a lone newline character.
--c: use the X11 clipboard rather than the primary X11 selection for the
- specified operation. This is the default unless the name of the command
- '$APP' contains the letter 'x'.
+-a: ("Arguments".) Enforce usage variant 3 (write arguments to $selection),
+ even if no arguments are present. Instead, set the $selection to an empty
+ string in the latter case, containing not even a lone newline character.
 
--x: use the primary X11 selection rather than the X11 clipboard for the
- specified operation. This is the default if the name of the command '$APP'
- contains the letter 'x'.
+-c: ("Clipboard".) Use the X11 clipboard rather than the primary X11 selection
+ for the specified operation. This is the default unless the name of the
+ command '$APP' contains the letter 'x'.
 
--g, -f: get data from $selection and write to standard output. This is the
- default unless the name of the command '$APP' contains the letter "s".
+-x: ("X11 Selection".) Use the primary X11 selection rather than the X11
+ clipboard for the specified operation. This is the default if the name of the
+ command '$APP' contains the letter 'x'.
 
--s, -t, -p: set data read from standard input as new $selection contents. This
- is the default if the name of the command '$APP' contains the letter "s".
+-g, -f: ("Get", "From".) Get data from $selection and write to standard
+ output. This is the default unless the name of the command '$APP' contains
+ the letter "s".
+
+-s, -t, -p: ("Set", "To", "Put".) Set data read from standard input as new
+ $selection contents. This is the default if the name of the command '$APP'
+ contains the letter "s".
 
 -h: show this help and exit
+
 -V: show version information and exit
 ===
 }
