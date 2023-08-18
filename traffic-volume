@@ -1,12 +1,17 @@
 #! /bin/sh
+
 # Displays the current up- and download counters (as bytes) for all network
 # interfaces since the interfaces where brought up. When feeding a former
 # output of the script to via standard input to itself, displays the traffic
 # produced since then instead.
 #
-# For the latter case only, an a list of network interfaces to show may be
-# specified either as multiple arguments or separated by arbitraty separators
-# within one or more arguments:
+# For the latter case only, a list of network interfaces to show may be
+# specified either as multiple arguments or separated by arbitraty
+# non-alphanumeric separators (except for "_" and "-" which will not be
+# recognized as separators) within one or more arguments. If interfaces are
+# specified in this way as arguments, they will always be reported even if
+# the interface does not currently exist. In this case, it will be assumed to
+# exist with all traffic counters set to zero.
 #
 # $this_script > snap.txt # Snaphot the starting counters.
 # $this_script < snap.txt # Display counter differences for all interfaces.
@@ -19,7 +24,7 @@
 # $this_script "eth0, lo" < snap.txt # Same.
 # $this_script "eth0 :: lo" < snap.txt # Same.
 #
-# Version 2023.197
+# Version 2023.230
 #
 # Copyright (c) 2009-2023 Guenther Brunthaler. All rights reserved.
 #
@@ -46,20 +51,28 @@ report() {
 	{
 		export LC_ALL=C PATH=/sbin:/usr/sbin:/usr/local/sbin:"$PATH"
 		ifconfig -a 2> /dev/null || :
-	} | awk -v now=`date +%s` -f /dev/fd/5 5<< '.'
+	} | awk -v now=`date +%s` -v explicit="$*" -f /dev/fd/5 5<< '.'
 		function z() {
 			r= t= 0; ifc= noifc
 		}
 
 		function p() {
+			if (noifc == ifc) return
 			print ifc "," now "," r "," t
+			if (ifc in missing) delete missing[ifc]
 			z()
 		}
 
-		BEGIN {noifc= ""; z()}
+		function schedule_missing(    t, i) {
+			if (i= split(explicit, t, "[^-_[:alnum:]]{1,}")) {
+				while (i) missing[t[i--]]= 1
+			}
+		}
+
+		BEGIN {noifc= ""; z(); schedule_missing()}
 
 		/^[^:[:space:]]+:/ {
-			if (ifc != noifc) p()
+			p()
 			ifc= substr($0, 1, index($0, ":") - 1)
 		}
 
@@ -71,19 +84,25 @@ report() {
 			if ($1 == "RX") r= v; else t= v
 		}
 
-		END {p()}
+		function add_missing(    mif) {
+			for (mif in missing) {
+				ifc= mif; p()
+			}
+		}
+
+		END {p(); add_missing()}
 .
 }
 
 if test -t 0
 then
-	report
+	report "$*"
 	exit
 fi
 {
 	cat
 	echo
-	report
+	report "$*"
 } \
 | {
 	awk -v bx=$byte_exact -v details=$verbose -v only="$*" \
