@@ -1,0 +1,46 @@
+#! /bin/sh
+
+# Collect entropy by moving the mouse pointer over a window.
+#
+# Version 2023.259
+# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+pkg=
+missing=false
+for needed in \
+	x11-utils: xev
+do
+	case $needed in
+		*:) pkg=${needed%:};;
+		*)
+			command -v "$needed" > /dev/null 2>& 1 && continue
+			echo "Required utility '$needed' is missing!" >& 2
+			echo "On some systems, it may be installed with:" >& 2
+			printf '$ ' >& 2
+			echo "sudo apt-get install $pkg"
+			echo >& 2
+			missing=true
+	esac
+done
+if $missing
+then
+	echo "Please install the missing packages, then try again!" >& 2
+	false || exit
+fi
+
+get_mouse_events() {
+	# Extract UNIX timestamp and x/y mouse co-ordinates in CSV format.
+	#
+	# Note that the co-ordinate can also become negative when the mouse
+	# pointer leaves the window's client area.
+	LANGUAGE= LC_MESSAGES=C xev -geometry 600x420 -events mouse \
+	| sed 's/.*time \([^,]*,\) (\([^)]*\)).*/\1\2/; t; d'
+}
+
+get_mouse_events

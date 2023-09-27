@@ -13,9 +13,8 @@
 # features of "surf". Otherwise, start the "surf" instances with those
 # features disabled.
 #
-# Version 2021.32.2
-#
-# Copyright (c) 2018-2021 Guenther Brunthaler. All rights reserved.
+# Version 2023.259
+# Copyright (c) 2018-2023 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -127,6 +126,8 @@ The most important shortcuts:
 [Ctrl]+[g] prompts for URL
 [Esc] stop loading current page
 [Ctrl]+[r] reload page
+
+Status line: Upper-case indicator letters mean setting is enabled.
 
 [Ctrl]+[y] copy URI
 [Shift]+[Ctrl]+[i] enables/toggles auto image loading

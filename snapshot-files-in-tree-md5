@@ -1,0 +1,58 @@
+#! /bin/sh
+#
+# Create a snapshot of the current directory tree.
+#
+# The snapshot consists of a file containing path names and associated
+# checksums, locale-independently sorted by pathname. The name of the file is
+# automatically created from the current UTC date and time.
+#
+# The snapshots are intended to be used for resolving conflicts in
+# bi-directional synchronisation between multiple clones of the same directory
+# tree.
+#
+# It allows to perform the job of the "unison" file synchronisation tool
+# manually by comparing earlier and current snapshots of the local and a
+# different clone of the current directory.
+#
+# v2023.269
+
+# A symlink $linkname to THIS script is automatically created (unless it
+# already exists) in the current directory, allowing the user to double-click
+# it in his file manager to easily create more snapshots without having to
+# remember the name of THIS script.
+linkname='mk-snapshot.sh'
+
+set -e
+cleanup() {
+	rc=$?
+	if test "$TF"
+	then
+		if test -s "$TF"
+		then
+			ef=$bn-errors.txt
+			echo "Errors did occur!" >& 9
+			echo "See file '$ef'." >& 9
+			cat < "$TF" > "$ef"
+		fi
+		rm -- "$TF"
+	fi
+	test $rc = 0 || echo "\"$0\" failed!" >& 9
+}
+TF=
+trap cleanup 0
+trap 'exit $?' INT QUIT TERM HUP
+
+exec 9>& 2
+bn=`date -u +'snapshot_%Y-%m-%d_%H:%M:%Sz'`
+
+test ! -e "$linkname" && ln -s "`readlink -f -- "$0"`" "$linkname"
+
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+{
+	find . ! \( \
+		-name "$linkname" \
+		-o -name 'snapshot_2*-*-*_*:*:*z.md5' \
+		\) -type f \
+	| cut -d / -f 2- \
+	| LC_COLLATE=C sort | xargsL md5sum -b -- > "$bn".md5
+} 2> "$TF"
