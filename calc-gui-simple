@@ -1,0 +1,49 @@
+#! /bin/sh
+
+# Provide a simple GUI front-end for "bc -l".
+#
+# Version 2023.277
+# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+cmdline=false
+while getopts c opt
+do
+	case $opt in
+		c) cmdline=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+invoke_bc() {
+	cat << '==='
+Quick help ("man bc" in terminal for full help).
+
+Enter some expression like ("22 / 7") and press
+[Enter] in order to calculate result. Use "."
+as decimal point.
+
+Important operators for expression: "+", "-",
+"*" (multiply), "/" (divide),
+"^" (exponentiate), "%" (modulus),
+"s(x)" (sine of value x), "c(x)" (cosine of x),
+"a(x)" (arctangent of x),
+"l(x)" (base-e logarithm of x), "e(x)" (e^x).
+Quit calculator: [Ctrl]+[d].
+
+===
+	exec bc -lsq
+}
+
+case $# in
+	0) ;;
+	*) invoke_bc
+esac
+case $cmdline in
+	true) invoke_bc
+esac
+exec xterm -title 'bc' -fg black -bg lightgreen -e "$0" -c &
