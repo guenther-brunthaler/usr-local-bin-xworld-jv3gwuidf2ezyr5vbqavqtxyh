@@ -4,11 +4,23 @@
 # hexadecimal key fields with "?"-strings of the same length. This allows to
 # display the contents of those tables without also displaying the keys.
 #
-# v2023.279
+# v2023.279.1
 
-awk -f /dev/fd/5 5<< 'EO_AWK'
+set -e
+# Check whether awk is modern enough and supports named RegEx classes.
+echo 9aA | awk '!/^[[:xdigit:]]+$/ {exit system("false")}'
 
-$3 == "crypt" {
+awk -f /dev/fd/5 5<< 'EO_AWK' -- ${1+"$@"}
+
+BEGIN {
+	if (annotate = ARGC > 1) {
+		if (system("test -t 1")) annotate = 0
+	}
+}
+
+annotate && FNR == 1 { print "# File \"" FILENAME "\":" >> "/dev/stderr" }
+
+$3 == "crypt" && $5 ~ /^[[:xdigit:]]+$/ {
 	for (i = length($5); i--; ) o = o "?"
 	$5 = o
 }
