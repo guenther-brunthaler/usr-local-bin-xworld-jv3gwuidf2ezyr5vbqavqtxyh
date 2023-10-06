@@ -1,0 +1,18 @@
+#! /bin/sh
+
+# Filter dmsetup table contents read from standard input by replacing all
+# hexadecimal key fields with "?"-strings of the same length. This allows to
+# display the contents of those tables without also displaying the keys.
+#
+# v2023.279
+
+awk -f /dev/fd/5 5<< 'EO_AWK'
+
+$3 == "crypt" {
+	for (i = length($5); i--; ) o = o "?"
+	$5 = o
+}
+
+{print}
+
+EO_AWK
