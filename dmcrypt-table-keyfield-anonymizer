@@ -4,7 +4,11 @@
 # hexadecimal key fields with "?"-strings of the same length. This allows to
 # display the contents of those tables without also displaying the keys.
 #
-# v2023.279.2
+# Version 2023.279.3
+# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
