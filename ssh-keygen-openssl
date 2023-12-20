@@ -1,9 +1,9 @@
 #! /bin/sh
 exit_version() {
 	wr -s << . && exit
-$APP version 2022.4
+$APP version 2023.354
 
-Copyright (c) 2018-2022 Guenther Brunthaler. All rights reserved.
+Copyright (c) 2018-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -229,6 +229,17 @@ do
 	echo "Collecting $e bytes of entropy (may take several seconds)..." >& 2
 	"$egu" "$e" > "$TDIR"/rnd
 	openssl genrsa -out "$t".prv -rand "$TDIR"/rnd "$bits"
+	if grep -q 'RSA PRIVATE KEY' "$t".prv
+	then
+		:
+	elif
+		mv -- "$t".prv "$t".pkcs8
+		openssl rsa -in "$t".pkcs8 -out "$t".prv -traditional
+	then
+		:
+	else
+		openssl pkey -in "$t".pkcs8 -out "$t".prv -traditional
+	fi
 	chmod 600 -- "$t".prv
 	ssh-keygen -yf "$t".prv > "$t".tmp
 	tr -d '\n' < "$t".tmp > "$t".pub
