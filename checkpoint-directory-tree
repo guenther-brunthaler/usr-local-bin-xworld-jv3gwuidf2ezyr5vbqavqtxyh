@@ -1,9 +1,8 @@
 #! /bin/sh
 show_version() {
 	wrL <<-.
-	$APP version 10.124
-
-	Copyright (c) 2009-2010 Guenther Brunthaler. All rights reserved.
+	$APP version 2023.365
+	Copyright (c) 2009-2023 Guenther Brunthaler. All rights reserved.
 	Distribution is permitted under the terms of the GPLv3.
 .
 }
@@ -314,7 +313,7 @@ flush_linkid() {
 
 # Check whether executable $1 can be found in $PATH.
 have() {
-	which "$1" > /dev/null 2>& 1
+	command -v "$1" > /dev/null 2>& 1
 }
 
 

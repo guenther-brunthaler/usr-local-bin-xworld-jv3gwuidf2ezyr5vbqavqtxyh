@@ -1,4 +1,5 @@
 #! /bin/sh
+
 # Very primitive HTTP upload script.
 # It just accepts a single file as an argument, and starts
 # a temporary minimalistic web-server on $PORT, allowing any
@@ -10,8 +11,9 @@
 # or web-server software. There are also no administrative
 # privileges required.
 #
-# push-http version 9.312
-# (c) 2009 by Guenther Brunthaler.
+# push-http version 2023.365
+# (c) 2009-2023 by Guenther Brunthaler.
+#
 # May be distributed under the terms of the GPLv3.
 
 
@@ -45,7 +47,7 @@ filesize() {
 
 
 have() {
-	which "$1" > /dev/null 2>& 1
+	command -v "$1" > /dev/null 2>& 1
 }
 
 

@@ -1,4 +1,6 @@
 #! /bin/sh
+
+# v2023.365
 set -e
 trap "test $? = 0 || echo 'Failed!' >& 2" 0
 APP=$0
@@ -23,10 +25,10 @@ wr() {
 	local wr cols=66 maxcols=100
 	wr=`tput cols 2> /dev/null || echo ${COLUMNS:-$cols}`
 	test $wr -lt $maxcols && cols=$wr
-	if wr=`which fmt 2> /dev/null`
+	if wr=`command -v fmt 2> /dev/null`
 	then
 		"$wr" -w$cols -c
-	elif wr=`which fold 2> /dev/null`
+	elif wr=`command -v fold 2> /dev/null`
 	then
 		"$wr" -w$cols -s | sed 's/ *$//'
 	else

@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr -s << .; exit
-$APP version 2023.211
+$APP version 2023.365
 Copyright (c) 2015-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -47,12 +47,12 @@ MAX_WIDTH=100
 test -t 1 && LINEWIDTH=`tput cols 2> /dev/null` || LINEWIDTH=$COLUMNS
 test ${LINEWIDTH:=66} -gt $MAX_WIDTH && LINEWIDTH=$MAX_WIDTH
 
-if tool=`which fmt`
+if tool=`command -v fmt`
 then
 	wr() {
 		"$tool" -w $LINEWIDTH -c "$@"
 	}
-elif tool=`which fold`
+elif tool=`command -v fold`
 then
 	wr() {
 		"$tool" -s $LINEWIDTH | sed 's/[[:space:]]\+$//'

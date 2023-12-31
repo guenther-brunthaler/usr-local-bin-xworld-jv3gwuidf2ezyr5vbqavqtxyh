@@ -1,9 +1,10 @@
 #!/bin/sh
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/mktags $
-# $Author: root $
-# $Date: 2007-03-02T21:03:39.114682Z $
-# $Revision: 588 $
+# Version 2023.365
+# Copyright (c) 2007-2023 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
 
 die() {
@@ -13,7 +14,7 @@ die() {
 
 
 chk4() {
-	which "$1" > /dev/null 2>& 1
+	command -v "$1" > /dev/null 2>& 1
 }
 
 

@@ -1,7 +1,7 @@
 #! /bin/sh
 version() {
 	cat << .
-$APP version 2023.211
+$APP version 2023.365
 Copyright (c) 2013-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -420,7 +420,7 @@ getcmd() {
 	esac
 	# There is a bug in bash's eval: It does not return the status of a
 	# backquote substitution. Adding a redundant test to fix it.
-	eval "$2=`which \"$3\" 2> /dev/null`;\
+	eval "$2=`command -v -- \"$3\" 2> /dev/null`;\
 		test \$? = 0 && test -n \"\$$2\" && test -x \"\$$2\"" \
 			&& return
 	eval "$2="

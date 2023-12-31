@@ -8,15 +8,16 @@
 # directory. Already existing files will be
 # skipped.
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/busybox_create_multilinks $
-# $Author: root $
-# $Date: 2006-11-28T19:29:06.076106Z $
-# $Revision: 444 $
+# Version 2023.365
+# Copyright (c) 2006-2023 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
 
 use strict;
 substr($ENV{PATH}, 0, 0)= '.:';
-my $bb= qx/which busybox | head -1/ or die "Could not locate BusyBox";
+my $bb= qx/command -v busybox | head -1/ or die "Could not locate BusyBox";
 chomp $bb;
 die "'$bb' is not executable" unless -x $bb;
 open IN, qq'"$bb" --help |' or die "Cannot get $bb --help";

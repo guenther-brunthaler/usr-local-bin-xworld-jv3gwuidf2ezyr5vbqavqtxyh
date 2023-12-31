@@ -1,9 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr <<- .
-	$APP version 2018.77
-
-	Copyright (c) 2010-2018 Guenther Brunthaler. All rights reserved.
+	$APP version 2023.365
+	Copyright (c) 2010-2023 Guenther Brunthaler. All rights reserved.
 
 	This script is free software.\n
 	Distribution is permitted under the terms of the GPLv3.
@@ -94,7 +93,7 @@ wr() {
 
 
 have() {
-	which "$1" > /dev/null 2>& 1
+	command -v "$1" > /dev/null 2>& 1
 }
 
 

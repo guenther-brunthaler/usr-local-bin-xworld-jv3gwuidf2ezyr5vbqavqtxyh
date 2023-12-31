@@ -4,9 +4,8 @@
 # contents of all the remaining PDFs in the same order to the existing
 # contents of the first one.
 #
-# Version 2016.302
-#
-# Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+# Version 2023.365
+# Copyright (c) 2016-2023 Guenther Brunthaler. All rights reserved.
 #
 # This script file is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -30,10 +29,10 @@ mv -- "$1" "$B"
 O=$1
 shift
 set -- "$B" "$@"
-if tool=`which pdfunite 2> /dev/null`
+if tool=`command -v pdfunite 2> /dev/null`
 then
 	"$tool" "$@" "$O"
-elif tool=`which gs 2> /dev/null`
+elif tool=`command -v gs 2> /dev/null`
 then
 	"$tool" -dCompatibilityLevel=1.4 -dNOPAUSE -dQUIET -dBATCH -q \
 		-sDEVICE=pdfwrite -sOutputFile="$O" "$@"

@@ -13,12 +13,11 @@
 # uncompressed TAR in BASE-64 encoding and will use OpenSSL
 # for BASE-64 decoding.
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/bbs-package-tar $
-# $Author: root $
-# $Date: 2006-11-26T15:21:41.419451Z $
-# $Revision: 428 $
+# Version 2023.365
+# Copyright (c) 2006-2023 Guenther Brunthaler. All rights reserved.
 #
-# Written in 2006 by Guenther Brunthaler.
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
 
 die() {
@@ -91,7 +90,7 @@ while true; do
 	esac
 	shift
 done
-which openssl > /dev/null 2>& 1 || {
+command -v openssl > /dev/null 2>& 1 || {
 	die "OpenSSL is required for BASE-64 encoding!"
 }
 T="/tmp/~${0##*/}_$$.tmp"
@@ -105,7 +104,7 @@ rename_back gzip
 rename_back bzip2
 cat << END
 #! /bin/sh
-which openssl > /dev/null 2>& 1 \\
+command -v openssl > /dev/null 2>& 1 \\
 || { echo "OpenSSL is required for BASE-64 decoding!" >&2; exit 1;}
 END
 echo 'openssl enc -d -a << END | tar' "$TAROPTS${1:+ }$*"

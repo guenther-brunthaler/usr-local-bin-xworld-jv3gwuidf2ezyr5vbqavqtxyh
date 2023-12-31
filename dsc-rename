@@ -1,10 +1,12 @@
 #! /usr/bin/perl -w
+
 # Renames files from a digital still camera to a date/time based format.
 #
-# $HeadURL: /caches/xsvn/uxadm/trunk/usr/local/bin/dsc-rename $
-# $Author: root $
-# $Date: 2007-01-25T19:22:34.299894Z $
-# $Revision: 532 $
+# Version 2023.365
+# Copyright (c) 2007-2023 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
 
 
 use strict;
@@ -77,7 +79,7 @@ my(%f);
    my($jpg, $buf, $k, $ext, $y, $m, $d, $h, $n, $s, %r, @s);
    # Locate EXIF helper utility.
    $ext= 'exiftime';
-   $ext= qx"which \"$ext\"" and chomp $ext, -f $ext
+   $ext= qx"command -v \"$ext\"" and chomp $ext, -f $ext
       or die "media-gfx/exiftags is not installed"
    ;
    foreach my $iname (@ARGV) {

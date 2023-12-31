@@ -102,9 +102,8 @@ show_usage() {
 	directory on the server after it has been moved or renamed, because
 	the UUID-part of the name will never change.
 	
-	$APP version 12.127
-
-	Copyright (c) 2008-2012 Guenther Brunthale. All rights reserved.
+	$APP version 2023.365
+	Copyright (c) 2008-2023 Guenther Brunthale. All rights reserved.
 EOT
 	exit
 }
@@ -139,7 +138,7 @@ if test $MODE = server; then
 	run mkdir -p "$SUBDIR"
 	run cd "$SUBDIR"
 	run bzr init-repo --quiet --no-trees $BZR_REPO_OPTION .
-	which base35uuid > /dev/null 2>& 1 || {
+	command -v base35uuid > /dev/null 2>& 1 || {
 		test -f /etc/profile && . /etc/profile
 	}
 	if test -n "$PRESET_UUID"

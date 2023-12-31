@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << EOF | wrs; exit
-$APP version 2023.211
+$APP version 2023.365
 Copyright (c) 2015-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -98,7 +98,7 @@ else
 fi
 
 have() {
-	which $1 > /dev/null 2>& 1 || false
+	command -v $1 > /dev/null 2>& 1 || false
 }
 
 if have fmt
@@ -133,7 +133,7 @@ for tool in \
 	convert identify autooptimiser cpclean cpfind linefind \
 	pano_modify hugin_executor pto_gen pto_lensstack pto_var
 do
-	x=`which -- "$tool"`
+	x=`command -v -- "$tool"`
 	test "$x"; test -f "$x"; test -x "$x"
 	eval "$tool=\$x"
 done

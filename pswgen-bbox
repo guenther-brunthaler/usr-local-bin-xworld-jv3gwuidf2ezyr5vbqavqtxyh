@@ -2,9 +2,8 @@
 set -e
 exit_version() {
 	cat << EOF; exit
-$0 version 2016.120.1
-
-Copyright (c) 2016 Guenther Brunthaler. All rights reserved.
+${0##*/} version 2023.365
+Copyright (c) 2016-2023 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -35,7 +34,7 @@ EOF
 
 for bb in busybox-pbyqxzl1ktqlk3fjm3arlrclg busybox-localsite busybox bb
 do
-	bb=`which -- "$bb" 2> /dev/null` && break
+	bb=`command -v -- "$bb" 2> /dev/null` && break
 done
 if test ! -f "$bb"
 then

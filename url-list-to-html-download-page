@@ -1,9 +1,11 @@
 #! /bin/sh
+
+# v2023.365
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
 
 bb=busybox-pbyqxzl1ktqlk3fjm3arlrclg
-bb=`which "$bb" 2> /dev/null` || bb=busybox
+bb=`command -v "$bb" 2> /dev/null` || bb=busybox
 
 checkboxed=true
 opts=
@@ -25,7 +27,7 @@ then
 	me=$0
 	if test ! -f "$me"
 	then
-		me=`which "$me"`
+		me=`command -v "$me"`
 	fi
 	for url_list
 	do

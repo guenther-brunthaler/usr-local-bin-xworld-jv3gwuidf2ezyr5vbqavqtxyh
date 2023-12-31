@@ -7,7 +7,7 @@
 # argument "%d" (without the quotes, but separated with a space from the
 # script's pathname).
 #
-# v2023.211
+# v2023.365
 
 set -e
 
@@ -65,7 +65,7 @@ wait4() {
 }
 
 have() {
-	if ! which "$1" 2> /dev/null
+	if ! command -v "$1" 2> /dev/null
 	then
 		shift
 		if test $? = 0
