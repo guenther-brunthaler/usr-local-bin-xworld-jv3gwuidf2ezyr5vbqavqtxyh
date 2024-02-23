@@ -1,0 +1,25 @@
+#! /bin/sh
+
+# "asciidoc"-compatibility wrapper for "asciidoctor".
+#
+# Version 2024.54
+# Copyright (c) 2024 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+# Specifying ":!webfonts:" in the document header has the same affect: It
+# disables downloading WebFonts from Google for viewing the HTML document.
+# Using a slightly different syntax, such attributes can also be set on the
+# asciidoctor command line:
+inject_options='-a webfonts!'
+inject_options='-a stylesheet=/dev/null'
+inject_options='-a stylesheet!'
+backend=asciidoctor
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+command -v "$backend" > /dev/null
+
+exec "$backend" $inject_options ${1+"$@"}

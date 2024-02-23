@@ -4,14 +4,14 @@ version() {
 Watch the current directory for .html files which can be updated by $converter
 from corresponding .txt (and .asciidoc and .adoc) files.
 
-Version 2024.5
+Version 2024.54
 Copyright (c) 2019-2024 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
 ====
 }
-converter=asciidoctor
+converter=asciidoc
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
