@@ -1,0 +1,104 @@
+echo NYI; false || exit
+#! /bin/sh
+
+# Reads byte counts via standard input and replaces the byte counts by dynamic
+# units (bytes, kilobytes, megabytes and so on). The results of the
+# replacements are written to standard output, one byte count per line.
+#
+# If any arguments are provided, those arguments are processed as if each
+# argument were a single line read from standard input. The real standard
+# input is not used in this mode of operation.
+#
+# Any sequence of decimal digits and locale-specific "thousands separator"
+# characters (which will be ignored) will be accepted as a byte count.
+#
+# Options can be used to customize the dynamic unit formatting.
+#
+# -s displays only SI units, i.e. based on a factor of 1000.
+# -b displays only binary units, i.e. based on a factor or 1024.
+# -l use long unit names, e.g. "mebibytes" instead of "MiB".
+#
+# By default, both are displayed if appropriate. The order depends on the byte
+# count: The variant which is more compact (less digits necessary for display)
+# is showed first. The other variant is shown second in parentheses.
+#
+# Option -n allows to specify the number of fractional digits. Small numbers
+# which can be formatted just as an exact number of bytes never use fractional
+# digits. The character chosen for the decimal point is determined by the
+# current locale.
+#
+# By the default, 2 fractional digits will be used. 
+#
+# v2023.311
+set -e
+cleanup () {
+	rc=$?
+	#test "$TD" && rm -rf -- "$TD"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+#TD=
+trap 'exit $?' HUP INT TERM QUIT
+#APP=${0##*/}
+#TD=`mktemp -d "${TMPDIR:-/tmp}/$APP.XXXXXXXXXX"`
+
+units=dynamic
+long=false
+fract_digits=2
+while getopts n:sbl opt
+do
+	case $opt in
+		n) fract_digits=$OPTARG;;
+		s) units=si;;
+		b) units=binary;;
+		l) long=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+verify_uint() {
+	expr x"$1" : x'[1-9][0-9]*$' \
+		'|' x"$1" : x'0$' \
+		> /dev/null
+}
+
+verify_uint "$fract_digits"
+test $fract_digits -le 3
+case $fract_digits in
+	0) int_fract=;;
+	*) int_fract=`printf '%0*u\n' $fract_digits 0`
+esac
+
+get_locale_info() {
+	{
+		locale -k LC_NUMERIC || : ;
+	} | grep -E '^(decimal_point|thousands_sep)=' || :
+}
+decimal_point='.' thousands_sep=','
+eval "`get_locale_info`"
+
+println() {
+	printf '%s\n' "$*"
+}
+
+convert() {
+}
+
+process_stdin() {
+	tr -d -- "$thousands_sep" \
+	| while IFS= read -r value
+	do
+		verify_uint "$value"
+		value=`expr x"$value" : x'0*\(.*[0-9]\)$'`$int_fract
+		println "$value"
+	done
+}
+
+case $# in
+	0) process_stdin;;
+	*)
+		for arg
+		do
+			println "$arg"
+		done | process_stdin
+esac

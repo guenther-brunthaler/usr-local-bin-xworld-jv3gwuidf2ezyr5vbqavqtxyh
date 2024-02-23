@@ -1,0 +1,147 @@
+echo NYI; false || exit
+#! /bin/sh
+exit_version() {
+	cat << .; exit
+$APPLICATION_NAME Version 2024.53
+Copyright (c) 2017-2024 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+.
+}
+
+exit_help() {
+	cat << . && echo && exit_version # Text width: 66 columns.
+$APPLICATION_NAME - separate concatenated diffs into individual
+patch files
+
+Usage: $APPLICATION_NAME [ <options> ... ] \\
+       [ <concatenated_diffs_1> ... ]
+
+$APPLICATION_NAME processes a list of files as its arguments.
+Every file consists of one or more unified diff outputs which
+have been concatenated. Optionally, comments are allowed before
+each diff.
+
+$APPLICATION_NAME then creates a subdirectory for every file with
+the same name as the file but ".d" added, and populates those
+directories with numbered patches. The patches will be numbered
+such that a
+
+\$ cat *
+
+within each directory will recreate the contents of the original
+file.
+
+Without arguments, a single concatenated diff is read from
+standard input and the resulting numbered patches will be created
+in the current directory.
+
+In any case, $APPLICATION_NAME will never overwrite an existing
+patch file.
+
+Options:
+
+-f: Force overwriting of existing patch files rather than
+    refusing to do so.
+-V: Display version information and exit.
+-h: Display this help and exit.
+.
+}
+APPLICATION_NAME=${0#**/}
+
+PDIR_SUFF=.d
+PSFX=.patch
+
+set -e
+cleanup() {
+	rc=$?
+	$redir_out && exec > /dev/null
+	test $rc = 0 || echo "\"$APPLICATION_NAME\" failed!" >& 2
+}
+redir_out=false
+trap cleanup 0
+trap 'exit $?' INT TERM QUIT HUP
+
+force=false
+while getopts fVh opt
+do
+	case $opt in
+		f) force=true;;
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+match() {
+	expr x"$1" : x"$2" 2> /dev/null
+}
+
+process() {
+	local prefix num st line fname par oc nc
+	prefix=; num=1; st=---
+	while IFS= read -r line
+	do
+		if $redir_out
+		then
+			:
+		else
+			fname=$prefix$num$psfx$PSFX
+			if test -e "$fname"
+			then
+				$force
+			fi
+			exec > "$fname"; redir_out=true
+		fi
+		case $st in
+			---)
+				case $line in
+					'--- '*) st=+++;;
+				esac
+				;;
+			+++)
+				case $line in
+					'+++ '*) st=@@;;
+					*) st=---;
+				esac
+				;;
+			@@)
+				if par=`match "$line" "$p1"`
+				then
+					oc=`match "$par" "$p2"`
+					nc=`match "$par" "$p3"`
+				else
+					st=---
+				fi
+				;;
+		esac
+	done
+}
+p1='@@ \(-[1-9][0-9,]* +[1-9][0-9,]*\) @@'
+p2='-[0-9]*\(*\) '
+
+if test $# = 0
+then
+	echo "Separating standard input!" >& 2
+	process
+else
+	for arg
+	do
+		test -f "$arg"
+		dir=$arg$PDIR_SUFF
+		if test -d "$dir"
+		then
+			$force
+			rm -r -- "$dir"
+		fi
+	done
+	for arg
+	do
+		dir=$arg$PDIR_SUFF
+		mkdir -- "$dir"
+		echo "Separating '$arg' into '$dir'!" >& 2
+		(cd -- "$dir" && process) < "$arg"
+	done
+fi
