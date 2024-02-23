@@ -1,0 +1,340 @@
+echo NYI; false || exit
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2023.156
+Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << ===; echo; exit_version
+	
+$APP - archive a git commit so it can be reconstructed with same ID
+
+Usage $APP [ options ] -s [ -o <archive> ] <committish>
+Usage $APP [ options ] -r <archive>
+
+$APP uses "git export" to export just the contents of a git commit
+and adds enough metadata in pure text form that a shallow git
+repository containing just this commit with the same commit ID can be
+reconstructed from the archive.
+
+Note that the created archive will *not* be a git repository but just
+its checked-out contents, plus a few text files containing the
+required metadata.
+
+Yet this will be enough to re-create a new git repository from
+scratch later, polulating it with a single (shallow) commit which is
+binary identical to the original one. This means it will have the
+same contents and commit ID.
+
+If the specified commit to be archived refers to a tag, this tag will
+also be archived (and restored when re-creating the commit later).
+Both lightweight and heavyweight tags are supported for this.
+
+If the commit to be archived does not have a tag assigned to it yet,
+a tag will be synthesized for it using "git describe --tags". If the
+repository does not have any tags at all, you need to add one.
+
+For this purpose it is recommended to create a tag named "0" for the
+initial commit. You can remove the tag after archiving the commit so
+that no unexpected tags remain in the original repository.
+
+Unless overriden by option -o, the output name will be chosen (and
+reported) automatically.
+
+If the output name (whether automatically chosen or manually
+specified) were to overwrite an existing file system object, the $APP
+will normally refuse to do so and abort. The -f option can override
+this. It will delete any pre-existing output before $APP tries to
+create a new output.
+
+Options:
+-s: Save a single commit as an archive.
+-r: Recreate a Git repository with a single commit from an archive.
+-o: Override the automatically chosen output name.
+-f: Overwrite the output if it already exists.
+-h: Display this help
+-V: Display version information
+===
+}
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TD" && rm -r -- "$TD"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TD=
+trap cleanup 0
+
+undo=false
+indent=false
+emptiness_symbol=false
+while getopts DiuhV opt; do
+	case $opt in
+		i) indent=true;;
+		D) emptiness_symbol=true;;
+		u) undo=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift $((OPTIND - 1))
+
+from=`printf ' \t\v\f\b\n\r\033':`; from=${from%:}
+empty='D'
+into='SHVFBNRE'
+intoL=`echo $into | tr A-Z a-z`
+
+if $undo; then
+	sed '
+		# Pattern space empty: Currently on a whitespace format line.
+		x
+		s/^$/w/; t fmt
+		# We are on a word line.
+		s/.*//
+		x
+		# Remove optional indent.
+		s/ *//
+		# Escape everthing looking like whitespace substitution
+		# characters in a format line.
+		s/[Q'$into']/Q&/g
+		y/'$into'/'$intoL'/
+		b
+		:fmt
+		# We are on a format line.
+		x; s/'$empty'//g # Remove decorative emptiness placeholders.
+		# Output it otherwise unaltered.
+		b
+	' | tr -d '\n' | tr "$into" "$from" | { cat; echo; } \
+	| sed '
+		x; s/.*//; x # Hold == ""
+		:again
+		# At this point:
+		# Hold space shall contain the line $res restored so far.
+		# Pattern space contains unprocessed $unpr remainder of line.
+		G; h # Hold == "$unpr" \n "$res".
+		s/\n.*// # Pattern == "$unpr"
+		# Try to isolate text $qpfx before first remaining "Q"-escape.
+		t 1; :1; s/Q.*//; t escape
+		# No more escapes. Append unprocessed text to restored text
+		# and emit the result as the resulting line.
+		g; s/\([^\n]*\)\n\(.*\)/\2\1/; b
+		:escape
+		H # Hold == "$unpr" \n "$res" \n "$qpfx".
+		g; s/^\([^\n]*\n[^\n]*\)\n\(.*\)/\1\2/
+		h # Hold == "$unpr" \n "$res$qpfx"
+		s/\n.*// # Pattern == "$unpr".
+		# Isolate Text $qsfx after first "Q"-escape sequence.
+		s/^[^Q]*Q.//
+		H # Hold == "$unpr" \n "$res$qpfx" \n "$qsfx".
+		# Fetch $unpr.
+		g; s/\n.*//
+		# Restore escaped character as $rst.
+		s/^[^Q]*Q\(.\).*/\1/; y/'$intoL'/'$into'/
+		H # Hold == "$unpr" \n "$res$qpfx" \n "$qsfx" \n "$rst".
+		# Update restored line and write into hold space.
+		g; s/^[^\n]*\n\([^\n]*\)\n[^\n]*\n\(.*\)/\1\2/
+		x; # Hold == "$res$qpfx$rst"
+		# Pattern == "$unpr" \n "$res$qpfx" \n "$qsfx" \n "$rst".
+		s/^[^\n]*\n[^\n]*\n\([^\n]*\)\n.*/\1/
+		# Pattern == "$qsfx"
+		b again
+	' | awk '
+		# Remove the additional newline appended earlier so that "sed"
+		# could also process the last line if it was not properly
+		# newline-terminated.
+
+		NR > 1 {print last}
+		{last = $0}
+		END {if (NR) printf "%s", last}
+	'
+	exit
+fi
+
+raw2dec() {
+	od -v -t u1 \
+	| sed 's/  */ /g; s/^[^ ]* \{0,1\}//; /^$/d; y/ /\n/'
+}
+
+dec2raw() {
+	xargs printf ' \\\\%03o' | fold -sw $mxpl | xargs printf '%b'
+}
+mxpl=`getconf LINE_MAX || echo 255`; mxpl=$((mxpl - 2))
+
+TD=`mktemp -d -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXXX`
+iconv > "$TD"/orig.raw # Ensure the input contains valid text.
+tr -- "$from" "$into" < "$TD"/orig.raw | raw2dec > "$TD"/subst
+echo | raw2dec > "$TD"/nl
+{ $emptiness_symbol && printf %s "$empty"; } | raw2dec > "$TD"/empty
+{ $indent && printf ' '; } | raw2dec > "$TD"/indent
+raw2dec < "$TD"/orig.raw > "$TD"/orig
+rm -- "$TD"/orig.raw
+awk -f /dev/fd/5 5<< 'EO_AWK' -- \
+	"$TD"/orig "$TD"/subst "$TD"/nl "$TD"/indent "$TD"/empty | dec2raw
+
+BEGIN {main()}
+
+function die(msg    , e) {
+	e = "/dev/stderr"
+	print msg >> e
+	close(e)
+	exit system("false")
+}
+
+function eof(rc) {
+	if (rc < 0) die("Read error")
+	return !rc
+}
+
+function awr(a    , n, i) {
+	n = a[0]
+	for (i = 1; i <= n; ++i) print(a[i])
+}
+
+function main(    f_orig, orig, f_subst, subst, nl, ind, empty, fmt) {
+	f_orig = ARGV[1]; f_subst = ARGV[2]
+	argf2a(nl, 3); argf2a(ind, 4); argf2a(empty, 5)
+	# 0: text line, 1: format line empty so far, 2: non-empty format line.
+	fmt = 1
+	while (!eof(getline orig < f_orig)) {
+		if (eof(getline subst < f_subst)) {
+			die("internal error: different sizes")
+		}
+		if (orig != subst) {
+			if (!fmt) awr(nl)
+			fmt = 2
+		} else {
+			if (fmt) {
+				if (fmt == 1) awr(empty)
+				awr(nl); awr(ind); fmt = 0
+			}
+		}
+		print subst
+	}
+	if (!fmt) {
+		# Last line must be a format line.
+		awr(nl); awr(empty)
+	}
+	awr(nl) # Complete last format line.
+}
+
+# Read a sequence as ASCII decimal byte values from file ARGV[argv_i] and
+# write it to a[1 ... a[0]].
+function argf2a(a, argv_i    , in_file, n, this) {
+	in_file = ARGV[argv_i]
+	while (!eof(getline this < in_file)) a[++n] = this
+	close(in_file)
+	a[0] = n
+}
+
+EO_AWK
+
+Long-term archiving particular git commits
+------------------------------------------
+
+The following commands create an offline archive containing a single commit assigned to the variable `$commit` in the first command line.
+
+`$commit` can be anything - a commit ID, a branch name like `main`, a named tag like `17.0.42`, or a symbolic name like `HEAD` or `FETCH_HEAD`. Or it can be a reflog reference.
+
+Whatever "`git ref-parse`" accepts - you can use it, as long as it describes only a single commit. This commit will then be archived.
+
+If you use a tag name and this tag refers to an annotated tag, the tag and its annotation will be archived too.
+
+The commands will construct the output name of the archive from three parts: The `$reponame`, a dash ("-"), and the `$version_fname`.
+
+If the latter is set to a non-empty string, this will be used unconditionally. Otherwise, `$version_fname` will be set from the output of "`git describe --tags $commit`" with any leading "`V`" or "`v`" removed. If you don't like the outcome, set `$version_fname` explicitly to override.
+
+Hint: An excellent way how to allow "`git describe`" a meaningful version number for an archive which has no tags at all, is by manually creating a tag named "`0`" for the branch's initial commit. "`git describe`" will then output a count-based version expression based on this tag, which is way better than just the commit ID alone (which will also be included in this case).
+
+The command also make use of my "`dfa`" script. This is optional. If this script is not found in `$PATH`, the commands will fail at this point. The output subdirectory containing the files to archive will already have been created, and you must put them into some kind if archive yourself. Say, into a `tar` or `cpio` archive.
+
+There is no need to check out anything when running the following command; i.e. it should even work in a bare repository.
+
+----
+$ compress=1 commit=HEAD version_fname= reponame=sometool
+$ md='{METADATA}' \
+&& if test 1 = `git tag -l -- "${commit:?}" | wc -l`; \
+then \
+  tag=${commit:?}; \
+else \
+  tag=`git describe --tags | sed 's/^[Vv]\\([^a-z]\\)/\\1/'`; \
+fi \
+&& if test -z "${version_fname?}"; then version_fname=${tag:?}; fi \
+&& savename=${reponame:?}-${version_fname:?} \
+&& mkdir -- "${savename:?}" \
+&& git archive -- "${commit:?}" | tar -C "${savename:?}" -x \
+&& mkdir -- "${savename:?}/${md:?}" \
+&& printf '%s\n' "${reponame:?}" > "${savename:?}/${md:?}"/repo-name \
+&& printf '%s\n' "${tag:?}" > "${savename:?}/${md:?}"/tag-name \
+&& commit=`git rev-parse "${tag:?}"` \
+&& case `git cat-file -t "${commit:?}"` in \
+  commit) ;; \
+  tag)
+    git cat-file -p ${commit:?} > "${savename:?}/${md:?}"/tag-blob \
+    && commit=`git rev-list ${commit:?}` \
+    ;; \
+  *) false
+esac \
+&& echo ${commit:?} > "${savename:?}/${md:?}"/commit-id \
+&& git cat-file -p ${commit:?} > "${savename:?}/${md:?}"/commit-blob \
+&& git remote -v \
+| sed 's|.*[[:space:]]\(.\{1,\}\)[[:space:]].*|\1|' \
+| sort -u > "${savename:?}/${md:?}"/repo-url \
+&& ionice -n 6 dfa -f "${savename:?}".dfa -C "${savename:?}" -c \
+&& if test ${compress} != 0; \
+then \
+  ionice -n 6 nice lrzip -L9 -z -q -U -- "${savename:?}".dfa \
+  && rm -- "${savename:?}".dfa; \
+fi
+----
+
+If the command line starting with `case` complains about an ambiguous commit specification, specify the commit more specifically, such as "`commit=refs/tags/17.0.42`" rather than just "`commit=17.0.42`". Similarly, `refs/heads` can be used to refer to a particular branch.
+
+The generated 'dfa'-archive contains all information to rebuild the git repository and restore the single original commit and, optionally, the tag object.
+
+After restoration, the commit ID will be identical, and the signature of the tag (if any) will also be valid.
+
+And here is how you recreate the git repository containing the archived commit on the receiver side:
+
+----
+$ archive=sometool-17.0.42.dfa.lrz
+$ md='{METADATA}' \
+&& { n=1; while :; \
+do td=$$.$n; mkdir $td && break; n=`expr $n + 1`; \
+done } 2> /dev/null \
+&& mkdir -- "${reponame:?}" \
+&& lrunzip -q -- "${reponame:?}-${tag:?}.dfa.lrz" \
+&& dfa -f "${reponame:?}-${tag:?}.dfa" -C "${reponame:?}" -x \
+&& rm -- "${reponame:?}-${tag:?}.dfa" \
+&& cd -- "${reponame:?}" \
+&& git init -q \
+&& test ! -e .git/"${md:?}" \
+&& mv -- "${md:?}" .git/ \
+&& git add -f . \
+&& mv .git/${md:?} . \
+&& git commit -q -m dummy \
+&& commit=`git hash-object -t commit -w -- "${md:?}"/HEAD` \
+&& git reset -q --hard "${commit:?}" \
+&& git fetch -q --depth=1 . \
+&& if test -f "${md:?}"/tag; \
+then commit=`git hash-object -t tag -w -- "${md:?}"/tag`; \
+fi \
+&& git tag "${tag:?}" "${commit:?}" \
+&& git remote add origin -- "`cat -- "${md:?}"/url`" \
+&& git remote -v \
+&& rm -f -- "${md:?}"/url "${md:?}"/tag "${md:?}"/HEAD \
+&& rmdir -- "${md:?}" 2> /dev/null \
+&& git log \
+&& cd - \
+&& ls -F -- "${OLDPWD:?}"
+----
+
+If "`$archive`" is a `*.dfa.lrz` or a `*.dfa` file, it will be unpacked automatically. Otherwise it must be a directory already containing the unpacked data to be restored into a git repository with identical (grafted shallow) version history.
