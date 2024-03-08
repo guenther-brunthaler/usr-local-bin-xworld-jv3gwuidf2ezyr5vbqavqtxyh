@@ -1,0 +1,100 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2024.68
+Copyright (c) 2024 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << ===; echo; exit_version
+$APP - list nearby Wi-Fi networks
+
+Usage: $APP [ <options> ... ]
+
+Options:
+
+-i <interface>: Use wireless interface "<interface>"
+   rather than default "$defifc".
+-h: Show this help and exit.
+-V: Show version information and exit.
+===
+}
+
+# v2024.68
+defifc=wlan0
+ifc=$defifc
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts i:Vh opt
+do
+	case $opt in
+		i) ifc=$OPTARG;;
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test $# = 0
+
+unset LANGUAGE LC_NUMERIC
+bstat=`LC_MESSAGES=C rfkill list wifi | sed 's/.*blocked: yes.*/B/; t; d'`
+case $bstat in
+	B) was_blocked=true; rfkill unblock wifi;;
+	*) was_blocked=false
+esac
+
+if
+	ifconfig -a \
+	| sed 's/^'"$ifc"':.*<\([^<>]*\)>.*/,\1,/; t; d' \
+	| grep -q ,UP,
+then
+	was_down=false
+else
+	was_down=true
+	ifconfig "$ifc" up
+fi
+
+iw dev "$ifc" scan \
+| awk -f /dev/fd/5 5<< 'EO_AWK'
+
+/^BSS/ && SSID != "" {report()}
+
+/^BSS/ {SSID = ""}
+
+BEGIN {
+	fmt = "%-17s %-9s %-11s %-2s\n"
+	printf fmt, "SSID", "Freq", "SSQ", "Country"
+}
+
+END {if (SSID != "") report()}
+
+$1 == "freq:" {fq = $2 " MHz"}
+
+$1 == "signal:" {ss = $2 " " $3}
+
+$1 == "SSID:" {SSID = $2}
+
+$1 == "Country:" {ct = $2}
+
+function report() {printf fmt, SSID, fq, ss, ct}
+
+EO_AWK
+
+if $was_down
+then
+	ifconfig "$ifc" down
+fi
+
+if $was_blocked
+then
+	rfkill block wifi
+fi
