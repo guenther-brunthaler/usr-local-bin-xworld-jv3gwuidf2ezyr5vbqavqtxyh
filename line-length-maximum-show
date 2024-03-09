@@ -2,17 +2,56 @@
 # Determine the maximum line length (in characters) for
 # stdin or all of files specified as arguments.
 #
-# Version 2021.350.1
+# Version 2024.69
+# (c) 2012-2024 by Guenther Brunthaler.
 #
-# (c) 2012-2021 by Guenther Brunthaler.
 # This source file is free software.
 # Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+c=
+while getopts t:esp opt
+do
+	case $opt in
+		e) c=$c' expand';;
+		t)
+			expr x"$OPTARG" : x'[1-9][0-9]*$' > /dev/null
+			c=$c' '$OPTARG
+			;;
+		s) c=$c' strip';;
+		p) c=$c' pad';;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+recurse() {
+	c=$1; shift
+	case $c in
+		expand) expand | recurse "$@";;
+		[1-9]*) expand -t $c | recurse "$@";;
+		strip) sed 's/[[:space:]]*$//' | recurse "$@";;
+		pad) expr `sed 's/$/$/' | recurse "$@"` - 1 || :
+			exit
+			;;
+		awk) exec "$0" || exit;;
+		*) false || exit
+	esac
+}
+
+if test "$c"
+then
+	cat -- ${1+"$@"} | recurse $c awk
+	exit
+fi
 
 exec awk -f /dev/fd/5 -- ${1+"$@"} 5<< 'EOF'
 
 # Globals: max, error
 
-BEGIN {max= error= 0}
+BEGIN {max = error = 0}
 
 /\t/ {die("Tab character encountered (filter through 'expand' first)!")}
 
@@ -20,7 +59,7 @@ BEGIN {max= error= 0}
 
 /[[:space:]]$/ {die("Whitespace present at end of line (strip or pad it)!")}
 
-length > max {max= length}
+length > max {max = length}
 
 END {
 	if (error) exit error
@@ -28,11 +67,11 @@ END {
 }
      
 function die(problem    , msg) {
-	msg= FILENAME
+	msg = FILENAME
 	if (msg == "-") msg= "(standard input)"
-	msg= msg ":" FNR ": Error: " problem
+	msg = msg ":" FNR ": Error: " problem
 	print msg > "/dev/stderr"
-	error= system("false")
+	error = system("false")
 	exit
 }
 
