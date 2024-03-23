@@ -1,0 +1,37 @@
+#! /bin/sh
+# Version 2024.83
+# Copyright (c) 2024 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts '' OPT
+do
+	case $OPT in
+		*) false; exit;;
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+test $# = 0 && set -- .
+i=$#
+while :
+do
+	case $1 in
+		-) set -- "$@" ./"$1";;
+		*) set -- "$@" "$1"
+	esac
+	shift
+	i=`expr $i - 1` || break
+done
+find -H "$@" -type f -exec file -i -F '|' -- {} + | sed '
+	s/; charset=binary$//; t 0; d; :0
+	s/object$//; t bin
+	s/archive$//; t bin
+	s/executable$//; t bin
+	d
+	:bin; s@|.*application/x-.*@@; t 1; d; :1
+	s|^./||
+'
