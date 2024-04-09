@@ -1,0 +1,51 @@
+#! /usr/bin/env perl
+
+# Processes all arguments. If no arguments are given and standard input is not
+# a terminal, reads the arguments from standard input instead.
+#
+# For every processed argument which must be the pathname of some file, the
+# ctime and byte size of the file are displayed followed by its pathname.
+#
+# The script does not care about filename encoding. Pathnames are interpreted
+# as byte strings. If files are specified via standard input, they must not
+# contain the single-byte character code used by Perl and C for "\n".
+#
+# Version 2024.98
+# Copyright (c) 2024 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+use strict;
+use warnings;
+eval {
+   {
+      use Getopt::Std;
+      getopts('') or die $!;
+   }
+   my(@s);
+   use constant SIZE => 7;
+   use constant CTIME => 10;
+   sub process {
+      @s = stat or die $!;
+      # At least for Perl v5.36.0, I did verify that $s[SIZE] can store sizes
+      # of more than 53 significant bits exactly. In order to do so, I checked
+      # file sizes up to 33 PiB living in a 4 EiB filesystem.
+      print join(" ", @s[CTIME, SIZE], $_), "\n" or die $!;
+   };
+   if (!@ARGV && ! -t STDIN) {
+      while (defined($_ = <STDIN>)) {
+         chomp; &process;
+      }
+   } else {
+      &process foreach @ARGV;
+   }
+   STDOUT->flush() or die $!;
+};
+if ($@) {
+   warn $@;
+   {
+      use POSIX qw(EXIT_FAILURE);
+      exit(EXIT_FAILURE);
+   }
+}

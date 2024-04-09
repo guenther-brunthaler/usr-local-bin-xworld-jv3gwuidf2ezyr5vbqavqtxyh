@@ -1,7 +1,91 @@
 #! /bin/sh
-# v2024.54
+
+# Provide command names of running processes. Outputs a report about their RAM
+# usages. Without any arguments, shows the usage of all running processes.
+#
+# v2024.100
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+decimal_point=.
+eval "`locale -k LC_NUMERIC | grep ^decimal_point=`" 2> /dev/null
 ps -Ao comm,rss \
-| awk -v p="${1:?command name of instances}" '
-	$1 == p {k += $2; ++i}
-	END {printf "%d x %s = %.1f MiB RAM\n", i, p, k / 1024}
-'
+| awk -v dp="$decimal_point" -v p="$*" -f /dev/fd/5 5<< 'EO_AWL'
+
+{
+	k[$1] += $2 # k[]: Total RAM used by all commands of the same name.
+	++i[$1] # i[]: Number of running instances associated with k[].
+}
+
+END {weed_unrequested(); weed_irrelevant(); report()}
+
+# Report RAM usage per command group (all running instances), sorted by
+# decreasing RAM usage first, then by decreasing number of instances.
+function report(    j, j2, n, u, q, t) {
+	# Create lookup-array u[].
+	n = 0; for (j in k) u[n++] = j
+	# Sort u[] descending by k[j] then descending by i[j] then ascending
+	# by j. u[] contains the j.
+	#
+	# Gnomesort: Invariant is that u[0 ... q] are already sorted.
+	for (q = 0; q + 1 < n; ) {
+		# Compare u[q] and u[q + 1].
+		j = u[q]; j2 = u[q + 1]
+		if ((t = k[j2] - k[j]) == 0) {
+			if ((t = i[j2] - i[j]) == 0) {
+				t = j <= j2 ? -1 : 1
+			}
+		}
+		# Are u[q] and u[q + 1] already in correct sorting order?
+		if (t >= 0) {
+			# No. Swap u[q] and u[q + 1] into sorting order.
+			t = u[q]; u[q] = u[q + 1]; u[q + 1] = t
+			# Then move to the left if possible, otherwise to the
+			# right.
+			if (q) {--q; continue}
+		}
+		# Yes, the are in sorting order. Include element to the right
+		# into the already-sorted sequence.
+		++q
+	}
+	# Report command groups in sorting order.
+	for (q = 1; u[q]; ++q) {
+		j = u[q]
+		t = sprintf("%.1f", k[j] / 1024)
+		gsub("[.]", dp, t)
+		printf "%d x %s = %s MiB RAM\n", i[j], j, t
+	}
+}
+
+# Remove all entries from k[x] and i[x] where x is not a word within p.
+function weed_unrequested(    a, j, ok) {
+	if (p == "") return
+	split(p, a, " ")
+	for (j in a) if (k[j]) ok[a[j]] = 1
+	for (j in k) {
+		if (!(j in ok)) {
+			delete k[j]; delete i[j]
+		}
+	}
+}
+
+# Remove any entries for which the RAM usage has been reported as 0 (these are
+# typically kernel threads).
+function weed_irrelevant(    j) {
+	for (j in k) {
+		if (k[j] == 0) {
+			delete k[j]; delete i[j]
+		}
+	}
+}
+
+EO_AWK

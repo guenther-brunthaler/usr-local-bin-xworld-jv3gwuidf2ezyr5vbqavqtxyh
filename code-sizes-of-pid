@@ -1,0 +1,28 @@
+#! /bin/sh
+
+# Shows the size of the executable and all dynamically loaded libraries
+# currently loaded into the process image of process with its PID equal to the
+# only argument passed to this script.
+#
+# The -X option will include memory-mapped files other than executables.
+#
+# v2024.100
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+expr x"`uname -o`" : x'.*Linux' > /dev/null || {
+	echo "This utility only works under Linux!" >& 2
+	false || exit
+}
+
+mfiles=0
+test "$1" = -X && { mfiles=1; shift; }
+test "$1" = -- && shift
+test -d /proc/"${1:?PID to examine}"
+test $# = 1
+
+cat /proc/"$1"/maps | grep -E '/|\.so\.' \
+| awk -v mfiles=$mfiles 'mfiles || $2 ~ /x/ {print}' \
+| sed 's|^[^/]*||; t; d' \
+| sort -u | sed 's/./\\&/g' | xargs wc -c | sort -nr
