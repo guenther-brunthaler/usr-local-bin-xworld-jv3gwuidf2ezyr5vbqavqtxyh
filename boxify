@@ -1,0 +1,165 @@
+#! /usr/bin/env perl
+
+# Read records from standard input and enclose the records and fields within
+# boxed mad of ASCII-art or UNICODE line box drawing characters.
+#
+# The arguments specify the field separators, which can be arbitrary strings.
+# An empty string as a separator is special: It will be interpreted of an
+# arbitrarily-sized but non-empty run of whitespace characters.
+#
+# If a non-empty field separator has an unsigned integer as a prefix string,
+# this is interpreted as a repetition multiplier count for that separator.
+#
+# If the separator consists of an unsigned integer entirely, it is also
+# interpreted as a repetition multiplied count, but the separator to be
+# repeated follows as the next argument.
+#
+# A repetition count of 0 is interpreted as the end of the separator sequence.
+# Any specified separator will be ignored. This means no more fields follow;
+# any remaining characters of the input line to be parsed later will belong to
+# the last field.
+#
+# In order to specify a separator which starts with a literal unsigned integer
+# at its beginning, use a repetition count of 1 and specify the separator in
+# the next argument.
+#
+# Otherwise, the last separator is assumed to be repeated infinitely.
+#
+# By default, the separators are assumed to be runs of whitespaces.
+#
+# Version 2024.124
+# Copyright (c) 2024 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+use strict;
+use warnings;
+use open ':locale';
+eval {
+   our($opt_u);
+   {
+      use Getopt::Std;
+      getopts('u') or die $!;
+   }
+   push @ARGV, '' unless @ARGV;
+   {
+      my $repeat;
+      for (my $i = 0; $i < @ARGV; ) {
+         ($repeat, $_) = $ARGV[$i] =~ /^ (?: ([1-9][0-9]* | 0) )? (.*) /x; 
+         if (defined $repeat) {
+            if ($repeat eq '0') {
+               splice @ARGV, $i, @ARGV - $i, undef;
+               ++$i;
+               next;
+            } elsif ($_ eq '') {
+               die if $i + 1 == @ARGV;
+               $_ =  $ARGV[$i + 1];
+               splice @ARGV, $i, 2;
+            } else {
+               splice @ARGV, $i, 1;
+            }
+            splice @ARGV, $i++, 0, $_ while $repeat--;
+            next;
+         }
+         ++$i;
+      }
+   }
+   {
+      my(@table);
+      {
+         my($row, $sep, $sep_i, $field, $i);
+         while (defined($_ = <STDIN>)) {
+            chomp; $sep_i = 0; $row = [];
+            do {
+               $sep = $ARGV[$sep_i];
+               ++$sep_i unless $sep_i + 1 == @ARGV;
+               unless (defined $sep) {
+                  ($field, $_) = ($_, '');
+               } elsif ($sep eq '') {
+                  ($field, $_) = / (?: (.*?) \s+ )? (.*) /x;
+                  ($field, $_) = ($_, '') unless $field;
+               } else {
+                  if (($i = index $_, $sep) >= 0) {
+                     $field = substr $_, 0, $i;
+                     $_ = substr $_, $i + length $sep;
+                  } else {
+                     ($field, $_) = ($_, '');
+                  }
+               }
+               push @$row, $field;
+            } until $_ eq '';
+            push @table, $row;
+         }
+      }
+      {
+         my(@w, $col, $rec);
+         {
+            my($flen);
+            foreach $rec (@table) {
+               for ($col = @$rec; $col--; ) {
+                  $flen = length $$rec[$col];
+                  $w[$col] = 0 unless defined $w[$col];
+                  $w[$col] = $flen if $flen > $w[$col];
+               }
+            }
+         }
+         {
+            my($out);
+            if (!@table) {
+               $out = "+-+\n";
+               $out .= $out;
+            } else {
+               my($row, $row_stop);
+               $out = '';
+               $row_stop = (@table << 1) + 1;
+               if (!@w) {
+                  for ($row = 0; $row != $row_stop; ++$row) {
+                     $out .= $row & 1 ? "| |\n" : "+-+\n";
+                  }
+               } else {
+                  my($col_stop, $field, $fi);
+                  $col_stop = (@w << 2) + 1;
+                  for ($row = 0; $row != $row_stop; ++$row) {
+                     $rec = $row & 1 ? $table[$row - 1 >> 1] : undef;
+                     for ($col = 0; $col != $col_stop; ++$col) {
+                        if (($fi = $col & 3) == 2) {
+                           # Data field or vertical separator for one.
+                           $fi = $col - 1 >> 2;
+                           if ($rec) {
+                              $field = '' unless defined($field = $$rec[$fi]);
+                              # Right-align it within its column.
+                              $out .= ' ' x ($w[$fi] - length $field) . $field;
+                           } else {
+                              $out .= '-' x $w[$fi];
+                           }
+                        } elsif (defined $rec) {
+                           # Data fields line.
+                           $out .= $fi ? ' ' : '|';
+                        } else {
+                           # Separator line.
+                           $out .= $fi ? '-' : '+';
+                        }
+                     }
+                     $out .= "\n";
+                  }
+               }
+            }
+            print $out;
+         }
+      }
+      if (0) {
+         use Data::Dumper;
+         print Data::Dumper->Dump(\@table), "\n";
+         exit;
+      }
+   }
+   STDOUT->flush() or die $!;
+};
+if ($@) {
+   warn $@;
+   {
+      use POSIX qw(EXIT_FAILURE);
+      exit(EXIT_FAILURE);
+   }
+}
