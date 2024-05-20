@@ -1,8 +1,8 @@
 #! /bin/sh
 version() {
 	cat << .
-$APP version 2023.365
-Copyright (c) 2013-2023 Guenther Brunthaler. All rights reserved.
+$APP version 2024.141
+Copyright (c) 2013-2024 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -300,8 +300,8 @@ cmd_uninstall() {
 	cd /
 	while IFS= read -r LINE
 	do
-		test x"$LINE" = x"." && continue
-		test x"${LINE#./}" != x"$LINE" || {
+		test "$LINE" = . && continue
+		test "${LINE#./}" != "$LINE" || {
 			say "All lines need to start with './'!"
 			false; exit
 		}
@@ -748,7 +748,7 @@ rm_symlink_if_safe() {
 		` != x0
 	then
 		note "Not removing symlink to non-empty directory '$1'."
-		false || return
+		return
 	fi
 	rm -f -- "$1"
 }
@@ -827,6 +827,13 @@ remove_or_verify() {
 				say "= $fl_p"
 			else
 				test $action = r
+				if test "$fl_k" = dir && test -L "$fl_p"
+				then
+					# Special case: directory has been
+					# replaced with symlink since package
+					# installation.
+					fl_k=sym
+				fi
 				case $fl_k in
 					file) t=file;;
 					dir) t=directory;;
@@ -835,10 +842,7 @@ remove_or_verify() {
 				esac
 				say "removing $t $fl_p"
 				case $fl_k in
-					sym)
-						rm_symlink_if_safe "$fl_p" \
-						|| RM=
-						;;
+					sym) rm_symlink_if_safe "$fl_p";;
 					file) rm -f -- "$fl_p" || RM=;;
 					dir) ! rmdir -- "$fl_p";;
 					*) false
@@ -847,9 +851,9 @@ remove_or_verify() {
 		done
 		if test $action = r
 		then
-			if test -n "$RM"
+			if test "$RM"
 			then
-				rm "$FLIST"
+				rm -- "$FLIST"
 				note "completed removal of package $pkg"
 			else
 				note "incomplete removal of package $pkg"
