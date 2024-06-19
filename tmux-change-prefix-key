@@ -1,9 +1,8 @@
 #! /bin/sh
 show_version() {
 	wr -s << EOF
-$APP version 2019.192.1
-
-Copyright (c) 2018-2019 Guenther Brunthaler. All rights reserved.
+$APP version 2024.171
+Copyright (c) 2018-2024 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -24,13 +23,23 @@ $APP can do three things:
 that letter simultaneously will start all tmux command key sequences.
 
 * With option -s, in addition of changing the command prefix key it will
-reconfigure the currently active tmux server instance in order to act
-"GNU screen"-compatible.
+reconfigure the currently active tmux server instance in order to act "GNU
+screen"-compatible.
 
 * With option -g, display a tmux configuration file which will make tmux
-behave "GNU screen"-compatible. Typically, this output will be redirected to
-(or merged with the current contents of) "\$HOME/.tmux.conf" or
-"/etc/tmux.conf".
+behave "GNU screen"-compatible. Basically, this configuration file will make
+tmux behave at startup as if "$APP -s" had been run after starting up without
+a configuration file. Typically, this output will be redirected to (or merged
+with the current contents of) "\$HOME/.tmux.conf" or "/etc/tmux.conf".
+
+* Both the -s and -g options will also make tmux act "remote friendly". This
+means disabling options which may cause too much traffic in case "tmux" is run
+over an SSH connection. Right now, this only works in newer versions of tmux
+and disables the default-"preview" option when selecting windows, panes or
+sessions from a list with the cursor keys. The preview can still be enabled
+for the duration of the running tmux session by pressing "v" in the window
+switching view of tmux.
+
 
 $APP is a POSIX shell script and is intended to run on all POSIX systems
 which privide a tmux implementation. (If it does not, please contact the
@@ -71,12 +80,6 @@ displays the current date and time as well as the titles and window numbers of
 the windows around the current window. This is disabled by default because GNU
 "screen" neither displays such a line by default. Implies -s. May be combined
 with -g.
-
--r: Make tmux "remote friendly". This means disabling options which may cause
-too much traffic. Right now, this only works in newer versions of tmux and
-disabled the default-"preview" option when selecting windows, panes or
-sessions from a list with the cursor keys. The preview can still be enabled
-temporarily by pressing "v".
 
 -V: Display version information and exit.
 
@@ -448,12 +451,13 @@ tmx() {
 
 # Prints "0" if tmux is older than version 2.6, otherwise "1".
 get_tmux_feature_level() {
-	ver=`tmux -V`.
+	ver=`tmux -V`
 	set --
-	while v=`expr x"$ver" : '.*[^0-9]\([0-9]\{1,\}\.\)$'`
+	while ver=`expr x"$ver" : x'[^0-9]*\([0-9]\{1,\}.*\)'`
 	do
-		set ${v%.} ${1+"$@"}
-		ver=${ver%"$v"}
+		v=`expr x"$ver" : x'\([0-9]*\)'`
+		set $v ${1+"$@"}
+		ver=${ver#"$v"}
 	done
 	while test $# -lt 2
 	do
@@ -466,11 +470,9 @@ get_tmux_feature_level() {
 screenify=false
 gen_config=false
 ztatus=false
-minimize_traffic=false
-while getopts rsghVz opt
+while getopts sghVz opt
 do
 	case $opt in
-		r) minimize_traffic=true;;
 		g) gen_config=true; screenify=true;;
 		s) screenify=true;;
 		z) ztatus=true; screenify=true;;
@@ -563,8 +565,7 @@ then
 	case $tmux_level in
 		0) tmx bind '"' choose-window;;
 		1)
-			t=`$minimize_traffic && echo N || :`
-			tmx bind '"' run-shell "tmux choose-tree -${t}wf "`:
+			tmx bind '"' run-shell "tmux choose-tree -Nwf "`:
 				`'"##{==:##{session_name},#{session_name}}"'
 	esac
 	tmx unbind w

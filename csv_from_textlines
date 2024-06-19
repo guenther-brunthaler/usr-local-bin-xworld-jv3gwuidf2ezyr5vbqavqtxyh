@@ -1,0 +1,28 @@
+#! /bin/sh
+
+# Quotes the contents of arbitrary lines read from standard input as necessary
+# to interpret the contents of every line as a single CSV field and write the
+# result to standard output.
+#
+# The input lines can contain any character except newline, which is used to
+# terminate every input line.
+#
+# Version 2024.162
+# Copyright (c) 2024 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+exec sed -f /dev/fd/5 5<< 'EO_SED'
+
+/[,"[:cntrl:]]/b q
+/^[[:space:]]/b q
+/[[:space:]]$/!b
+:q
+s/"/&&/g
+s/.*/"&"/
+
+EO_SED
