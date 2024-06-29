@@ -1,0 +1,39 @@
+#! /bin/sh
+
+# v2024.181
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+dry_run=false
+local_only=false
+while getopts nl opt
+do
+	case $opt in
+		l) local_only=true;;
+		n) dry_run=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test -d .git
+if $local_only
+then
+	f=.git/info/exclude
+else
+	f=.gitignore
+fi
+
+unknowns() {
+	git status -s | sed 's|^?? |/|; t; d'
+}
+
+set -- "Appending unversioned entries to $f..."
+if $dry_run
+then
+	echo "SIMULATION: $*" >& 2
+	unknowns
+else
+	echo "$*" >& 2
+	unknowns >> "$f"
+fi
