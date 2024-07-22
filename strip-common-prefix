@@ -1,0 +1,128 @@
+#! /bin/sh
+exit_version() {
+	wr -s << ===; exit
+$APP Version 2024.204
+Copyright (c) 2024 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TF=
+trap cleanup 0
+trap 'exit $?' INT QUIT TERM HUP
+
+exit_help() {
+	wr << ===; echo; exit_version
+$APP - remove whitespace indentation prefix which is identical for all lines
+
+Usage: $APP [ <options> ... ] [ -- ] [ <file1> ... ]
+
+$APP determines whether there is a common whitespace prefix for all the lines
+in a file and removes this prefix if this is the case.
+
+As this is a two-pass operation, a copy of the concatenated files will be
+created first.
+
+This copy will by default be created in "/tmp", but the environment variable
+\$TMPDIR can be set in order to override the location. (This might be useful
+for very large files. "/var/tmp" might be a good candidate in such a
+situation.)
+
+Options:
+
+-h: Display this help and exit.
+
+-V: Display version information and exit.
+===
+}
+
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+
+APP=${0##*/}
+while getopts Vh opt
+do
+	case $opt in
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+case $# in
+	0) cat;;
+	*)
+		for arg
+		do
+			cat -- "$arg"
+		done
+esac > "$TF"
+
+common_prefix() {
+	awk -f /dev/fd/5 5<< '==='
+
+	BEGIN {ilen = 0}
+	
+	NR == 1 {
+		prefix = $0
+		sub("[^[:space:]].*", "", prefix)
+		if ((ilen = length(prefix)) == 0) exit
+	}
+	
+	{
+		if (length < ilen) prefix = substr(prefix, 1, ilen = length)
+		if (substr($0, 1, ilen) == prefix) next
+		linepfx = $0
+		sub("[^[:space:]].*", "", linepfx)
+		if ((lplen = length(linepfx)) < ilen) ilen = lplen
+		while ( \
+			ilen \
+			&& substr(prefix, 1, ilen) \
+				!= substr(linepfx, 1, ilen) \
+		) {
+			if (!--ilen) exit
+		}
+		prefix = substr(prefix, 1, ilen)
+	}
+	
+	END {print ilen + 1}
+===
+}
+
+cut -c `common_prefix < "$TF"`- < "$TF"

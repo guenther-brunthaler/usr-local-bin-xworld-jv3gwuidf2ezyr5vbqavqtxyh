@@ -1,0 +1,131 @@
+#! /bin/sh
+exit_version() {
+	wr -s << ===; exit
+$APP Version 2024.204
+Copyright (c) 2024 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+exit_help() {
+	wr << ===; echo; exit_version
+$APP - undo the effect of a "fmt" with "-s" option.
+
+Usage: $APP [ <options> ... ] [ -- ] [ <file1> ... ]
+
+$APP removes newline characters separating the lines of a logical paragraph. A
+logical paragraph is a set of un-indented lines which are not empty.
+
+Within a paragraph, runs of multiple whitespace characters will be compressed
+into a single space, and trailing whitespace will be removed.
+
+Indented and empty lines will be considered preformatted and will be passed
+through unchanged.
+
+The described compression of whitespace character allows a block-justified
+text to be returned into its original form before the justification.
+
+Options:
+
+-a: Drop the special detection of preformatted line ranges. Remove any leading
+whitespace from all the lines and consider them to be paragraphs with
+separating empty lines.
+
+-h: Display this help and exit.
+
+-V: Display version information and exit.
+===
+}
+
+wr() {
+	if test "$*"
+	then
+		fold -sw $LINEWIDTH | sed 's/[[:space:]]*$//'
+	else
+		{
+			sep=
+			while IFS= read -r line
+			do
+				printf %s%s "$sep" "$line"
+				if test "$line"
+				then
+					sep=' '
+				else
+					echo
+					test -z "$sep" && continue
+					echo; sep=
+				fi
+			done
+			test -z "$sep" || echo
+		} | wr -s
+	fi
+}
+LINEWIDTH=`
+	cmd=tput; command -v $cmd > /dev/null 2>& 1 \
+	&& test -t 0 && $cmd cols \
+	|| echo 66
+`
+
+APP=${0##*/}
+prefmt='s/^[[:space:]]/P&/; t'
+while getopts aVh opt
+do
+	case $opt in
+		a) prefmt='s/^[[:space:]]*//';;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+process() {
+	sed "$prefmt"'; s/[[:space:]]\{1,\}/ /g; s/ $//; s/^/L/' \
+	| {
+		in_para=false
+		while IFS= read -r line
+		do
+			case $line in
+				P*)
+					case $in_para in
+						true) echo; in_para=false
+					esac
+					printf '%s\n' "${line#P}"
+					;;
+				L)
+					case $in_para in
+						true) echo; in_para=false
+					esac
+					echo
+					;;
+				L*)
+					case $in_para in
+						false)
+							printf %s "${line#L}"
+							in_para=true
+							;;
+						true) printf %s " ${line#L}"
+					esac
+					;;
+				*) false
+			esac
+		done
+		case $in_para in
+			true) echo
+		esac
+	}
+}
+
+case $# in
+	0) process;;
+	*)
+		for arg
+		do
+			cat -- "$arg" | process
+		done
+esac
