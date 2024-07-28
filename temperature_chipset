@@ -1,0 +1,32 @@
+#! /bin/sh
+
+# v2024.210.1
+eval `locale -k LC_NUMERIC | grep ^decimal_point= || echo decimal_point=.`
+degree_celsius=`
+	echo +ALA-C | iconv -f UTF-7 2> /dev/null \
+	|| echo degree Celsius
+`
+
+get_measurements() {
+	grep -s . /sys/class/thermal/thermal_zone[0-9]*/temp \
+	| awk -F: '{printf "%.1f\n", $NF / 1e3}'
+	if
+		# Check for Raspberry Pi GPU utility.
+		vcg=`
+			PATH=$PATH:/opt/vc/bin:/opt/vc/sbin \
+			command -v vcgencmd 2> /dev/null
+		` \
+		&& test -x "$vcg"
+	then
+		LC_ALL=C "$vcg" measure_temp \
+		| sed 's/^[^0-9]*//; s/[^-.0-9].*//'
+	fi
+}
+
+echo "`
+	get_measurements \
+	| sed 's/\.0$//' \
+	| tr . "$decimal_point" \
+	| sort -nr \
+	| head -n 1
+` $degree_celsius"
