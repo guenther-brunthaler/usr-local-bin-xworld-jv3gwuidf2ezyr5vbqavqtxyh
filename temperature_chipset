@@ -1,6 +1,6 @@
 #! /bin/sh
 
-# v2024.210.1
+# v2024.211
 eval `locale -k LC_NUMERIC | grep ^decimal_point= || echo decimal_point=.`
 degree_celsius=`
 	echo +ALA-C | iconv -f UTF-7 2> /dev/null \
@@ -10,6 +10,14 @@ degree_celsius=`
 get_measurements() {
 	grep -s . /sys/class/thermal/thermal_zone[0-9]*/temp \
 	| awk -F: '{printf "%.1f\n", $NF / 1e3}'
+	if command -v sensors > /dev/null 2>& 1
+	then
+		LC_ALL=C sensors | sed '
+			s/^[^:]*:[[:space:]]*+\{0,1\}'`
+			:`'\([0-9.]\{1,\}\) C\([^[:graph:]].*\)\{0,1\}$/\1/
+			t; d
+		'
+	fi
 	if
 		# Check for Raspberry Pi GPU utility.
 		vcg=`
