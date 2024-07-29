@@ -1,6 +1,6 @@
 #! /bin/sh
 
-# v2024.211
+# v2024.211.1
 eval `locale -k LC_NUMERIC | grep ^decimal_point= || echo decimal_point=.`
 degree_celsius=`
 	echo +ALA-C | iconv -f UTF-7 2> /dev/null \
@@ -14,7 +14,7 @@ get_measurements() {
 	then
 		LC_ALL=C sensors | sed '
 			s/^[^:]*:[[:space:]]*+\{0,1\}'`
-			:`'\([0-9.]\{1,\}\) C\([^[:graph:]].*\)\{0,1\}$/\1/
+			:`'\([-.0-9]\{1,\}\) C\([^[:graph:]].*\)\{0,1\}$/\1/
 			t; d
 		'
 	fi
