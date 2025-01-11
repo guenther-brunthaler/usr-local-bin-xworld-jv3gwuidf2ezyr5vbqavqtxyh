@@ -16,8 +16,8 @@ shift `expr $OPTIND - 1 || :`
 
 test -d .git
 case $0 in
-	*-unversioned-*) f=.git/info/exclude;;
-	*-versioned-*) f=.gitignore;;
+	*-unversioned) f=.git/info/exclude;;
+	*-versioned) f=.gitignore;;
 	*) false || exit
 esac
 

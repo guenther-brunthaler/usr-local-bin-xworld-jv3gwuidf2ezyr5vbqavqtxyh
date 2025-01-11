@@ -2,11 +2,20 @@
 
 # v2025.11
 set -e
-trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TF=
+trap cleanup 0
+trap 'exit $?' INT TERM HUP QUIT
 
-while getopts '' opt
+list=false
+while getopts l opt
 do
 	case $opt in
+		l) list=true;;
 		*) false || exit
 	esac
 done
@@ -14,10 +23,31 @@ shift `expr $OPTIND - 1 || :`
 
 test -d .git
 case $0 in
-	*-unversioned-*) f=.git/info/exclude;;
-	*-versioned-*) f=.gitignore;;
+	*-unversioned) f=.git/info/exclude;;
+	*-versioned) f=.gitignore;;
 	*) false || exit
 esac
 test -e "$f"
+
+preprocess() {
+	awk -f /dev/fd/5 5<< '==='
+{t = 1}
+/^[[:space:]]*(#|$)/ {t = 2}
+t != lt {++s; l = 1; lt = t}
+{print s ":" (t == 2 ? l++ : 0) ":" $0}
+===
+}
+
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
 echo "Sorting $f..." >& 2
-LC_COLLATE=C sort -o "$f" -u -- "$f"
+
+cat -- "$f" > "$TF"
+preprocess < "$TF" \
+| LC_COLLATE=C sort -t : -u -k 1,1n -k 2,2n -k 3 \
+| cut -d : -f 3- > "$f"
+
+if $list
+then
+	{ echo; echo "*** New contents of $f:"; } >& 2
+	cat -- "$f"
+fi
