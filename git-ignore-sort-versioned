@@ -1,0 +1,23 @@
+#! /bin/sh
+
+# v2025.11
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test -d .git
+case $0 in
+	*-unversioned-*) f=.git/info/exclude;;
+	*-versioned-*) f=.gitignore;;
+	*) false || exit
+esac
+test -e "$f"
+echo "Sorting $f..." >& 2
+LC_COLLATE=C sort -o "$f" -u -- "$f"
