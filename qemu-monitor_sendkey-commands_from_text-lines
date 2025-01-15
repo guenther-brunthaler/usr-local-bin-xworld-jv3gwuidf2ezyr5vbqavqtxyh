@@ -1,16 +1,25 @@
 #! /bin/sh
+
 # Reads lines of text and outputs QEMU monitor "sendkey" commands to "type"
 # those lines within the guest via QEMU keystrokes. Assumes English keyboard
 # layout within the VM console.
+#
+# All printable ASCII characters except for backquote are supported.
+#
+# If qemu will not accept the commands quickly enough, pipe the output of this
+# command through "pv -qL300" before sending it to the monitor socket. This
+# seemed to be slow enough.
 #
 # I use this to convert 2 lines of text containing username and password into
 # keystrokes to be sent as QEMU keyboard input; thus logging in at the guest
 # console prompt. This allows me to use secure 512 bit passwords within the
 # guest without a need to type them manually.
 #
-# (c) 2013-2015 by Guenther Brunthaler.
+# (c) 2013-2025 by Guenther Brunthaler.
+#
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
+
 awk '{
 	p= $0
 	for (i= 0; i < length(p); ++i) {
@@ -22,10 +31,13 @@ awk '{
 		else if (k == "\t") k= "tab"
 		else if (k == "\033") k= "esc"
 		else if (k == "\010") k= "backspace"
+		else if (k == "\177") k= "delete"
 		else if (k == ",") k= "comma"
 		else if (k == ";") k= "shift-comma"
+		else if (k == ":") k= "shift-semicolon"
 		else if (k == ".") k= "dot"
 		else if (k == "/") k= "slash"
+		else if (k == "'\''") k= "apostrophe"
 		else if (k == "*") k= "asterisk"
 		else if (k == " ") k= "spc"
 		else if (k == "\\") k= "backslash"
@@ -53,6 +65,7 @@ awk '{
 		else if (k == "]") k= "alt_r-9"
 		else if (k == "}") k= "alt_r-0"
 		else if (k == "@") k= "alt_r-q"
+		else if (k == "|") k= "alt_r-less"
 		else if (k == "^") {print "sendkey grave_accent"; k= "spc"}
 		else if (k == "~") {
 			print "sendkey alt_r-bracket_right"; k= "spc";
