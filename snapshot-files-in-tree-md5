@@ -14,7 +14,7 @@
 # manually by comparing earlier and current snapshots of the local and a
 # different clone of the current directory.
 #
-# v2023.269
+# v2025.18
 
 # A symlink $linkname to THIS script is automatically created (unless it
 # already exists) in the current directory, allowing the user to double-click
@@ -44,6 +44,8 @@ trap 'exit $?' INT QUIT TERM HUP
 
 exec 9>& 2
 bn=`date -u +'snapshot_%Y-%m-%d_%H:%M:%Sz'`
+hn=`hostname`
+test "$hn"
 
 test ! -e "$linkname" && ln -s "`readlink -f -- "$0"`" "$linkname"
 
@@ -51,8 +53,8 @@ TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
 {
 	find . ! \( \
 		-name "$linkname" \
-		-o -name 'snapshot_2*-*-*_*:*:*z.md5' \
+		-o -name 'snapshot_2*-*-*_*:*:*z_*.md5' \
 		\) -type f \
 	| cut -d / -f 2- \
-	| LC_COLLATE=C sort | xargsL md5sum -b -- > "$bn".md5
+	| LC_COLLATE=C sort | xargsL md5sum -b -- > "${bn}_$hn".md5
 } 2> "$TF"
