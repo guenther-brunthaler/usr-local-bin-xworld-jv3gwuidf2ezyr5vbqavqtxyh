@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr << ===; exit
-$APP Version 2025.23
+$APP Version 2025.23.1
 Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -23,8 +23,11 @@ Both columns must be separated by exactly one ASCII space.
 Typically, IDs will be inode numbers or file content checksums of some kind.
 
 The program then prints a shell script to standard output which, if executed,
- will delete all files except for the one with the shortest name. $APP on its
- own will not try to delete anything.
+ will delete all files within each group except for the one with the shortest
+ name. $APP on its own will not try to delete anything.
+ 
+The input does not be sorted. Lines with unique IDs will be ignored, because
+ in this case there is nothing to be de-duplicated.
  
 The names in the 2nd column may contain spaces and special shell characters;
  $APP will quote such names automatically as required in the generated script.
@@ -67,29 +70,20 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
-# Set $REPLY to a quoted representation of all the arguments
-# ready for 'eval set -- $REPLY' to reconstruct the arguments.
+# Quote $1 if necessary for using as an argument for a command in a POSIX
+# shell.
 qin() {
-	#local REST S Q R
-	REPLY=
-	for S
-	do
-		Q=; R=
-		while test -n "$S"
-		do
-			REST=${S#?}; S=${S%"$REST"}
-			case $S in
-				\$ | \` | \" | \\) S=\\\\$S;;
-				\' | " " | "$NL" | "$TAB") Q=Y;;
-			esac
-			R=$R$S; S=$REST
-		done
-		test -n "$Q" && R=\"$R\"
-		REPLY=$REPLY${REPLY:+ }$R
-	done
+	if expr x"$1" : x'[-_%^/=+,.:[:alnum:]]\{1,\}$' > /dev/null
+	then
+		:
+	else
+		set -- "$1" "'"
+		set -- "$1" "s/$2/$2\\$2$2/g"
+		set -- "`printf '%s\\n' "$1" | sed "$2"`"
+		set -- "'$1'"
+	fi
+	printf '%s\n' "$1"
 }
-# Construct required constants $TAB and $NL.
-NL=`printf '\t\n:'`; TAB=${NL%??}; NL=${NL%?}; NL=${NL#?}
 
 while IFS=' ' read -r id n
 do
@@ -97,10 +91,32 @@ do
 done \
 | LC_COLLATE=C sort -k1,1n -k2,2n \
 | {
+	# Remove groups consisting of just a single unique entry.
+	id1= output_rest=false
+	while IFS=' ' read -r id2 s2 n2
+	do
+		if test "$id2" = "$id1"
+		then
+			if test $output_rest = false
+			then
+				printf '%s %s %s\n' "$id1" $s1 "$n1"
+				output_rest=true
+			fi
+		else
+			output_rest=false
+		fi
+		if $output_rest
+		then
+			printf '%s %s %s\n' "$id2" $s2 "$n2"
+		fi
+		id1=$id2 s1=$s2 n1=$n2
+	done
+} \
+| {
 	lid=
 	while IFS=' ' read -r id s n
 	do
-		qin "$n"; n=$REPLY
+		n=`qin "$n"`
 		if test "$id" != "$lid"
 		then
 			test "$lid" && echo
