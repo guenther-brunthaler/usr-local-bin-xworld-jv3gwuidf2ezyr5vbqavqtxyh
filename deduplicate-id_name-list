@@ -1,0 +1,113 @@
+#! /bin/sh
+exit_version() {
+	wr << ===; exit
+$APP Version 2025.23
+Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	wr << ===; echo; exit_version
+$APP - de-duplicate names in a list read from standard input
+
+Usage: $APP [ <options> ... ] [ -- ] < name_id_list.txt
+
+$APP deduplicates IDs which must be in the first column of the list of names
+ (the second column) read from standard input.
+ 
+Both columns must be separated by exactly one ASCII space.
+
+Typically, IDs will be inode numbers or file content checksums of some kind.
+
+The program then prints a shell script to standard output which, if executed,
+ will delete all files except for the one with the shortest name. $APP on its
+ own will not try to delete anything.
+ 
+The names in the 2nd column may contain spaces and special shell characters;
+ $APP will quote such names automatically as required in the generated script.
+
+Supported options:
+
+-h: show this help and exit
+
+-V: show version information and exit
+===
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw $LINEWIDTH
+}
+LINEWIDTH=`tput cols || echo ${COLUMNS:-66}`
+
+while getopts hV opt
+do
+	case $opt in
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+# Set $REPLY to a quoted representation of all the arguments
+# ready for 'eval set -- $REPLY' to reconstruct the arguments.
+qin() {
+	#local REST S Q R
+	REPLY=
+	for S
+	do
+		Q=; R=
+		while test -n "$S"
+		do
+			REST=${S#?}; S=${S%"$REST"}
+			case $S in
+				\$ | \` | \" | \\) S=\\\\$S;;
+				\' | " " | "$NL" | "$TAB") Q=Y;;
+			esac
+			R=$R$S; S=$REST
+		done
+		test -n "$Q" && R=\"$R\"
+		REPLY=$REPLY${REPLY:+ }$R
+	done
+}
+# Construct required constants $TAB and $NL.
+NL=`printf '\t\n:'`; TAB=${NL%??}; NL=${NL%?}; NL=${NL#?}
+
+while IFS=' ' read -r id n
+do
+	printf '%s %s %s\n' "$id" ${#n} "$n"
+done \
+| LC_COLLATE=C sort -k1,1n -k2,2n \
+| {
+	lid=
+	while IFS=' ' read -r id s n
+	do
+		qin "$n"; n=$REPLY
+		if test "$id" != "$lid"
+		then
+			test "$lid" && echo
+			echo "#Keep $n."
+			lid=$id
+		else
+			echo "rm -- $n"
+		fi
+	done
+}
