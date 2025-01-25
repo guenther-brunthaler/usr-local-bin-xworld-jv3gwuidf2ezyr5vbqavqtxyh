@@ -1,0 +1,119 @@
+#! /bin/sh
+exit_version() {
+	wr << ===; exit
+$APP Version 2025.25
+Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	wr << ===; echo; exit_version
+$APP - quote strings for proper usage as shell arguments
+
+Usage: $APP [ <options> ... ] [ -- ] [ < arguments.txt ]
+
+$APP processes the text of all of its arguments and emits the texts, each one
+ quoted properly (but only if actually necessary) for usage as an argument in
+ shell scripts.
+ 
+If no arguments are provided, reads text from standard input instead, assuming
+ every line contains text to be quoted as an argument.
+
+Normally, all quoted arguments will be written on a single line, separated by
+ exactly one ASCII space character.
+
+However, if option "-m" has been specified, all quoted arguments will be
+ output as separate lines.
+
+Supported options:
+
+-m: Output the quoted text strings on separate lines rather than on a single
+ line.
+
+-h: show this help and exit
+
+-V: show version information and exit
+===
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			if test "${line%" "}" != "$line"
+			then
+				echo TRAILING
+				false || exit
+			fi
+			test "${line#" "}" = "$line" && $unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw $LINEWIDTH
+}
+LINEWIDTH=`tput cols || echo ${COLUMNS:-66}`
+
+multiline=false
+while getopts mhV opt
+do
+	case $opt in
+		m) multiline=true;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+# Quote $1 if necessary for using as an argument for a command in a POSIX
+# shell.
+qin() {
+	if expr x"$1" : x'[-_%^/=+,.:[:alnum:]]\{1,\}$' > /dev/null
+	then
+		:
+	else
+		set -- "$1" "'"
+		set -- "$1" "s/$2/$2\\\\$2$2/g"
+		set -- "`printf '%s\\n' "$1" | sed "$2"`"
+		set -- "'$1'"
+	fi
+	printf '%s\n' "$1"
+}
+
+process() {
+	case $multiline in
+		true) qin "$1";;
+		false) out=$out${out:+ }"`qin "$1"`";;
+		*) false || exit
+	esac
+}
+
+out=
+case $# in
+	0)
+		while IFS= read -r arg
+		do
+			process "$arg"
+		done
+		;;
+	*)
+		for arg
+		do
+			process "$arg"
+		done
+esac
+if $multiline
+then
+	:
+else
+	printf '%s\n' "$out"
+fi

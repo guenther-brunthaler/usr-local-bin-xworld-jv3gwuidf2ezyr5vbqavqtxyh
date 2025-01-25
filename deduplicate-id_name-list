@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr << ===; exit
-$APP Version 2025.23.1
+$APP Version 2025.25
 Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -17,7 +17,7 @@ Usage: $APP [ <options> ... ] [ -- ] < name_id_list.txt
 
 $APP deduplicates IDs which must be in the first column of the list of names
  (the second column) read from standard input.
- 
+
 Both columns must be separated by exactly one ASCII space.
 
 Typically, IDs will be inode numbers or file content checksums of some kind.
@@ -25,14 +25,22 @@ Typically, IDs will be inode numbers or file content checksums of some kind.
 The program then prints a shell script to standard output which, if executed,
  will delete all files within each group except for the one with the shortest
  name. $APP on its own will not try to delete anything.
- 
+
 The input does not be sorted. Lines with unique IDs will be ignored, because
  in this case there is nothing to be de-duplicated.
- 
+
 The names in the 2nd column may contain spaces and special shell characters;
  $APP will quote such names automatically as required in the generated script.
 
 Supported options:
+
+-w: Specify that there will be a third column in the input, between the
+ 'ID'-column and the 'name'-column. This third column must contained signed
+ integer values representing a weight for that entry. This weight rather than
+ the string length will then be used for determining the order in which
+ entries within each duplicates-group will be sorted. In the generated shell
+ the line which sorts as first will be kept, and all the remaining lines will
+ be deleted.
 
 -h: show this help and exit
 
@@ -49,9 +57,12 @@ wr() {
 		unterminated=false
 		while IFS= read -r line
 		do
-			test "${line%" "}" = "$line"
-			test "${line#" "}" != "$line" && unterminated=false
-			$unterminated && echo
+			if test "${line%" "}" != "$line"
+			then
+				echo TRAILING
+				false || exit
+			fi
+			test "${line#" "}" = "$line" && $unterminated && echo
 			printf '%s' "$line"
 			unterminated=true
 		done
@@ -60,9 +71,11 @@ wr() {
 }
 LINEWIDTH=`tput cols || echo ${COLUMNS:-66}`
 
-while getopts hV opt
+weights=false
+while getopts whV opt
 do
 	case $opt in
+		w) weights=true;;
 		h) exit_help;;
 		V) exit_version;;
 		*) false || exit
@@ -78,16 +91,23 @@ qin() {
 		:
 	else
 		set -- "$1" "'"
-		set -- "$1" "s/$2/$2\\$2$2/g"
+		set -- "$1" "s/$2/$2\\\\$2$2/g"
 		set -- "`printf '%s\\n' "$1" | sed "$2"`"
 		set -- "'$1'"
 	fi
 	printf '%s\n' "$1"
 }
 
-while IFS=' ' read -r id n
+if $weights
+then
+	weights=weight
+else
+	weights=
+fi
+while IFS=' ' read -r id $weights n
 do
-	printf '%s %s %s\n' "$id" ${#n} "$n"
+	test "$weights" || weight=${#n}
+	printf '%s %s %s\n' "$id" "$weight" "$n"
 done \
 | LC_COLLATE=C sort -k1,1n -k2,2n \
 | {
