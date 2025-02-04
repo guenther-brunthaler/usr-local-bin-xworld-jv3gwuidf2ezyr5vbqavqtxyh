@@ -1,4 +1,69 @@
 #! /bin/sh
-# Display the current local time as YYYY-MM-DD date. If any argument is
-# specified, add HH:MM also.
-date +"%Y-%m-%d${1+ %H:%M}"
+exit_version() {
+	cat << ===; exit
+$APP version 2025.35
+Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << ===; echo; exit_version
+$APP - display current date/time in formats based on ISO-8601
+
+Usage:
+$APP         # YYYY-MM-DD
+$APP t       # YYYY-MM-DD HH:MM
+$APP t t     # YYYY-MM-DD HH:MM:SS
+$APP 6       # YYYYMMDD
+$APP 6 6 6   # YYYYMMDD_HHMM
+$APP 6 6 6 6 # YYYYMMDD_HHMMSS
+
+There are two basic output modes:
+
+* If any of the arguments starts with a decimal digit ("0" through "9"), the
+  output will be formatted as "YYYYMMDD", "YYYYMMDD_HHMM" or
+  "YYYYMMDD_HHMMSS". In this case, the argument count will be considered one
+  less than it actually is for the variant selection.
+
+* Otherwise, the output will be formatted as "YYYY-MM-DD", "YYYY-MM-DD HH:MM"
+  or "YYYY-MM-DD HH:MM:SS" and the actual arguments count will be considered
+  for the variant selection.
+  
+Finally, an output variant will be selected based on the considered number of
+present arguments:
+
+* 0 arguments: Just display the date
+* 1 arguments: Display date, hours and minutes
+* 2 or more arguments: Display date, hour, minutes and seconds
+===
+}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts hV opt
+do
+	case $opt in
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+dsep=- tsep=: dtsep=' ' asub=0 ss=%S
+for a
+do
+	case $a in
+		[0-9]*) dsep= tsep= dtsep='_' asub=1
+	esac
+done
+expr $# - $asub = 0 > /dev/null && dtsep=
+expr $# - $asub \< 2 > /dev/null && ss=
+
+ss=${ss:+$tsep$ss}
+date +"%Y$dsep%m$dsep%d${dtsep:+$dtsep%H$tsep%M$ss}"
