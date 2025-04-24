@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP version 2025.88
+$APP version 2025.93
 Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -12,13 +12,13 @@ APP=${0##*/}
 
 exit_help() {
 	cat << ===; echo; exit_version
-$APP - display only the "user" time of commands in milliseconds
+$APP - display only the "user" time of commands as rounded whole milliseconds
 
 Usage 1:
 $ (command_1 && command_2 ...; $APP)
 
 Usage 2:
-$ stm=`$APP` && command_1 && command_2 ...; expr `$APP` - $stm
+$ stm=\`$APP\` && command_1 && command_2 ...; expr \`$APP\` - \$stm
 
 Usage 3:
 $ $APP -p <time_spec_1> ...
@@ -33,9 +33,14 @@ values will be parsed and converted into milliseconds. If no arguments are
 actually specified and standard input is not a terminal, then the values to be
 converted will be read from standard input instead.
 
+The advantage of using "$APP" rather than "times" directly lies in the fact
+that "$APP" displays integer values which can easily be subtracted, sorted or
+compared with "expr". They can be sorted without consideration of the current
+locale, because the result will not contain a decimal point.
+
 Example:
 
-$ (stress-ng --timeout=5s --cpu=`nproc`; $APP)
+$ (stress-ng --timeout=5s --cpu=\`nproc\`; $APP)
 
 ===
 }
@@ -75,11 +80,14 @@ convert2ms() {
 
 if $parse_arguments
 then
-	if test "$ms" = 0 && test ! -t 0
+	if test $# = 0 && test ! -t 0
 	then
-		while read ms
+		while read line
 		do
-			convert2ms "$ms"
+			for ms in $line
+			do
+				convert2ms "$ms"
+			done
 		done
 	else
 		for ms
@@ -90,8 +98,10 @@ then
 else
 	test $# = 0
 	LC_NUMERIC=C times | {
-		read usr sys # Times of the shell.
+		read usr sys # Ignore times of the shell.
+		echo shell usr=$usr sys=$sys >& 2
 		read usr sys # Times of the shell's children.
-		convert2ms $usr
+		echo "shell' children usr=$usr sys=$sys" >& 2
+		convert2ms "$usr"
 	}
 fi
