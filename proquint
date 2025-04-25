@@ -1,39 +1,82 @@
 #! /bin/sh
+exit_version() {
+	cat << ====; exit
+$APP version 2025.115.1
+Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
-# Convert binary standard input to Pronouncable Quintuplets ("proquints") or
-# into a variation of those.
-#
-# Standard input is read in blocks of (4, 2, ..., 4, 2, 4) bits which produces
-# an output word. Every 4-bit block is converted into a consonant, every 2-bit
-# block is converted into a vowel.
-#
-# Genuine proquints always consume 16-bit blocks for every word emitted, and
-# produce words consisting of 5 letters.
-#
-# The only and optional argument is the number of letters in the produced
-# output words. It must be an odd number >= 3. Default is 5 characters, which
-# produces genuine proquints.
-#
-# If standard input does not provide an exact multiple of bits required to
-# create the last word, the partial last word is silently dropped.
-#
-# Version 2025.115
-# Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
-#
-# This script is free software.
-# Distribution is permitted under the terms of the GPLv3.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+====
+}
+
+exit_help() {
+	cat << ====; echo; exit_version # Target: 66 characters per line
+$APP - convert binary input into "Pronouncable Quintuplets"
+
+Usage: $APP [ <options> ... ] [ <chars_per_word> ]
+
+$APP reads binary octets (8-bit bytes)
+from standard input and converts them into "Pronouncable
+Quintuplets" ("proquints") or into a variation of those.
+
+The binary octets are usually a cryptographic key, a
+cryptographic hash or random bytes.
+
+They will be converted into a pronouncable pass phrase made of
+multiple words with the same number of letters.
+
+Standard input is read as a bitstream made of blocks with (4, 2,
+..., 4, 2, 4) bits which produces the next output word:
+
+* Every 4-bit block is converted into a consonant
+* Every 2-bit block is converted into a vowel
+
+The produced words always start and end with a consonant. Within
+the word, consonants and vowels occur alternating.
+
+Genuine proquints always consume 16-bit blocks for every word
+emitted, and produce words consisting of 5 letters.
+
+The only and optional argument is the number of letters in the
+produced output words. It must be an odd number >= 3. Default is
+5 characters, which produces genuine proquints.
+
+If standard input does not provide the exact number of bits
+required to produce the final output word, the final partial
+output word is silenly dropped. See the -v option.
+
+Options:
+
+-d "<delimiter>": Set string <delimiter> which will be used to
+separate the generated output will. Defaults to a dash ("-"). It
+is also possible to set this to an empty string.
+
+-s: Set a space character as the word delimiter.
+
+-v: Enable verbose mode. Default: Off. If enabled, will report if
+any trailing input data has been ignored of if a partial final
+output word has been omitted.
+
+-h: Show this help and exit.
+
+-V: Show version information and exit.
+====
+}
+APP=${0##*/}
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
 delimiter='-'
 verbose=0
-while getopts d:sv opt
+while getopts d:svhV opt
 do
 	case $opt in
 		d) delimiter=$OPTARG;;
 		s) delimiter=' ';;
 		v) verbose=1;;
+		h) exit_help;;
+		V) exit_version;;
 		*) false || exit
 	esac
 done
