@@ -1,0 +1,140 @@
+#! /bin/sh
+
+# Convert binary standard input to Pronouncable Quintuplets ("proquints") or
+# into a variation of those.
+#
+# Standard input is read in blocks of (4, 2, ..., 4, 2, 4) bits which produces
+# an output word. Every 4-bit block is converted into a consonant, every 2-bit
+# block is converted into a vowel.
+#
+# Genuine proquints always consume 16-bit blocks for every word emitted, and
+# produce words consisting of 5 letters.
+#
+# The only and optional argument is the number of letters in the produced
+# output words. It must be an odd number >= 3. Default is 5 characters, which
+# produces genuine proquints.
+#
+# If standard input does not provide an exact multiple of bits required to
+# create the last word, the partial last word is silently dropped.
+#
+# Version 2025.115
+# Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+delimiter='-'
+verbose=0
+while getopts d:sv opt
+do
+	case $opt in
+		d) delimiter=$OPTARG;;
+		s) delimiter=' ';;
+		v) verbose=1;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+od -vt o1 \
+| awk \
+	-v wsep="$delimiter" \
+	-v wordchars="${1:-5}" \
+	-v verbose=$verbose \
+	-f /dev/fd/5 \
+5<< 'EO_AWK'
+
+# Globals: bits_needed, wsep, wordchars, i, o2b[], cn[], vw[], inbuf, outbuf,
+# nonfirst.
+
+BEGIN {
+	if (wordchars % 2 == 0) {
+		die("The number of characters per word must be odd!")
+	}
+	if (wordchars < 3) {
+		die("The number of characters per word must be >= 3!")
+	}
+	mk_o2b()
+	al2arr(cn, "bdfghjklmnprstvz")
+	al2arr(vw, "aiou");
+	bits_needed = 4
+}
+
+{ for (i = 2; i <= NF; ++i) process_octet($i) }
+
+END {
+	if (nonfirst) print ""
+	if (verbose && outbuf != "") {
+		printf "Incomplete final output word '%s' suppressed.\n" \
+			, outbuf > "/dev/stderr"
+	}
+	if (verbose && inbuf != "") {
+		printf "Insufficient trailing input bits '%s' ignored.\n" \
+			,  inbuf > "/dev/stderr"
+	}
+}
+
+function die(emsg) {
+	print emsg > "/dev/stderr"
+	exit system("false")
+}
+
+function mk_o2b(    octdigit) {
+	for (octdigit = 8; octdigit--; ) {
+		o2b[octdigit] = v2b(octdigit, 3, 4)
+	}
+}
+
+function v2b(value, bits, msb    , binary, bit) {
+	# if (msb != 2 ^ (bits - 1)) exit 100
+	while (bits--) {
+		if (bit = value >= msb) value -= msb
+		binary = binary bit
+		value += value
+	}
+	return binary
+}
+
+function al2arr(array, alphabet    , n, i, msb, bits) {
+	n = length(alphabet)
+	for (bits = msb = 1; ; msb = i) {
+		i = msb + msb
+		if (i >= n) break
+		++bits
+	}
+	for (i = 1; i <= n; ++i) {
+		array[v2b(i - 1, bits, msb)] = substr(alphabet, i, 1)
+	}
+}
+
+function process_octet(octal    , ocnt, i, nc) {
+	for (i = 1; i <= 3; ++i) {
+		nc = o2b[substr(octal, i, 1)]
+		if (i == 1) nc = substr(nc, 2)
+		inbuf = inbuf nc
+		while (length(inbuf) >= bits_needed) {
+			if (bits_needed == 4) {
+				outbuf = outbuf \
+					cn[substr(inbuf, 1, bits_needed)]
+			} else {
+				outbuf = outbuf \
+					vw[substr(inbuf, 1, bits_needed)]
+			}
+			inbuf = substr(inbuf, 1 + bits_needed)
+			if (length(outbuf) == wordchars) {
+				if (nonfirst) outbuf = wsep outbuf
+				else nonfirst = 1
+				printf "%s", outbuf
+				outbuf = ""
+				bits_needed = 4
+			} else {
+				bits_needed = bits_needed == 4 ? 2 : 4
+			}
+		}
+	}
+}
+
+EO_AWK
