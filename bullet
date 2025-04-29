@@ -1,0 +1,60 @@
+#! /bin/sh
+exit_version() {
+	cat << ====; exit
+$APP version 2025.119
+Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+====
+}
+
+exit_help() {
+	cat << ====; echo; exit_version # Target: 66 characters per line
+$APP - convert paragraphs into bullet points
+
+Usage: $APP [ <options> ... ]
+
+Options:
+
+-d: De-bullify. Removes bullet-point prefixes
+
+-n: Create numbered enumeration instead of bullet points
+
+-h: Show this help and exit.
+
+-V: Show version information and exit.
+====
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+mode=b
+while getopts dnhV opt
+do
+	case $opt in
+		[dn]) mode=$opt;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+s='[[:space:]]'; ss=$s'\{1,\}'; s=$s'*'
+case $mode in
+	d) sed "s/^$s[0-9]*[.]$s//; t; s/^$s[*]$s//";;
+	b) sed "s/$ss/ /; s/^ //; s/ \$//; s/^/* /";;
+	n)
+		i=1
+		sed "s/$ss/ /; s/^ //; s/ \$//" \
+		| while IFS= read -r line
+		do
+			printf '%s. %s\n' $i "$line"
+			i=`expr $i + 1`
+		done
+		;;
+	*) false || exit
+esac
