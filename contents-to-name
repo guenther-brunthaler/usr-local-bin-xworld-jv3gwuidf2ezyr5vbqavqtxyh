@@ -1,23 +1,53 @@
 #! /bin/sh
+exit_version() {
+	cat << ====; exit
+$APP version 2025.123.1
+Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
-# Create a pronouncable 7-letter name (or with option "-s" a shorter 5-letter
-# name) from the binary data read from standard input. If an argument is
-# present, it must be the pathame of an file, and the binary data will be read
-# from this file rather than from standard input.
-#
-# This script is merely a wrapper which calculates the SHA2-256 hash of the
-# binary data first, and then displays it as a 5- or 7-letter proquint.
-#
-# v2025.123
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+====
+}
+
+exit_help() {
+	cat << ====; echo; exit_version # Target: 66 characters per line
+$APP - convert the contents of a file into a pronouncable name"
+
+Usage: $APP [ <options> ... ] [--] <file>
+Usage: <some_command> | $APP [ <options> ... ]
+
+$APP is a simple wrapper script which calculates
+an SHA2-256 hash of the contents of <file> or the data redirected
+to its standard input, and then converts the first octets of the
+hash digest into a pronouncable 5- or 7-letter word.
+
+The "proquint"-utility is invoked internally for the actual
+octet-to-word conversion.
+
+Options:
+
+-s: Display a shorter 5-letter word. This is the default.
+
+-l: Display a longer 7-letter word.
+
+-h: Show this help and exit.
+
+-V: Show version information and exit.
+====
+}
+APP=${0##*/}
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
-chars=7
-while getopts s opt
+chars=5
+while getopts lsVh opt
 do
 	case $opt in
+		l) chars=7;;
 		s) chars=5;;
+		h) exit_help;;
+		V) exit_version;;
 		*) false || exit
 	esac
 done
