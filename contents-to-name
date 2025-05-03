@@ -1,0 +1,36 @@
+#! /bin/sh
+
+# Create a pronouncable 7-letter name (or with option "-s" a shorter 5-letter
+# name) from the binary data read from standard input. If an argument is
+# present, it must be the pathame of an file, and the binary data will be read
+# from this file rather than from standard input.
+#
+# This script is merely a wrapper which calculates the SHA2-256 hash of the
+# binary data first, and then displays it as a 5- or 7-letter proquint.
+#
+# v2025.123
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+chars=7
+while getopts s opt
+do
+	case $opt in
+		s) chars=5;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+process() {
+	openssl sha256 -binary \
+	| dd bs=3 count=1 2> /dev/null \
+	| proquint $chars
+}
+
+case $# in
+	0) test ! -t 0; process;;
+	1) test -e "$1"; test ! -d "$1";  process < "$1";;
+	*) false || exit
+esac
