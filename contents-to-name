@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ====; exit
-$APP version 2025.123.1
+$APP version 2025.123.2
 Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -14,21 +14,29 @@ exit_help() {
 $APP - convert the contents of a file into a pronouncable name"
 
 Usage: $APP [ <options> ... ] [--] <file>
+Usage: $APP [ <options> ... ] [--] <file1> <file2> ...
 Usage: <some_command> | $APP [ <options> ... ]
 
 $APP is a simple wrapper script which calculates
-an SHA2-256 hash of the contents of <file> or the data redirected
-to its standard input, and then converts the first octets of the
-hash digest into a pronouncable 5- or 7-letter word.
+an SHA2-256 hash of the contents of the specified files or the
+data redirected to its standard input, and then converts the
+first octets of the hash digest into a pronouncable 5- or
+7-letter word.
+
+If multiple files are specified as arguments, the output will be
+the word associated with the contents of every file, followed by
+the filename.
 
 The "proquint"-utility is invoked internally for the actual
 octet-to-word conversion.
 
 Options:
 
--s: Display a shorter 5-letter word. This is the default.
+-s: Silently ignore arguments which are directories or do not
+exist.
 
--l: Display a longer 7-letter word.
+-l: Display a longer 7-letter word rather than the default 5
+letter word.
 
 -h: Show this help and exit.
 
@@ -41,11 +49,12 @@ set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
 chars=5
+silently_ignore_problems=false
 while getopts lsVh opt
 do
 	case $opt in
+		s) silently_ignore_problems=true;;
 		l) chars=7;;
-		s) chars=5;;
 		h) exit_help;;
 		V) exit_version;;
 		*) false || exit
@@ -59,8 +68,36 @@ process() {
 	| proquint $chars
 }
 
+skip() {
+	if test ! -e "$1"
+	then
+		$silently_ignore_problems && return
+		echo "Error: '$1' does not exist!" >& 2
+		false || exit
+	fi
+	if test -d "$1"
+	then
+		$silently_ignore_problems && return
+		echo "Ignoring directory '$1'" >& 2
+		return
+	fi
+	false || return
+}
+
 case $# in
 	0) test ! -t 0; process;;
-	1) test -e "$1"; test ! -d "$1";  process < "$1";;
-	*) false || exit
+	1)
+		if skip "$1"
+		then
+			:
+		else
+			process < "$1"
+		fi
+		;;
+	*)
+		for f
+		do
+			skip "$f" && continue
+			echo "`process < "$f"` $f"
+		done
 esac
