@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ====; exit
-$APP version 2025.126
+$APP version 2025.126.1
 Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -92,13 +92,16 @@ shift `expr $OPTIND - 1 || :`
 
 if $revert
 then
-	maxcols=`getconf LINE_MAX` && test "$maxcols" || maxcols=80
-	fold -w "$maxcols" \
+	maxcols=`getconf LINE_MAX 2> /dev/null` && test "$maxcols" \
+	|| maxcols=80
+	fold -w $maxcols \
 	| awk \
 		-v verbose=$verbose \
 		-f /dev/fd/5 \
 		-f /dev/fd/6 \
-	5<< 'EO_REVERSION' | sed 's/./\\&/g' | xargs printf %b
+		5<< 'EO_REVERSAL' \
+	| sed 's/./\\&/g' \
+	| xargs printf %b
 
 # Globals: letters[], vw[], cn[], b2o_esc[], inbuf.
 
@@ -134,7 +137,7 @@ function revert(chars    , cl, i) {
 
 END { check_trailing_input_bits() }
 
-EO_REVERSION
+EO_REVERSAL
 
 else
 	od -vt o1 \
