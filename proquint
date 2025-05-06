@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ====; exit
-$APP version 2025.115.1
+$APP version 2025.126
 Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -47,6 +47,12 @@ output word is silenly dropped. See the -v option.
 
 Options:
 
+-r: Reverse operation. Rather than converting binary data into
+proquints, accept proquints as input and output the resulting
+binary octets instead. Only whole octets will be output. If there
+are less than 8 trailing output bits left after decoding, those
+bits will be silently discarded.
+
 -d "<delimiter>": Set string <delimiter> which will be used to
 separate the generated output will. Defaults to a dash ("-"). It
 is also possible to set this to an empty string.
@@ -69,9 +75,11 @@ trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
 delimiter='-'
 verbose=0
-while getopts d:svhV opt
+revert=false
+while getopts rd:svhV opt
 do
 	case $opt in
+		r) revert=true;;
 		d) delimiter=$OPTARG;;
 		s) delimiter=' ';;
 		v) verbose=1;;
@@ -82,13 +90,61 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
-od -vt o1 \
-| awk \
-	-v wsep="$delimiter" \
-	-v wordchars="${1:-5}" \
-	-v verbose=$verbose \
-	-f /dev/fd/5 \
-5<< 'EO_AWK'
+if $revert
+then
+	maxcols=`getconf LINE_MAX` && test "$maxcols" || maxcols=80
+	fold -w "$maxcols" \
+	| awk \
+		-v verbose=$verbose \
+		-f /dev/fd/5 \
+		-f /dev/fd/6 \
+	5<< 'EO_REVERSION' | sed 's/./\\&/g' | xargs printf %b
+
+# Globals: letters[], vw[], cn[], b2o_esc[], inbuf.
+
+BEGIN {	setup_lookup() }
+
+function setup_lookup(    b) {
+	setup_alphabets()
+	revert_lookup(letters, cn)
+	revert_lookup(letters, vw)
+	mk_b2o_esc()
+}
+
+function mk_b2o_esc(    b) {
+	for (b = 256; b--; ) b2o_esc[v2b(b, 8, 128)] = sprintf("\\%03o", b)
+}
+
+function revert_lookup(inv, map    , k) {
+	for (k in map) inv[map[k]] = k
+}
+
+{ revert($0) }
+
+function revert(chars    , cl, i) {
+	cl = length(chars)
+	for (i = 1; i <= cl; ++i) {
+		inbuf = inbuf letters[substr(chars, i, 1)]
+		while (length(inbuf) >= 8) {
+			print b2o_esc[substr(inbuf, 1, 8)]
+			inbuf = substr(inbuf, 1 + 8)
+		}
+	}
+}
+
+END { check_trailing_input_bits() }
+
+EO_REVERSION
+
+else
+	od -vt o1 \
+	| awk \
+		-v wsep="$delimiter" \
+		-v wordchars="${1:-5}" \
+		-v verbose=$verbose \
+		-f /dev/fd/5 \
+		-f /dev/fd/6 \
+	5<< 'EO_CONVERSION'
 
 # Globals: bits_needed, wsep, wordchars, i, o2b[], cn[], vw[], inbuf, outbuf,
 # nonfirst.
@@ -101,8 +157,7 @@ BEGIN {
 		die("The number of characters per word must be >= 3!")
 	}
 	mk_o2b()
-	al2arr(cn, "bdfghjklmnprstvz")
-	al2arr(vw, "aiou");
+	setup_alphabets()
 	bits_needed = 4
 }
 
@@ -114,10 +169,7 @@ END {
 		printf "Incomplete final output word '%s' suppressed.\n" \
 			, outbuf > "/dev/stderr"
 	}
-	if (verbose && inbuf != "") {
-		printf "Insufficient trailing input bits '%s' ignored.\n" \
-			,  inbuf > "/dev/stderr"
-	}
+	check_trailing_input_bits()
 }
 
 function die(emsg) {
@@ -128,28 +180,6 @@ function die(emsg) {
 function mk_o2b(    octdigit) {
 	for (octdigit = 8; octdigit--; ) {
 		o2b[octdigit] = v2b(octdigit, 3, 4)
-	}
-}
-
-function v2b(value, bits, msb    , binary, bit) {
-	# if (msb != 2 ^ (bits - 1)) exit 100
-	while (bits--) {
-		if (bit = value >= msb) value -= msb
-		binary = binary bit
-		value += value
-	}
-	return binary
-}
-
-function al2arr(array, alphabet    , n, i, msb, bits) {
-	n = length(alphabet)
-	for (bits = msb = 1; ; msb = i) {
-		i = msb + msb
-		if (i >= n) break
-		++bits
-	}
-	for (i = 1; i <= n; ++i) {
-		array[v2b(i - 1, bits, msb)] = substr(alphabet, i, 1)
 	}
 }
 
@@ -180,4 +210,42 @@ function process_octet(octal    , ocnt, i, nc) {
 	}
 }
 
-EO_AWK
+EO_CONVERSION
+
+fi 6<< 'EO_COMMON'
+
+function setup_alphabets() {
+	al2arr(cn, "bdfghjklmnprstvz")
+	al2arr(vw, "aiou");
+}
+
+function al2arr(array, alphabet    , n, i, msb, bits) {
+	n = length(alphabet)
+	for (bits = msb = 1; ; msb = i) {
+		i = msb + msb
+		if (i >= n) break
+		++bits
+	}
+	for (i = 1; i <= n; ++i) {
+		array[v2b(i - 1, bits, msb)] = substr(alphabet, i, 1)
+	}
+}
+
+function v2b(value, bits, msb    , binary, bit) {
+	# if (msb != 2 ^ (bits - 1)) exit 100
+	while (bits--) {
+		if (bit = value >= msb) value -= msb
+		binary = binary bit
+		value += value
+	}
+	return binary
+}
+
+function check_trailing_input_bits() {
+	if (verbose && inbuf != "") {
+		printf "Insufficient trailing input bits '%s' ignored.\n" \
+			,  inbuf > "/dev/stderr"
+	}
+}
+
+EO_COMMON
