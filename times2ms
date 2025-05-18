@@ -28,8 +28,8 @@ locale, because the result will not contain a decimal point.
 
 Example:
 
-\$ proctime=\$((stress-ng --timeout=2s --cpu=\`nproc\` --quiet; times) | $APP)
-\$ echo \$proctime
+\$ cpu_ms=\$( (stress-ng --timeout=2s --cpu=\`nproc\` --quiet; times) | $APP)
+\$ echo \$cpu_ms
 
 Supported command line options:
 

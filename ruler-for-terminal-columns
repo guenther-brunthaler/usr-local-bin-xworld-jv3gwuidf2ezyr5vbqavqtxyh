@@ -1,0 +1,90 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP version 2025.138
+Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << ===; echo; exit_version
+$APP - display a ruler for the character terminal
+
+Usage: $APP [ options ... ] [ width ]
+
+$APP displays a ruler on the terminal. This can be used to resize the terminal
+until the ruler fits on the screen.
+
+Unless specified, the ruler width defaults to $columns columns.
+
+Supported command line options:
+
+-h: Display help and exit.
+-V: Display version information and exit.
+===
+}
+columns=80
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts hV opt
+do
+	case $opt in
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+ck_posint() {
+	printf '%s\n' "$1" | expr x"$1" : x'[1-9][0-9]*$' > /dev/null
+}
+
+case $# in
+	0) ;;
+	*) ck_posint "$1"; columns=$1; shift
+esac	
+
+test $# = 0
+
+nrl=${#columns} # Number of ruler lines.
+rl=1 # Current ruler line.
+while :
+do
+	c=1 # Current column.
+	ol= # Current output line.
+	ld= # Last output digit.
+	while :
+	do
+		d=$c # Digits to display in current ruler column.
+		while test ${#d} != $nrl
+		do
+			d=" $d" # Right-pad digits with spaces.
+		done
+		# Extract the "ruler line"th digit (or space).
+		i=1
+		while :
+		do
+			rest=${d#?}
+			test $i = $rl && break
+			d=$rest
+			i=`expr $i + 1`
+		done
+		nd=${d%"$rest"} # Next output digit.
+		ad=$nd # Actually displayed character.
+		test "$ld" = "$nd" && ad=" " # Don't repeat output digits.
+		ld=$nd
+		ol=$ol$ad # And schedule it for output.
+		test $c = $columns && break
+		c=`expr $c + 1`
+	done
+	echo "$ol" # Display the current ruler line.
+	test $rl = $nrl && break
+	rl=`expr $rl + 1`
+done
