@@ -1,6 +1,6 @@
 #! /bin/sh
 
-# v2025.11
+# v2025.138
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
@@ -14,7 +14,7 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
-test -d .git
+test -e .git # Directory, gitlink or symlink to any of those.
 case $0 in
 	*-unversioned) f=.git/info/exclude;;
 	*-versioned) f=.gitignore;;
@@ -22,15 +22,53 @@ case $0 in
 esac
 
 unknowns() {
-	git status -s | sed 's|^?? |/|; t; d'
+	case $# in
+		0) git status -s | sed 's|^?? |/|; t; d';;
+		*)
+			for f
+			do
+				f=${f%%/}
+				case $f in
+					. | .. \
+					| ./* | ../* \
+					| */./* | */../* \
+					| */. | */.. \
+					| /* | '') false || exit;;
+				esac
+				if test -L "$f"
+				then
+					: # Symlinks are allowed.
+				elif test -d "$f"
+				then
+					ls -d -- "$f"/* \
+					| while IFS= read -r f
+					do
+						if test -L "$f" || test -f "$f"
+						then
+							printf '%s\n' "$f"
+						else
+							echo "Not adding" \
+								"'$f'!" >& 2
+						fi
+					done
+					continue
+				else
+					# No other kinds of special file
+					# allowed in git.
+					test -f "$f"
+				fi
+				printf '%s\n' "$f"
+			done \
+			| sed 's|^|/|'
+	esac
 }
 
-set -- "Appending unversioned entries to $f..."
+msg="Appending unversioned entries to $f..."
 if $dry_run
 then
-	echo "SIMULATION: $*" >& 2
-	unknowns
+	echo "SIMULATION: $msg" >& 2
+	unknowns ${1+"$@"}
 else
-	echo "$*" >& 2
-	unknowns >> "$f"
+	echo "$msg" >& 2
+	unknowns ${1+"$@"} >> "$f"
 fi
