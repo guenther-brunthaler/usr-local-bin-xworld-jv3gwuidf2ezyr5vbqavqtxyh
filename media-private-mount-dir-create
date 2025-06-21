@@ -1,0 +1,90 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP version 2025.172
+Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	cat << ===; echo; exit_version
+$APP - create private mount-point directories in /media for the
+current user
+
+Usage: $APP [ <options> ] [ -- ] [ <subdir_names> ]
+
+Create (unless it already exists) directory /media/$USER/mnt with
+appropriate permissions for $USER to create further mount
+directories there, e.g. for FUSE-based filesystems.
+
+If any arguments (no complete pathnames, just names without "/")
+are specified, sub-directories of those names will created as
+subdirectories (unless they already exist) of /media/$USER/mnt,
+ready to be used as mount points for USE-based filesystems (e.g.
+sshfs).
+
+In fact, for the sake of comfort, complete pathnames as arguments
+are actually allowed as arguments. But in this case, only the
+basename of every pathname is used for creating subdirectories.
+Everything up to the last "/" in the pathame will be removed
+before using the remainder as a subdirectory name to create.
+
+Supported command line options:
+
+-n: Dry run. Show what would be done, but don't actually do
+    anything.
+-h: Display help and exit.
+-V: Display version information and exit.
+===
+}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+dry_run=false
+while getopts nhV opt
+do
+	case $opt in
+		n) dry_run=true;;
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+run() {
+	$dry_run && set echo SIMULATION: "$@"
+	"$@"
+}
+
+me=`id -un`
+test "$me"
+d=/media/$me
+
+if test ! -e "$me"
+then
+	run mkdir -m 750 "$d"
+fi
+
+d=$d/mnt
+if test ! -e "$me"
+then
+	run sudo mkdir -m 770 "$d"
+	run sudo chgrp -- "$me" "$d"
+fi
+
+for sd
+do
+	sd=${sd##*/}
+	sd=$d/$sd
+	if test ! -e "$sd"
+	then
+		run mkdir -m 700 "$sd"
+	fi
+	run ls -ld "$sd"
+done
