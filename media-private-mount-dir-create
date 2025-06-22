@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP version 2025.172
+$APP version 2025.173
 Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -66,13 +66,13 @@ me=`id -un`
 test "$me"
 d=/media/$me
 
-if test ! -e "$me"
+if test ! -e "$d"
 then
 	run mkdir -m 750 "$d"
 fi
 
 d=$d/mnt
-if test ! -e "$me"
+if test ! -e "$d"
 then
 	run sudo mkdir -m 770 "$d"
 	run sudo chgrp -- "$me" "$d"
