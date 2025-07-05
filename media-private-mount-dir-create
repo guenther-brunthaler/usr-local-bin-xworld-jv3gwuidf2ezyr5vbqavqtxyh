@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ===; exit
-$APP version 2025.173
+$APP version 2025.186
 Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -46,10 +46,14 @@ set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
 dry_run=false
-while getopts nhV opt
+force=false
+quiet=false
+while getopts qfnhV opt
 do
 	case $opt in
 		n) dry_run=true;;
+		q) quiet=true;;
+		f) force=true;;
 		V) exit_version;;
 		h) exit_help;;
 		*) false || exit
@@ -57,18 +61,31 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
+inform() {
+	$quiet && return
+	"$@"
+}
+
 run() {
 	$dry_run && set echo SIMULATION: "$@"
 	"$@"
 }
 
+d=/media
+test -x "$d"
+case `stat -f -c %T -- "$d"` in
+	tmpfs | ramfs) ;;
+	*) $force || exit
+esac
+
 me=`id -un`
 test "$me"
-d=/media/$me
+d=$d/$me
 
 if test ! -e "$d"
 then
-	run mkdir -m 750 "$d"
+	run sudo mkdir -m 750 "$d"
+	run sudo chgrp -- "$me" "$d"
 fi
 
 d=$d/mnt
@@ -78,6 +95,8 @@ then
 	run sudo chgrp -- "$me" "$d"
 fi
 
+command -v namei > /dev/null 2>& 1 && namei=$? || namei=$?
+first=true
 for sd
 do
 	sd=${sd##*/}
@@ -86,5 +105,14 @@ do
 	then
 		run mkdir -m 700 "$sd"
 	fi
-	run ls -ld "$sd"
+	if $first
+	then
+		first=false
+	else
+		inform echo
+	fi
+	inform run ls -ld "$sd"
+	case $namei in
+		0) inform echo; inform run namei -l "$sd"
+	esac
 done
