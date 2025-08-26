@@ -2,26 +2,14 @@
 
 # Provide a simple GUI front-end for "bc -l".
 #
-# Version 2024.114
-# Copyright (c) 2023-2024 Guenther Brunthaler. All rights reserved.
+# Version 2025.238
+# Copyright (c) 2023-2025 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
-set -e
-cmdline=false
-g=
-while getopts g:c opt
-do
-	case $opt in
-		g) g=$OPTARG;;
-		c) cmdline=true;;
-		*) false || exit
-	esac
-done
-shift `expr $OPTIND - 1 || :`
-
-invoke_bc() {
+APP_UUID=ev1bmz5e8dxcqjxum6dvdlggh
+help() {
 	cat << '==='
 Quick help ("man bc" in terminal for full help).
 
@@ -38,6 +26,109 @@ Important operators for expression: "+", "-",
 Quit calculator: [Ctrl]+[d].
 
 ===
+}
+
+set -e
+cf=${XDG_CONFIG_HOME:="$HOME"/.config}/misc/`basename -- "$0"`_$APP_UUID.conf
+mkdir -p -- "`dirname -- "$cf"`" 2> /dev/null || :
+
+qs() {
+	printf "%s\n" "$1" | sed 's/'\''/'\''\\'\'''\''/g; s/.*/'\''&'\''/'
+}
+
+# Args: ${conffile_path}, ${shell_var_name}=${config_key}:=${default_val} ...
+# ${default_val} is optional and defaults to an empty string.
+# ${config_key} is optional and defaults to ${shell_var_name}.
+read_config() {
+	cf=$1; shift
+	test -f "$cf" || cf=/dev/null
+	n=$#
+	while test $n != 0
+	do
+		dfl=${1#*":="}
+		case $1 in
+			"$dfl") dfl= vn=$1;;
+			*) vn=${1%":=$dfl"}
+		esac
+		shift
+		key=${vn#*"="}
+		case $vn in
+			"$key") ;;
+			*) vn=${vn%"=$key"}
+		esac
+		set -- "$@" "$vn" "$key" "$dfl"
+		n=`expr $n - 1` || :
+	done
+	sed '
+		s/^[[:space:]]*//; /^#/d
+		s/^\([^=[:space:]]*\)[[:space:]]*=[[:space:]]*/\1 /
+		s/[[:space:]]*$//; /^$/d
+	' "$cf"	\
+	| {
+		while read key val
+		do
+			n=$#
+			while test $n != 0
+			do
+				case $key in
+					"$2") set -- "$@" "$1" "$2" "$val";;
+					*) set -- "$@" "$1" "$2" "$3"
+				esac
+				shift 3
+				n=`expr $n - 3` || :
+			done
+		done
+		n=$#
+		while test $n != 0
+		do
+			echo "$1=`qs "$3"`"
+			shift 3
+			n=`expr $n - 3` || :
+		done
+	}
+}
+
+default_geometry() {
+	help | {
+		w=0 h=1
+		while IFS= read -r line
+		do
+			cols=${#line}
+			test $cols -gt $w && w=$cols
+			h=`expr $h + 1`
+		done
+		echo `expr $w + 1`x$h
+	}
+}
+
+cmdline=false
+save=false
+eval `read_config "$cf" g=geometry`
+while getopts sg:c opt
+do
+	case $opt in
+		g) g=$OPTARG;;
+		s) save=true;;
+		c) cmdline=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+if test -z "$g"
+then
+	g=`default_geometry`
+fi
+
+if $save
+then
+	cat << ==== > "$cf"
+geometry = $g
+====
+fi
+
+invoke_bc() {
+	help
 	exec bc -lsq
 }
 
