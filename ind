@@ -1,0 +1,109 @@
+#! /bin/sh
+
+# Indent or de-indent a text by a certain amount of units (a space or a
+# horizontal tabulation character).
+#
+# The number of units to indent (a count) or de-indent (letter "d" or "u"
+# followed by an optional count which defaults to 1) is specified as the only
+# argument and defaults to 1 if no argument is specified.
+#
+# The kind of unit can be specified by appending "s" or "t" to the indentation
+# amount argument (which defaults to "1" if missing).
+#
+# Otherwise the first line starting with a whitespace character determines
+# the kind of unit by using units of that whitespace character.
+#
+# When indenting, all lines are prefixed with the same additional indent,
+# including empty lines or lines only containing whitespace.
+#
+# When de-indenting, lines which start with less than the requested number
+# of units will have all their leading units stripped.
+
+#
+# v2025.207
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+while getopts '' opt
+do
+	case $opt in
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+unit=
+case $# in
+	0) indent=1;;
+	1)
+		if
+			t=${1%s}; test "$t" != "$1" \
+			|| { t=${1%t}; test "$t" != "$1"; }
+		then
+			indent=${t:-1}
+			unit=${1#$t}
+		else
+			indent=$1
+		fi
+		if t=${indent#[du]}; test "$t" != "$indent"
+		then
+			indent=-${t:-1}
+		fi
+		expr x"$indent" : x'-\{0,1\}[1-9][0-9]*$' > /dev/null
+		;;
+	*) false || exit
+esac
+case $unit in
+	s) unit=' ';;
+	t) unit=`printf '\t:'`; unit=${unit%:}
+esac
+
+exec awk -v unit="$unit" -v indent=$indent -f /dev/fd/5 5<< 'EO_AWK'
+
+BEGIN {
+	if (unindent = indent < 0) indent = -indent
+	if (unit != "") cindent = dup(unit, indent)
+}
+
+unit == "" {
+	if (/^[[:space:]]/) {
+		unit = substr($0, 1, 1)
+		cindent = dup(unit, indent)
+		process_delayed()
+	} else {
+		L[++n] = $0
+	}
+}
+
+unit != "" {process($0)}
+
+function process_delayed(    i) {
+	for (i = 1; i <= n; ++i) {
+		process(L[i]); delete L[i]
+	}
+}
+
+function process(line    , start, len) {
+	if (unindent) {
+		if (length(line) >= indent && index(line, cindent) == 1) {
+			print substr(line, indent + 1)
+		} else {
+			# Cannot remove all requested indentation units.
+			len = length(line)
+			for (start = 1; start <= len; ++start) {
+				if (substr(line, start, 1) != unit) break
+			}
+			if (start > len) print ""
+			else print substr(line, start)
+		}
+	} else {
+		print cindent line
+	}
+}
+
+function dup(s, n    , o) {
+	while (n--) o = o s
+	return o
+}
+
+EO_AWK

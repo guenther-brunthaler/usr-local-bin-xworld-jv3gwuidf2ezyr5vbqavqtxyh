@@ -1,401 +1,162 @@
 #! /bin/sh
-# Customized compiler settings.
-# Generates a script snippet "setflags.local" in the current directory which
-# needs to be sourced in order for the definitions to take effect.
 
+# Version information located farther below.
+case $1 in
+	fast_cpu_wholefamily) # release (recommended for normal use)
+		CFLAGS="-D NDEBUG -O2 -mtune=native"
+		LDFLAGS="-s -Wl,-O1,--as-needed,--hash-style=gnu"
+		;;
+	fastest_cpu_wholefamily) # release
+		CFLAGS="-D NDEBUG -O3 -mtune=native"
+		LDFLAGS="-s -Wl,-O1,--as-needed,--hash-style=gnu"
+		;;
+	smallest_cpu_wholefamily) # release
+		CFLAGS="-D NDEBUG -Os -mtune=native"
+		LDFLAGS="-s -Wl,-O1,--as-needed,--hash-style=gnu"
+		;;
+	posix) # release (only POSIX-guaranteed options)
+		CFLAGS="-D NDEBUG -O"
+		LDFLAGS="-s"
+		;;
+	debug) # debug
+		CFLAGS="-O0 -ggdb3"
+		LDFLAGS=
+		;;
+	devel) # debug with maximum warnings and protectors
+		CFLAGS="-O0 -ggdb3 -Wall -Wextra -Wpedantic"`:
+			`" -D _FORTIFY_SOURCE=2 -fstack-protector-strong"
+		LDFLAGS=
+		;;
+	fastest_cpu_specific) # release
+		CFLAGS="-D NDEBUG -O3 -march=native"
+		LDFLAGS="-s -Wl,-O1,--as-needed,--hash-style=gnu"
+		;;
+	smallest_cpu_specific) # release
+		CFLAGS="-D NDEBUG -Os -march=native"
+		LDFLAGS="-s -Wl,-O1,--as-needed,--hash-style=gnu"
+		;;
+	gdb)
+		alias gdb="gdb -iex 'add-auto-load-safe-path $PWD'"
+		;;
+	geninit)
+		 cat <<- '======' > .gdbinit
+file ./sum
+b *main
+# Example how to set arguments and redirection:
+r 1 2 3 > sum_output.txt
+# Alternative to redirection in "run" command, also redirects stdin and stderr:
+#tty /dev/pts/17
+#set directories /basepath/to/src/files
+set history size 500
+set history save on
+set scheduler-locking on
+#layout asm
+layout src
+focus cmd
+======
+		;;
+	mfsimple)
+		 cat <<- '======' > Makefile
+.POSIX:
 
-die() {
-	echo "ERROR: $@" >& 2
-	false || exit
-}
+# You may redefine these settings via the "make" command line or export them
+# as environment variables and (in the latter case only) also
+# "export MAKEFLAGS=e". Or just edit this file.
 
+CFLAGS = -D NDEBUG -O
+LDFLAGS = -s
 
-# Returns true if version string $1 refers to
-# a greater/equal version than version string $2.
-version_ge() {
-	local o1 o2 p1 s1 p2 s2
-	o1=$1 o2=$2
-	while :
-	do
-		p1=${o1%%.*} p2=${o2%%.*}
-		s1="" s2=""
-		test x"$p1" = x"$o1" || s1=${o1#*.}
-		test x"$p2" = x"$o2" || s2=${o2#*.}
-		if test "$p1" -ne "$p2"
-		then
-			test "$p1" -gt "$p2"
-			return
-		fi
-		test -z "$s2" && return
-		test -n "$s1" || return
-		o1=$s1 o2=$s2
-	done
-}
+# No need to redefine these.
+TARGETS = myprog
 
+.PHONY: all clean
 
-# $1: Item to ask for.
-# Returns true for "Yes". Default is "No".
-# Option -y makes "Yes" the default instead.
-# Uses always default for non-interactive shells without prompting.
-want() {
-	local REPLY DEFAULT PROMPT
-	if test x"$1" = x"-y"
-	then
-		shift; PROMPT=Y/n; DEFAULT=y
-	else
-		PROMPT=y/N; DEFAULT=n
-	fi
-	tty -s && read -p "Do you want $1 ($PROMPT)? " -t 10 REPLY || REPLY=
-	test -z "$REPLY" && REPLY=$DEFAULT
-	case $REPLY in
-		[Nn]*) echo "Not using $1."; return 1
-	esac
-	echo "Using $1."
-	return 0
-}
+all: $(TARGETS)
 
+clean:
+	-rm $(TARGETS)
+======
+		;;
+	mflibs)
+		 cat <<- '======' > Makefile
+.POSIX:
 
-# Arguments: Options (with leading dashes) followed by source lines.
-# Normally, return value indicates whether source compiles fine.
-# Options prefixed by "?" are special: If source compiles without them,
-# returns FALSE; if source compiles with them returns TRUE.
-testcode() {
-	local OPT TOPT
-	OPT= TOPT=
-	while :
-	do
-		case $1 in
-			-*) OPT=$OPT${OPT:+ }$1;;
-			"?"-*) TOPT=$TOPT${TOPT:+ }${1#?};;
-			*) break
-		esac
-		shift
-	done
-	local SRC I OUT RC
-	I=1
-	while :
-	do
-		SRC="/tmp/conftest_${$}_$I.c"
-		test ! -e "$SRC" && break
-		I=`expr $I + 1`
-	done
-	I=1
-	while :
-	do
-		OUT="/tmp/conftest_${$}_$I.o"
-		test ! -e "$OUT" && break
-		I=`expr $I + 1`
-	done
-	while test $# -gt 0
-	do
-		printf '%s\n' "$1"
-		shift
-	done > "$SRC"
-	set gcc $OPT -c
-	"$@" -o "$OUT" "$SRC" > /dev/null 2>& 1
-	RC=$?
-	test $RC = 0 && rm "$OUT"
-	if test -n "$TOPT"
-	then
-		test $RC != 0; RC=$?
-		if test $RC = 0
-		then
-			if
-				I=$*
-				set gcc $OPT $TOPT -c
-				"$@" -o "$OUT" "$SRC" > /dev/null 2>& 1
-			then
-				rm "$OUT"
-			else
-				echo "ERROR: The following code neither" \
-					"compiles with '$I' nor with '$@':"
-				cat "$SRC"
-				echo
-				echo "Find an option to fix this before" \
-					"proceeding!"
-			fi >& 2
-		fi
-	fi
-	rm "$SRC"
-	return $RC;
-}
+# You may redefine these settings via the "make" command line or export them
+# as environment variables and (in the latter case only) also
+# "export MAKEFLAGS=e". Or just edit this file.
+CPPFLAGS = -D NDEBUG
+CFLAGS = -O
+LDFLAGS = -s
 
+# No need to redefine these.
+LIBS = -lm
 
-umask 022
-GCC_VERSION="`gcc --version | head -n 1 | cut -d' ' -f3`"
-if test -z "$GCC_VERSION"
-then
-	die "Cannot determine GCC version!"
-fi
-OLD_IFS=$IFS
-IFS=$'\n'
-for CPU_ID in `
-	awk -F '\t*: *' -- '
-		$1=="vendor_id"	{vendor=$2}
-		$1=="cpu family" {cpu=$2}
-		$1=="model" {model=$2}
-		$1=="stepping" {stepping=$2}
-		END {
-			print vendor, cpu, model;
-			print vendor, cpu, model, stepping;
-		}
-	' /proc/cpuinfo
-`
-do
-	case $CPU_ID in
-		# Lookup from http://en.gentoo-wiki.com/wiki/Safe_Cflags
-		# /proc/cpuid: <vendor_id> <cpu family> <model> [ <stepping> ]
-		"AuthenticAMD 15 47") CPU_ARCH=athlon64;;
-		"AuthenticAMD 16 2") CPU_ARCH=amdfam10;;
-		"AuthenticAMD 6 4") CPU_ARCH=athlon-tbird;;
-		"AuthenticAMD 6 6") CPU_ARCH=athlon-xp;;
-		"GenuineIntel 15 2") CPU_ARCH=pentium4;;
-		"GenuineIntel 15 4") CPU_ARCH=nocona;;
-		"GenuineIntel 6 6") CPU_ARCH=pentium2;;
-	esac
-done
-IFS=$OLD_IFS
-unset OLD_IFS CPU_ID
-COMMON=-pipe
-if test -n "$CPU_ARCH"
-then
-	if want \
-		"tune for $CPU_ARCH but still generate compatible code"
-	then
-		COMMON="$COMMON -mtune=$CPU_ARCH"
-	else
-		COMMON="$COMMON -march=$CPU_ARCH"
-	fi
-	unset CPU_ARCH
-fi
-if version_ge "$GCC_VERSION" 4.8.3
-then
-	# -fstack-protector is default and hurts performance.
-	COMMON="$COMMON -fno-stack-protector"
-fi
-COMMON_WARNINGS="-Wall -Werror"
-T=-fno-builtin-vprintf
-if
-	# Problem:
-	# gcc-4.1.2 makes autoconf-2.6.1 builtin test complain:
-	# warning: conflicting types for built-in function 'vprintf'
-	# With -Werror, this will also fail the autoconf test,
-	# which is not acceptable.
-	testcode \
-		$COMMON_WARNINGS "?$T" \
-		'#undef vprintf' \
-		'#ifdef __cplusplus' \
-		'extern "C"' \
-		'#endif' \
-		'char vprintf();' \
-		'int main() { return vprintf(); return 0; }'
-then
-	COMMON_WARNINGS="$COMMON_WARNINGS $T"
-fi
-COMMON_WARNINGS="$COMMON_WARNINGS -W -pedantic -Wimplicit -Wreturn-type"
-COMMON_WARNINGS="$COMMON_WARNINGS -Wunused -Wpointer-arith -Wundef"
-COMMON_WARNINGS="$COMMON_WARNINGS -Wwrite-strings -Wno-multichar"
-if
-	# Problem:
-	# gcc-4.1.2 on AMD64 complains:
-	# "warning: passing argument 1 of 'f' with different width due
-	# to prototype", i. e. and "int" will no longer be converted
-	# to a "size_t" without warnings! We do not like that at all.
-	testcode \
-		$COMMON_WARNINGS -Wconversion \
-		'#include <stddef.h>' \
-		'extern void f(size_t);' \
-		'void g(void){f(0);}'
-then
-	COMMON_WARNINGS="$COMMON_WARNINGS -Wconversion"
-fi
-T=-Wno-missing-field-initializers
-if
-	# Problem:
-	# gcc-4.8.3 on AMD64 complains if not all struct members are
-	# assigned values in a struct initialization.
-	# But I *love* setting all struct fields to zero that way!
-	#
-	# For some reasons which are beyond me, this warning is not
-	# generated when generating an object file; only when also linking.
-	# Therefore disabling the option unless this gives an error.
-	testcode \
-		$COMMON_WARNINGS "$T" \
-		'typedef struct {int c1, c2; } s;' \
-		'extern void f(s *p);' \
-		'void g(void){s o= {0}; f(&o);}'
-then
-	COMMON_WARNINGS="$COMMON_WARNINGS $T"
-fi
-T=-Wno-overlength-strings
-if
-	# "error: string length '512' is greater than the length '509' ISO C90
-	# compilers are required to support"
-	x512=`dd if=/dev/zero bs=1 count=512 2> /dev/null | tr -c x x`
-	testcode \
-	$COMMON_WARNINGS "$T" \
-	"char const my_str[]= \"$x512\";"
-then
-	COMMON_WARNINGS="$COMMON_WARNINGS $T"
-fi
-COMMON_WARNINGS="$COMMON_WARNINGS -Wredundant-decls"
-if version_ge "$GCC_VERSION" 3.4.5
-then
-	COMMON_WARNINGS="$COMMON_WARNINGS -Winit-self -Wextra"
-fi
-COMMON_WARNINGS="$COMMON_WARNINGS -Wno-parentheses -Wno-uninitialized"
+TARGETS = myprog
 
-CXX_WARNINGS="-Wcast-qual"
+.PHONY: all clean
 
-C_WARNINGS="-Wdeclaration-after-statement"
+all: $(TARGETS)
 
-if want "source-level debugging"
-then
-	# There are reports that GCC may generate invalid code for -O0.
-	# However, I want to see this before I believe it!
-	CFLAGS="$COMMON -O0 -fno-omit-frame-pointer -fstack-check"
-	# Use the most expressive debugging format compatible with GDB.
-	# The "3" means to include C preprocessor macros if possible.
-	CFLAGS="$CFLAGS -ggdb3"
-	# Omit unreferenced symbols in the debugging information.
-	# This greatly reduces the amount of symbols in the symbol table
-	# and also omits lots of uninteresting internal symbols for
-	# GDB commands like "info variables".
-	CPPFLAGS=
-	CFLAGS="$CFLAGS -feliminate-unused-debug-symbols"
-	LDFLAGS=
-else
-	CPPFLAGS=-DNDEBUG
-	CFLAGS="$COMMON -O3 -fomit-frame-pointer -fno-stack-check"
-	LDFLAGS=-s
-fi
-if version_ge "$GCC_VERSION" 4.0.0
-then
-	LDFLAGS="$LDFLAGS${LDFLAGS:+ }-Wl,-O1,--as-needed,--hash-style=gnu"
-fi
-if want "maximum warnings"
-then
-	CFLAGS="$CFLAGS $COMMON_WARNINGS"
-	CXXFLAGS="$CFLAGS $CXX_WARNINGS"
-	CFLAGS="$CFLAGS $C_WARNINGS"
-else
-	CXXFLAGS="$CFLAGS"
-fi
-if test $# -gt 0 && want "add flags '$@'"
-then
-	CXXFLAGS="$CXXFLAGS $@"
-	CFLAGS="$CFLAGS $@"
-fi
-if
-	want \
-		"separate CPPFLAGS/LDFLAGS and CFLAGS/CXXFLAGS"
-then
-	MERGE_CFLAGS=
-else
-	MERGE_CFLAGS=Y
-fi
+clean:  
+        -rm $(TARGETS)
 
-test -n "$MAKEFLAGS" && ! want "current MAKEFLAGS '$MAKEFLAGS'" \
-	&& MAKEFLAGS=
-{
-	ncores=`getconf _NPROCESSORS_ONLN` && test -n "$ncores" \
-	|| ncores=`
-		ws=\`printf '\t :'\`; ws=${ws%:}
-		grep "^processor[$ws]*:" /proc/cpuinfo | sort -u | wc -l
-	`
-} 2> /dev/null
-nmo=$MAKEFLAGS
-if test -n "$ncores" && test "$ncores" -gt 1
-then
-	ncores=`expr $ncores + 1` # One core always waits for more work.
-	testmake() {
-		local MK I
-		I=1
-		while :
+AUG_CFLAGS = $(CPPFLAGS) $(CFLAGS)
+AUG_LDFLAGS = $(LDFLAGS) $(LIBS)
+
+.c:
+	$(CC) $(AUG_CFLAGS) -o $@ $< $(AUG_LDFLAGS)
+======
+		;;
+	reset)
+		unset export CFLAGS CPPFLAGS CXXFLAGS LDFLAGS MAKEFLAGS
+		unalias gdb
+		return
+		;;
+	help | *)
+		echo "${0##*/} Version 2025.239"
+		sed 's|^[[:space:]]*\(.*\)) \(#.*\)'`:
+			`'|set \1 \&\& . '"${0##*/}"' \&\& make \2|;'`:
+			`' t; d' "$0" \
+		| while read -r setting
 		do
-			MK="/tmp/conftest_${$}_$I.mk"
-			test ! -e "$MK" && break
-			I=`expr $I + 1`
+			echo "\$ make clean && $setting"
 		done
-		printf 'all:\n\t@true' > "$MK"
-		make -f "$MK" "$@" > /dev/null 2>& 1; I=$?
-		rm -- "$MK"
-		return $I
-	}
-	for mo in -j -l
-	do
-		case $nmo in
-			*"$mo"*) continue
-		esac
-		mo=$mo$ncores
-		if testmake $mo
-		then
-			nmo=$nmo${nmo:+ }$mo
-		fi
-	done
-	if
-		if test -n "$MAKEFLAGS" && test x"$nmo" != x"$MAKEFLAGS"
-		then
-			want -y "MAKEFLAGS replaced with '$nmo'"
-		elif test -z "$MAKEFLAGS" && test -n "$nmo"
-		then
-			want -y "MAKEFLAGS set to '$nmo'"
-		fi
-	then
-		MAKEFLAGS=$nmo
-	fi
-fi
-
-echo
-echo "Resulting variables:"
-if test -n "$MERGE_CFLAGS"
-then
-	CFLAGS="$CPPFLAGS${CFLAGS:+ }$CFLAGS${LDFLAGS:+ }$LDFLAGS"
-	CXXFLAGS="$CPPFLAGS${CXXFLAGS:+ }$CXXFLAGS${LDFLAGS:+ }$LDFLAGS"
-	test x"$CFLAGS" = x"$CXXFLAGS" && CXXFLAGS='$CFLAGS'
-	echo "CFLAGS=\"$CFLAGS\""
-	echo "CXXFLAGS=\"$CXXFLAGS\""
-else
-	test x"$CFLAGS" = x"$CXXFLAGS" && CXXFLAGS='$CFLAGS'
-	echo "CPPFLAGS=\"$CPPFLAGS\""
-	echo "CFLAGS=\"$CFLAGS\""
-	echo "CXXFLAGS=\"$CXXFLAGS\""
-	echo "LDFLAGS=\"$LDFLAGS\""
-fi
-if test -n "$MAKEFLAGS"
-then
-	echo "MAKEFLAGS=\"$MAKEFLAGS\""
-	NOTMO=
-else
-	NOTMO=MAKEFLAGS
-fi
-mkargs=
-test -n "$MAKEFLAGS" && mkargs="$mkargs \\\$MAKEFLAGS"
-test -z "$MERGE_CFLAGS" && mkargs="$mkargs CPPFLAGS=\\\"\\\$CPPFLAGS\\\""
-mkargs="$mkargs CFLAGS=\\\"\\\$CFLAGS\\\""
-mkargs="$mkargs CXXFLAGS=\\\"\\\$CXXFLAGS\\\""
-test -z "$MERGE_CFLAGS" && mkargs="$mkargs LDFLAGS=\\\"\\\$LDFLAGS\\\""
-test -n "$MAKEFLAGS" && mkargs="$mkargs MAKEFLAGS=\\\"\\\$MAKEFLAGS\\\""
-mkargs=${mkargs# }
-mkargs="mkargs=\"$mkargs\""
-echo "$mkargs"
-if test ! -e setflags.local
-then
-	echo "#! /bin/false" > setflags.local
-fi
-exec >> setflags.local
-echo "# Settings from `date`:"
-test -z "$MERGE_CFLAGS" && echo "CPPFLAGS=\"$CPPFLAGS\""
-echo "CFLAGS=\"$CFLAGS\""
-echo "CXXFLAGS=\"$CXXFLAGS\""
-test -z "$MERGE_CFLAGS" && echo "LDFLAGS=\"$LDFLAGS\""
-test -n "$MAKEFLAGS" && echo "MAKEFLAGS=\"$MAKEFLAGS\""
-if test -n "$MERGE_CFLAGS"
-then
-	echo "export CFLAGS CXXFLAGS${MAKEFLAGS:+ MAKEFLAGS}"
-	echo "unset CPPFLAGS LDFLAGS${NOTMO:+ }$NOTMO"
-else
-	echo "export CPPFLAGS CFLAGS CXXFLAGS LDFLAGS${MAKEFLAGS:+ MAKEFLAGS}"
-	test -n "$NOTMO" && echo "unset $NOTMO"
-fi
-echo "$mkargs"
+		echo "\$ set reset && . ${0##*/}" \
+			"# reset all customized settings"
+		echo "\$ set gdb && . ${0##*/}" \
+			"# Define alias 'gdb' which allows gdb to be" \
+			"invoked from unsafe '.'"
+		echo "\$ set geninit && . ${0##*/}" \
+			"# Create customizable template ./.gdbinit"
+		echo "\$ set mfsimple && . ${0##*/}" \
+			"# create customizable simple POSIX-compliant Makefile"
+		echo "\$ set mflibs && . ${0##*/}" \
+			"# create customizable POSIX-compliant Makefile" \
+			"using libraries"
+		echo "\$ sh ${0##*/} # THIS help"
+		return
+esac
+CFLAGS="$CFLAGS -pipe"
+case $* in
+	*" -P") MAKEFLAGS=1;; # Set -P as 2nd argument for non-parallel builds.
+	*)
+		MAKEFLAGS=`
+			nproc \
+			|| getconf _NPROCESSORS_ONLN 2> /dev/null \
+			|| echo 1
+		`
+		MAKEFLAGS=`expr $MAKEFLAGS + 1`
+esac
+MAKEFLAGS=-e`
+	case $MAKEFLAGS in
+		1) exit
+	esac
+	make --help 2>& 1 \
+	| sed 's/^[[:space:]]*-\\([jl]\\)[[:space:]]\\{1,\\}.*/ -\\1'\`:
+		\`$MAKEFLAGS'/; t;'\`:
+		\`' s/.*[[:space:]]\\{1,\\}\\(--output-sync\\).*/ \\1/;'\`:
+		\`' t; d' \
+	| paste -sd ''
+`
+export CPPFLAGS= CFLAGS LDFLAGS MAKEFLAGS
+unset CXXFLAGS
