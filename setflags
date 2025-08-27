@@ -109,7 +109,7 @@ AUG_LDFLAGS = $(LDFLAGS) $(LIBS)
 		;;
 	reset)
 		unset export CFLAGS CPPFLAGS CXXFLAGS LDFLAGS MAKEFLAGS
-		unalias gdb
+		unalias gdb 2> /dev/null || :
 		return
 		;;
 	help | *)
