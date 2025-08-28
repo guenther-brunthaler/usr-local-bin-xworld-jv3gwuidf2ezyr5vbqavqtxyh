@@ -56,7 +56,7 @@ focus cmd
 ======
 		;;
 	mfsimple)
-		 cat <<- '======' > Makefile
+		 cat << '======' > Makefile
 .POSIX:
 
 # You may redefine these settings via the "make" command line or export them
@@ -78,7 +78,7 @@ clean:
 ======
 		;;
 	mflibs)
-		 cat <<- '======' > Makefile
+		 cat << '======' > Makefile
 .POSIX:
 
 # You may redefine these settings via the "make" command line or export them
@@ -98,7 +98,7 @@ TARGETS = myprog
 all: $(TARGETS)
 
 clean:  
-        -rm $(TARGETS)
+	-rm $(TARGETS)
 
 AUG_CFLAGS = $(CPPFLAGS) $(CFLAGS)
 AUG_LDFLAGS = $(LDFLAGS) $(LIBS)
