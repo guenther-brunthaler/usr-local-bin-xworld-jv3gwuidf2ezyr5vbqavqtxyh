@@ -1,0 +1,195 @@
+#! /bin/sh
+help_text() { 
+	cat << '====='
+bom: Output Unicode byte-order mark for current locale.
+boxify: Draw ASCII box characters around your table data.
+br: Bump revision of text containing a year-range/revision specification.
+bullet: Put bullet symbol at the beginnings of all lines.
+byte-units: Display a numeric quantity of bytes as dynamic units such as MB.
+cco: Encomment and decomment multiline C source code comments.
+chomp: Removes the terminator sequence from a single line, if present.
+crg: Replace selected line by a copyright notice.
+cs: Sets the UI clipboard by the text read from standard input.
+cstr: Filter for editing concatenated C strings. Converts between C form and
+ free text form, auto-detecting the current form.
+csv_from_textlines:
+ Quotes the contents of arbitrary lines read from standard input as necessary
+ to interpret the contents of every line as a single CSV field and write the
+ result to standard output.
+
+ The input lines can contain any character except newline, which is used to
+ terminate every input line.
+date_from_dd.mm.yyyy_into_yyyy-mm-dd_xfm:
+ Convert all occurrences of MM.DD.YYYY into YYYY-MM-DD.
+decimal_dot_into_locale_comma_xfm:
+ Converts "." into whatever your locale considers the decimal point.
+dt: Format date and/or time in various variants useful in filenames
+dup: Like "cat", but outputs multiple (default: 2) copies of the data.
+emq: Add e-mail style quoting marks to text.
+enflow:
+ Convert between flowtext (newlines ony at the end of and between paragraphs)
+ and word-wrapped text (a single space at the end of continuation line within
+ a logical paragraph. Some editors (such as "joe") have a special editing mode
+ for this.
+flowesc:
+ Intended to used together with "qstr" in order to edit flow-text string
+ literals embedded with in C source text. Use "qstr" first to remove the
+ quotes. Then use "flowesc" to get rid of the literal "\n" at the ends of the
+ last lines of all paragraphs. Now you can edit the text, provided your text
+ editor has mode for interpreting trailing spaced at the end of lines as soft
+ line breaks within longer paragraphs. After editing, re-apply both filters in
+ reverse order to get the C string literals back.
+flowtext_rfc3676:
+ Convert between one-logical-line-is-one-paragraph text files and such which
+ have been word-wrapped according to the RFC 3676 specs for format=flowed
+ e-mail text files. Multiple levels of quoting in the text, if any, will be
+ converted, too.
+
+ When formatting flow text back into RFC 3676, delta specifications have
+ precedence: If both an indentation level delta and an absolute indentation
+ level are specified, the absolute level is ignored.
+foldwrap:
+ Converts between 2 word-wrapped representations of original "one long
+ physical line is one logical paragraph" format. One format uses space
+ characters at the end of a continued line within a logical paragraph.
+
+ The other format considers lines idented by a single space to be the
+ continuation lines within the paragraph.
+html2ascii-with-aart-tables:
+ Wrapper for "w3m" which converts HTML into plain text, including tables. Table
+ borders are rendered using ASCII-art box-drawing characters.
+ind: Indent or de-indent a block of text.
+latin9ize-unicode-text:
+ Convert text into LATIN-9 encoding. Normalizes whitespace into simple spaces.
+lcase: Locale-aware conversion of text into lower letters.
+lcase-extension:
+ Like "lcase", but only the extensions of file names are converted.
+ For instance, will covert "My Image.JPG" into "My Image.jpg"
+less-human:
+ Word-wrap "every physical line represents a logical paragraph"-text for
+ display only text and use "less" to actually display it.
+limit-accumulated:
+ Filter similar to "head". But instead of counting leading input lines as the
+ condition when to stop, this filter will add together the floating point
+ values from a specified column of the input file. The filter will output all
+ lines until the sum reaches the specified limit.
+
+ This can be used to only report the largest or smallest entries of a sorted
+ column-based text.
+line-length-maximum-show:
+ Shows the length of the largest physical line in the text.
+ Useful to verify that source code does not contain overlong lines.
+locale-unicode-escape-decoder:
+ Decodes sequences like "<U09>", "<U000a>" in the text into Unicode first,
+ then converts anything which is not ASCII back to the same representation.
+mkpairs:
+ Create the cross product of all input lines preserving their original order,
+ outputting the resulting pairs separated by a tab character.
+more-human: Like "less-human", but using "more" for displaying the result.
+oct_quote:
+ Filter which converts all nonprintables except for ASCII LF into C escape
+ sequences.
+
+ This tool is very handy for editing emails which use different character
+ encodings in its various MIME parts.
+oct_unquote: Reverse the effect of "oct_quote".
+prefixed-subsymbol-extractor
+qin: Quote strings for proper usage as shell arguments
+qlines: Filter for shell-quoting input lines.
+qsh:
+ Quote shell metacharacters. If option -s is specified, the resulting lines
+ will be output as quoted strings, or the quotes will be removed when
+ unquoting. By default, single quotes will be used - but options -d and -2
+ will make the script use double quotes instead.
+qstr:
+ Identify common line prefixes and suffixes and remove them both. The text is
+ prefixed by a header line which, when found, will instead restore the
+ original format by re-adding the stripped prefixes and suffixes (and remove
+ said header line after this).
+
+ This is handy to convert string literals or comments in some programming
+ language into plain text temporarily, which can then be edited and re-flown
+ before converting them back into literals or comments.
+revisiontime:
+ Display the current UTC date and/or time (with option -3) as a string which
+ looks like a revision number. The first component will be the year, the
+ second will be the day number within the year. The optional third component
+ will be the time within the day transformed into the range 0-999.
+ringbuffer_file:
+ Append text to a fixed-size ring-buffer file or retrieve the current contents
+ of the file. The first line in the ring buffer is usually only a partial line
+ and should be ignored.
+rmk:
+ Convert test into source-text comments. Default is POSIX shell comments, but
+ C, C++ and JavaDoc-style comments can also be selected.
+roman-numerals-to-decimal: Convert roman numerals to decimal numbers.
+rtrim: Remove trailing whitespace from input.
+ruler-for-terminal-columns:
+ Show a "ruler" demonstrating column positions. Useful for temporarily
+ inserting the output into text which must be restrcited to a specific line
+ length, even though the editor uses more columns.
+squeeze:
+ Replace runs of empty lines (or lines containing only whitespace) by single
+ empty lines. Also removes all empty lines (or lines containing only
+ whitespace) from the beginning and end of the output.
+squeeze-multiple-empty-lines:
+ Same as "squeeze" but can optionally also normalize whitespace within
+ non-empty lines.
+text-formatters-help:
+ *This* script. Explains what most of the text reformatters (in the same
+ directory as this script) will do.
+title2filename:
+ Transform a list of movie or song titles into ASCII strings suitable as
+ portable file names. This loses information. The converted names cannot be
+ converted back automatically.
+titlecase: Convert the first character of each word into upper letter case.
+traditionalize_locale-encoded_pathnames:
+ Like "title2filename", but revertible without information loss. Will output
+ lines like "=latin_capital_letter_u_with_diaeresis=bermensch". Also supports
+ reversing the transformation back to Unicode.
+trigraph_mk:
+ Convert C source code into functionally equivalent text which uses "trigraph"
+ sequences wherever possible in order to avoid characters which can also be
+ represented by "trigraph"-sequences.
+trim:
+ Remove leading and trailing whitespace and replace all remaining runs of
+ whitespace by a single space.
+ucase: Convert all lower-case characters into upper-case.
+unfold-paragraphs:
+ Removes newline characters separating the lines of a logical paragraph. A
+ logical paragraph is a set of un-indented lines which are not empty.
+
+Within a paragraph, runs of multiple whitespace characters will be compressed
+ into a single space, and trailing whitespace will be removed.
+
+Indented and empty lines will be considered preformatted and will be passed
+ through unchanged.
+
+The described compression of whitespace character allows a block-justified
+ text to be returned into its original form before the justification.
+unfold-s: Undoes the effect of "fold -s"
+unwrap:
+ Convert formatted text to free-flowed text. Assume empty lines to separate
+ paragraphs. Also every line starting with most special characters is
+ considered a (bulled point) paragraph, unless the line before it contains
+ whitespace at its end, in which case it is assumed to be just another
+ continuation line.
+uqsh: Reverses the effect of "qsh", i.e. removes one level of shell quoting.
+urldecode: Reverses the effect of "urlencode".
+urlencode:
+ URL-encodes any number of string arguments and / or lines read from standard
+ input (if it is not a terminal).
+win2utf8: Converts a text file from Windows charset CP-1252 into UTF-8.
+win2utf8-multiple:
+ Converts the contents of a list of files from from Windows charset CP-1252
+ into UTF-8.
+word-lines-from-text-revertible:
+ Losslessly convert text into a format which contains only a single "word" per
+ line (with no whitespace in it). Can also convert such text back into the
+ original text containing whitespace. This is useful for making word-based
+ diffs and apply them as patches.
+xg: Write the text of the primary X11 selection to standard output.
+xs: Set text read from standard input as the primary X11 selection.
+=====
+}
+help_text | less
