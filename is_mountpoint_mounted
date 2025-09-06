@@ -1,12 +1,20 @@
 #! /bin/sh
+
 # Returns 0 if $1 is a mount point
 #
-# Version 13.85
+# Version 2025.249
+# (c) 2013-2025 by Guenther Brunthaler.
 #
-# (c) 2013 by Guenther Brunthaler.
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
+set -e
+PATH=$PATH:/bin:/usr/bin:
+if getopts '' opt
+then
+	false || exit
+fi
+shift `expr $OPTIND - 1 || :`
 
-/bin/cat /proc/mounts | /usr/bin/cut -d' ' -f 2 \
-| /bin/grep -x "`readlink -f \"$1\"`" > /dev/null
+cat /proc/mounts | cut -d' ' -f 2 \
+| grep -x "`readlink -f \"$1\"`" > /dev/null
