@@ -1,0 +1,160 @@
+#! /bin/sh
+
+# Front end for browsing local HTML documentation with a web browser. The only
+# argument to the script (except optionally "--") must be either a "file://"
+# URL or a path name.
+#
+# The path name may be relative or absolute. The "file:"-URL may be malformed
+# (such as "file:/path" or containing literal "#" characters) and will be
+# fixed.
+#
+# There is special support for browsing documentation from within a compressed
+# archive via AVFS: If the filename or URL refers to a path below
+# "$HOME/.avfs/." but no filesystem is currently mounted at this directory,
+# then "mountavfs" will be executed in order to mount AVFS there.
+#
+# Version 2025.248
+# Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+APP_UUID=6hlc9rw78bjtun73lfue8x1xc
+
+set -e
+cf=${XDG_CONFIG_HOME:="$HOME"/.config}/misc/`basename -- "$0"`_$APP_UUID.conf
+mkdir -p -- "`dirname -- "$cf"`" 2> /dev/null || :
+
+qs() {
+	printf "%s\n" "$1" | sed 's/'\''/'\''\\'\'''\''/g; s/.*/'\''&'\''/'
+}
+
+# Args: ${conffile_path}, ${shell_var_name}=${config_key}:=${default_val} ...
+# ${default_val} is optional and defaults to an empty string.
+# ${config_key} is optional and defaults to ${shell_var_name}.
+read_config() {
+	cf=$1; shift
+	test -f "$cf" || cf=/dev/null
+	n=$#
+	while test $n != 0
+	do
+		dfl=${1#*":="}
+		case $1 in
+			"$dfl") dfl= vn=$1;;
+			*) vn=${1%":=$dfl"}
+		esac
+		shift
+		key=${vn#*"="}
+		case $vn in
+			"$key") ;;
+			*) vn=${vn%"=$key"}
+		esac
+		set -- "$@" "$vn" "$key" "$dfl"
+		n=`expr $n - 1` || :
+	done
+	sed '
+		s/^[[:space:]]*//; /^#/d
+		s/^\([^=[:space:]]*\)[[:space:]]*=[[:space:]]*/\1 /
+		s/[[:space:]]*$//; /^$/d
+	' "$cf"	\
+	| {
+		while read key val
+		do
+			n=$#
+			while test $n != 0
+			do
+				case $key in
+					"$2") set -- "$@" "$1" "$2" "$val";;
+					*) set -- "$@" "$1" "$2" "$3"
+				esac
+				shift 3
+				n=`expr $n - 3` || :
+			done
+		done
+		n=$#
+		while test $n != 0
+		do
+			echo "$1=`qs "$3"`"
+			shift 3
+			n=`expr $n - 3` || :
+		done
+	}
+}
+
+save=false
+eval `read_config "$cf" browser=web_browser:=xdg-open`
+while getopts sb: opt
+do
+	case $opt in
+		b) browser=$OPTARG;;
+		s) save=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+command -v "$browser" > /dev/null 2>& 1
+
+if $save
+then
+	cat << ==== > "$cf"
+web_browser = $browser
+====
+fi
+
+test $# = 1
+
+# Be lazy. Let Perl do the hard work rather than trying to do it with standard
+# UNIX command line tools.
+
+exec perl -x -S -- "$0" "$browser" "$1"
+#! perl
+#line 112
+
+use strict;
+use warnings qw(all);
+use autodie;
+use open ':locale';
+use File::Spec::Functions qw(
+   canonpath catdir catpath file_name_is_absolute rel2abs splitdir
+   splitpath
+);
+
+sub fs_sig($) {
+   my($absdir) = @_;
+   my(@st) = stat $absdir or die $!;
+   return $st[0]; # "dev".
+}
+
+sub is_mounted($) {
+   my($absdir) = @_;
+   -d $absdir || return;
+   my($vol, $dirs, $lastdir) = splitpath($absdir, 1);
+   my(@dirs) = splitdir($dirs);
+   $lastdir = pop @dirs; $lastdir = pop @dirs;
+   my $parent = catpath($vol, catdir(@dirs), $lastdir);
+   return fs_sig($absdir) != fs_sig($parent);
+}
+
+$_ = $ARGV[1];
+if (s!file://*!!) {
+   # Decode file URL.
+   $_ = "/$_";
+   s/%([[:xdigit:]]{2})/chr hex $1/ge;
+}
+unless (file_name_is_absolute($_)) {
+   # Convert relative path into absolute path.
+   $_ = rel2abs($_) || die $!;
+}
+my $mp = catdir(canonpath($ENV{HOME}), '.avfs');
+my $mrx = quotemeta $mp;
+$mrx = qr/^$mrx(?:[^[:alnum:]]|$)/;
+$_ = canonpath($_);
+if (/$mrx/ && !is_mounted($mp)) {
+   system("mountavfs > /dev/null") == 0 or die $!;
+   sleep 1 until is_mounted($mp);
+}
+-f || die $!;
+s!([^-/._~a-zA-Z0-9])!sprintf '%%%02X', ord $1!ge;
+$_ = "file://$_";
+exec $ARGV[0], $_ or die $!;
