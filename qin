@@ -63,8 +63,8 @@ wr() {
 	} | fold -sw $LINEWIDTH
 }
 LINEWIDTH=`tput cols || echo ${COLUMNS:-66}`
-# Provided: this + 1 line
 
+# Provided: above
 multiline=false
 while getopts mhV opt
 do

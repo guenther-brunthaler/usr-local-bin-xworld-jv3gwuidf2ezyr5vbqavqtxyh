@@ -81,8 +81,8 @@ read_config() {
 		done
 	}
 }
-# Provided: this + 1 line
 
+# Provided: above
 save=false
 eval `read_config "$cf" browser=web_browser:=xdg-open`
 while getopts sb: opt
