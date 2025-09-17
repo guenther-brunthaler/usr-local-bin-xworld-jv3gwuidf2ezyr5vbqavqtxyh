@@ -13,7 +13,7 @@
 # "$HOME/.avfs/." but no filesystem is currently mounted at this directory,
 # then "mountavfs" will be executed in order to mount AVFS there.
 #
-# Version 2025.248
+# Version 2025.260
 # Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -22,6 +22,7 @@
 APP_UUID=6hlc9rw78bjtun73lfue8x1xc
 
 set -e
+# Provides: read_config "j5m0qhy6q7pz5cw356dv7adzs"
 cf=${XDG_CONFIG_HOME:="$HOME"/.config}/misc/`basename -- "$0"`_$APP_UUID.conf
 mkdir -p -- "`dirname -- "$cf"`" 2> /dev/null || :
 
@@ -80,6 +81,7 @@ read_config() {
 		done
 	}
 }
+# Provided: this + 1 line
 
 save=false
 eval `read_config "$cf" browser=web_browser:=xdg-open`
