@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr << ===; exit
-$APP Version 2025.25
+$APP Version 2025.260
 Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -40,9 +40,11 @@ Supported options:
 }
 APP=${0##*/}
 
+# Provides: #simple_error "h94h0wbejqap5f4zavnri08fc" v2025.260
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+# Provides: #wrap_folded "icn1lm05mb97zkuaqxqd6neih" v2025.260
 wr() {
 	{
 		unterminated=false
@@ -61,6 +63,7 @@ wr() {
 	} | fold -sw $LINEWIDTH
 }
 LINEWIDTH=`tput cols || echo ${COLUMNS:-66}`
+# Provided: this + 1 line
 
 multiline=false
 while getopts mhV opt
