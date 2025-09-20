@@ -1,0 +1,116 @@
+#! /bin/sh
+
+# Split (or undo the splitting of) a long "C" string literal into an array of
+# shorter string literals, so that none of them exceeds the maximum portable
+# length (4095 characters) of an ANSI/ISO C89 string literal.
+#
+# The long string literal must consist of indented double-quoted individual
+# "C" string literals no longer than 80 characters per line, which the C
+# compiler will merge into a single string literal when compiling that source
+# file.
+#
+# Splitting is done by replacing a space character which is part of the
+# indentation of this line with a ","-character, converting the long multline
+# single (after internal concatenation by the C compiler) string literal into
+# an array of strings.
+#
+# This will be done every 50 lines, which means that none of the resulting
+# splitted string literals will be longer than 4000 characters, which fits
+# comfortably into the guaranteed maximum length of 4095 characters.
+#
+# This filter can either insert the ","-characters (which splits the long
+# string literal) or remove them (which undoes the splitting).
+#
+# Which action is taken is determined by examining the input for indented
+# ","-characters. If at least one is present, it is assumed that the source
+# file represents an array of strings, and any leading indented "," will be
+# removed. This will merge the array of string literals back into a single
+# multiline string.
+#
+# Otherwise, it is assumed that the multiline string literal shall be split by
+# replacing part of the indentation with "," every 50 lines.
+#
+# This replacement will by default remove the last 3 ASCII SPACE characters of
+# the indentation and replace it with "," right-padded with ASCII SPACE
+# characters to the same length as the previously removed indentation.
+#
+# This default can be changed by specifying a positive integer value as the
+# only command line parameter. This value will then be used as the number of
+# ASCII SPACE characters to remove rather than the default 3 as explained
+# above.
+#
+# Version 2025.263
+# Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
+#
+# This document is free documentation.
+# Distribution is permitted under the terms of the GFDL-1.3.
+
+set -e
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TF=
+trap cleanup 0
+trap 'exit $?' HUP INT TERM QUIT
+
+die() {
+	printf '%s\n' "$*" >& 2
+	false || exit
+}
+
+ck_nnegint() {
+	expr x"$1" : '[1-9][0-9]*$' > /dev/null \
+		|| die "Specified value '$1' is not a non-negative integer!"
+}
+
+insert_every=50
+while getopts n: opt
+do
+	case $opt in
+		n) ck_nnegint "$OPTARG" insert_every=$OPTARG;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+rmlen=3
+if test $# != 0
+then
+	ck_nnegint "$x"
+	rmlen=$1; shift
+fi
+
+test $# = 0
+
+nosep=
+while test ${#nosep} != $rmlen
+do
+	nosep="$nosep "
+done
+sep=,${nosep#" "}
+
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}".XXXXXXXXXX`
+cat > "$TF"
+if grep -q '^[[:space:]]*,' "$TF"
+then
+	# Undo splitting.
+	sed 's/^\([[:space:]]*\),/\1 /' "$TF"
+else
+	# Split.
+	grep -lv '^[[:space:]]*'"$nosep"'"' "$TF" \
+	&& die "The indentation of this line does not end with" \
+		"$rmlen ASCII SPACE characters!"
+	awk -v rmlen=$rmlen -v sep="$sep" -v nosep="$nosep" \
+		-v insert_every=$insert_every \
+		-f /dev/fd/5 < "$TF" \
+	5<<- 'EO_AWK'
+		(NR - 1) % insert_every || NR == 1 {print; next}
+		{
+			match($0, "^[[:space:]]*" nosep)
+			print substr($0, 1, RLENGTH - rmlen) \
+				sep substr($0, 1 + RLENGTH)
+		}
+	EO_AWK
+fi
