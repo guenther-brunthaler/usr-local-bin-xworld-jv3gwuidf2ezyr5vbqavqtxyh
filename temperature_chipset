@@ -1,22 +1,38 @@
 #! /bin/sh
 
-# v2024.211.1
+# v2025.268
 eval `locale -k LC_NUMERIC | grep ^decimal_point= || echo decimal_point=.`
 degree_celsius=`
 	echo +ALA-C | iconv -f UTF-7 2> /dev/null \
 	|| echo degree Celsius
 `
 
-get_measurements() {
+filter_output() {
+	sedscr=$1; shift
+	if output=`LC_ALL=C "$@"`
+	then
+		echo "1:`printf '%s\n' "$output" | sed "$sedscr"`"
+	else
+		echo 2:N/A
+	fi
+}
+
+thermal_zone() {
 	grep -s . /sys/class/thermal/thermal_zone[0-9]*/temp \
 	| awk -F: '{printf "%.1f\n", $NF / 1e3}'
-	if command -v sensors > /dev/null 2>& 1
+}
+
+get_measurements() {
+	filter_output '' thermal_zone
+	if
+		sensors=`command -v sensors 2> /dev/null` \
+		&& test -x "$sensors"
 	then
-		LC_ALL=C sensors | sed '
+		filter_output '
 			s/^[^:]*:[[:space:]]*+\{0,1\}'`
 			:`'\([-.0-9]\{1,\}\) C\([^[:graph:]].*\)\{0,1\}$/\1/
 			t; d
-		'
+		' "$sensors"
 	fi
 	if
 		# Check for Raspberry Pi GPU utility.
@@ -26,8 +42,8 @@ get_measurements() {
 		` \
 		&& test -x "$vcg"
 	then
-		LC_ALL=C "$vcg" measure_temp \
-		| sed 's/^[^0-9]*//; s/[^-.0-9].*//'
+		filter_output 's/^[^0-9]*//; s/[^-.0-9].*//' \
+			"$vcg" measure_temp 
 	fi
 }
 
@@ -35,6 +51,6 @@ echo "`
 	get_measurements \
 	| sed 's/\.0$//' \
 	| tr . "$decimal_point" \
-	| sort -nr \
-	| head -n 1
+	| LC_NUMERIC=C sort -t : -urn -k 1,1 -k 2,2 \
+	| sed 's/2://; t; s/1://; q'
 ` $degree_celsius"
