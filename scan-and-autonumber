@@ -1,8 +1,8 @@
 #! /bin/sh
 exit_version() {
 	wr -s << ===; exit
-$APP Version 2022.227
-Copyright (c) 2019-2022 Guenther Brunthaler. All rights reserved.
+$APP Version 2025.280
+Copyright (c) 2019-2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -33,8 +33,11 @@ $dpi, which is also recommended for later using OCR on the scans.
 
 -r: Rotate the scan by 180 degrees before saving it.
 
--C: Don't try to convert the scanned image into losslessly LZW-compressed TIFF
-format, but rather leave it as an uncompressed PNM. Use this if you have
+-t: Store the scans as losslessly LZW-compressed TIFF rather than lossless PNG
+(which is the default).
+
+-C: Don't try to convert the scanned image into losslessly compressed TIFF or
+PNG format, but rather leave it as an uncompressed PNM. Use this if you have
 plenty of free space on your disk and do not want to waste your time waiting
 for LZW compression. Also used this if 'imagemagick' runs out of resources
 while trying to convert very large images.
@@ -97,12 +100,14 @@ Useful to understand what the script would do when run without this option.
 }
 
 digits=3
-outfmt='infile-%0${digits}u.%s'
+outfmt='scan-%0${digits}u.%s'
 toutext=pnm
-foutext=tif
+foutext=png
 dpi=300
 depth=8
-out_opt='-type TrueColor -colorspace sRGB -depth $depth -compress LZW'
+out_opt='-type TrueColor -colorspace sRGB -depth $depth'
+png_opt='-quality 6'
+tif_opt='-compress LZW'
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
@@ -147,9 +152,10 @@ rotate180=false
 interactive=true
 custom_opts=
 n=1
-while getopts CLo:ID:Trd:N:gGnhV opt
+while getopts tCLo:ID:Trd:N:gGnhV opt
 do
 	case $opt in
+		t) foutext=tif;;
 		I) interactive=false;;
 		D) ck_posint; dpi=$OPTARG;;
 		T) trim=false;;
@@ -183,6 +189,7 @@ do
 	esac
 done
 
+eval "t=\${foutext}_opt"; eval "t=\$$t"; out_opt="$out_opt $t"
 eval "outfmt=\"$outfmt\""
 
 simrun() {
