@@ -1,7 +1,9 @@
 #! /bin/sh
 
 # Replaces all hexadecimal key fields in all dmsetup "crypt" table entries
-# with new full-entropy keys.
+# with new full-entropy keys. If a key field contains a decimal integer
+# enclosed in braces instead, it will be interpreted as an octet count for
+# a new key to be generated. For instance "{32}" will create a 256-bit key.
 #
 # This can be used to refresh keys after some time, or replace keys which
 # might have been compromised. Another usage is to create new keys using the
@@ -29,8 +31,8 @@
 # the original file except that all keys will have been replaced with new
 # ones.
 #
-# Version 2023.279.1
-# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+# Version 2025.309
+# Copyright (c) 2023-2025 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -53,8 +55,7 @@ shift `expr $OPTIND - 1 || :`
 replace_keys() {
 	awk -v keygen=\""$truerand"\" -f /dev/fd/5 5<< '===' -- ${1+"$@"}
 
-	$3 == "crypt" && $5 ~ /^[[:xdigit:]]+$/ {
-		n = length($5)
+	function rplc(n) {
 		if (n % 2) die()
 		b = n / 2
 		c = keygen " " b " | od -A n -vt x1 | tr -dc '[:xdigit:]'"
@@ -62,6 +63,15 @@ replace_keys() {
 		close(c)
 		if (length(nk) != n) die()
 		$5 = nk
+	}
+
+	$3 == "crypt" && $5 ~ /^[[:xdigit:]]+$/ {
+		rplc(length($5))
+	}
+
+	$3 == "crypt" && $5 ~ /^\{[1-9][0-9]*\}$/ {
+		sub(/^\{/, "", $5); sub(/\}$/, "", $5)
+		rplc($5 * 2)
 	}
 
 	{print}
