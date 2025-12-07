@@ -1,6 +1,8 @@
 #! /bin/sh
-# Generate a base-62 password: 256 bits without arguments, or 128 bits
-# otherwise.
+
+# Generate a password made of "Pronouncable Quintuplets" (Proquints), except
+# that the dashes are replaced with ASCII SPACE (which are easier to type in):
+# 256 bits without arguments, or 128 bits otherwise.
 #
 # Uses neither /dev/random nor /dev/urandom, because both cannot guarantee any
 # entropy any longer since Linux changed /dev/random in 2020 and made it
@@ -10,7 +12,7 @@
 # entropy using the HAVEGE algorithm and in addition uses a hardware random
 # number generator, if one is available.
 #
-# Version 2025.319
+# Version 2025.341
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
