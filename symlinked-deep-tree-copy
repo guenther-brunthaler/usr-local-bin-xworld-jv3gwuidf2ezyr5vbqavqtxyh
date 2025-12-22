@@ -1,0 +1,74 @@
+#! /bin/sh
+
+# Create the copy of a subdirectory tree, which can contain normal files and
+# directory as well as symlinks to those.
+#
+# The copied trie will only create real directories and symlinks to files. Any
+# symlinks to directories in the source tree will be followed when creating
+# the copies, and therefore no symlinks to directories will exist in the
+# created copy any longer. Instead, they will have been copied as symlinked
+# files within real directories.
+#
+# v2025.356
+set -e
+
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+dry_run=false
+while getopts n opt
+do
+	case $opt in
+		n) dry_run=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+src=${1:?Source directory containing shallow symlinks}
+dst=${2:?Destination directory to be emptied before creating deep symlinks}
+shift 2
+test $# = 0
+
+run() {
+	$dry_run && set echo "SIMULATION: $*"
+	"$@"
+}
+
+run test -d "$src"
+run test -d "$dst"
+
+case $src in
+	-*) src=./$src
+esac
+
+case $dst in
+	-*) dst=./$dst
+esac
+
+run test "`readlink -f -- "$src"`" != "`readlink -f -- "$dst"`"
+
+run find "$dst" ! -type d -exec rm -f -- {} +
+run find "$dst" -depth ! -path "$dst" -exec rmdir -- {} +
+
+find -L "$src" \
+| LC_COLLATE=C sort \
+| while IFS= read -r f
+do
+	o=${f#$src/}; o=${o#/}; o=$dst/$o
+	if test -d "$f"
+	then
+		if test ! -e "$o"
+		then
+			run mkdir -- "$o"
+		fi
+	elif test ! -e
+	then
+		echo "MISSING $f"
+	else
+		case $f in
+			/*) ;;
+			*) f=$PWD/$f
+		esac
+		run cp -s -- "$f" "$o"
+	fi
+done
