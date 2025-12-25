@@ -1,0 +1,65 @@
+#! /bin/sh
+
+# Toogle between text containing special newline escapes and such that
+# doesn't.
+#
+# Two newline escapes are recognized: " \n\n " which will expand to
+# "${NL}${NL}" and " \n" which will expand to just "${NL}", where "${NL}
+# represents the ASCII character "LF".
+#
+# Text containg such escaped will be expanded as explained above.
+#
+# Text not containing such excapes will be encoded, transforming all embedded
+# ASCII "LF" sequences into the encodings explained above.
+#
+# The script can act as a typical UNIX filter utility, transforming its
+# standard input to its standard output.
+#
+# If standard input is detected to be a terminal, however, it uses the
+# external command "cg" to obtain its input text, and feeds the resulting text
+# to the external command "cs". "cg" is expected to write text from the
+# X11/Wayland clipboard to standard output, while "cs" will set the contents
+# of the X11/Wayland clipboard to the text received as its standard input.
+#
+# This means one can use the clipboard to transform using this script. Just
+# select it first, then copy its contents to the clipboard, call this script
+# without any arguments, and then paste back the contents of the clipboard
+# which will replace the originally selected text.
+#
+# Bugs: This script uses "sed" for most of the transformations. POSIX
+# implementation are allowed to restrict the maximum input line length to a
+# constant {LINE_MAX} which might be as small as 2048. Although several
+# popular "sed" implementations support much larger input lines, it seems
+# unwise to count on that. It is therefore recommended to use this script only
+# for small portions of text, such as indivdual entries within a larger text
+# of individual entry-lines.
+
+# v2025.359
+set -e
+cleanup() {
+	rc=$?
+	test "$TF" && rm -- "$TF"
+	test $rc = 0 || echo "\"$0\" failed!" >& 2
+}
+TF=
+trap cleanup 0
+trap 'exit $?' INT PIPE HUP TERM QUIT
+
+convert() {
+	if tee -- "$TF" | grep -qFe ' \n ' -e ' \n\n '
+	then
+		sed 's/ \\n\\n /\n\n/g; s/ \\n /\n/g' "$TF"
+	else
+		sed 's/$/ \\n /g' "$TF" \
+		| tr -d '\n' \
+		| sed 's/ \\n  \\n / \\n\\n /g; s/ \\n $/\n/'
+	fi
+}
+
+TF=`mktemp -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"`
+if test -t 0
+then
+	cg | convert | cs
+else
+	convert
+fi

@@ -132,6 +132,12 @@ qin: Quote strings for proper usage as shell arguments
 
 qlines: Filter for shell-quoting input lines.
 
+paragraph-lineescapes-toggle: Toggles between text which encodes multiple
+ paragraphs, enumerations or preformatted text into a single line, and the
+ expansion of this encoding. The encoding consists of the substrings " \n "
+ for a single newline and " \n\n " for two consecutive newlines. No other
+ transformations take place.
+
 qsh:
  Quote shell metacharacters. If option -s is specified, the resulting lines
  will be output as quoted strings, or the quotes will be removed when
@@ -262,4 +268,4 @@ xg: Write the text of the primary X11 selection to standard output.
 xs: Set text read from standard input as the primary X11 selection.
 =====
 }
-help_text | less
+help_text | foldwrap | flowtext_rfc3676 | fmt -sw ${COLUMNS:-66} | less
