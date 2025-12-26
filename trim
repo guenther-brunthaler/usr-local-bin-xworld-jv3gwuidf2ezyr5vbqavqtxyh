@@ -1,4 +1,5 @@
-#! /usr/bin/perl
+#! /bin/sh
+
 # Filter to remove leading and trailing whitespace from lines.
 #
 # It also eliminates all adjacent whitespace within a line following a
@@ -7,11 +8,20 @@
 # Note that you might want to use "expand" before applying this filter in
 # order to convert any tabs into spaces.
 #
-# Version 2020.11
-# Copyright (c) 2006-2020 Guenther Brunthaler. All rights reserved.
+# Version 2025.360
+# Copyright (c) 2006-2025 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
+
+if test -t 0
+then
+	cg | "$0" | cs; exit
+fi
+exec perl -x -S -- "$0"; exit
+
+#! perl
+#line 25
 
 use strict;
 use warnings qw(all);

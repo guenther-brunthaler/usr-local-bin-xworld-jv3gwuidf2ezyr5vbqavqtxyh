@@ -1,11 +1,21 @@
-#! /usr/bin/perl
+#! /bin/sh
+
 # Filter to uppercase text.
 #
-# Version 2020.11.1
-# Copyright (c) 2006-2020 Guenther Brunthaler. All rights reserved.
+# Version 2025.360
+# Copyright (c) 2006-2025 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
+
+if test -t 0
+then
+	cg | "$0" | cs; exit
+fi
+exec perl -x -S -- "$0"; exit
+
+#! perl
+#line 19
 
 use strict;
 use warnings qw(all);

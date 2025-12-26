@@ -2,8 +2,8 @@
 # Bump-revision - filter for incrementing YYYY.JJJ.N revision numbers and
 # updating copyright year or year range. Add vYYYY.JJJJ.N if neither found.
 #
-# Version 2020.118
-# Copyright (c) 2018-2020 Guenther Brunthaler. All rights reserved.
+# Version 2025.360
+# Copyright (c) 2018-2025 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -11,48 +11,67 @@
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+while getopts '' opt
+do
+	false || exit
+done
+shift `expr $OPTIND - 1 || :`
+
+test $# = 0
+
 today=`date -u +%Y.%j | sed 's/[.]0*/./g'`
 this_year=${today%%.*}
 
 yrx='2[01][0-9][0-9]'
 xs2='p\n\1\nyf\n\2\nyt\n\3\nys\n\4'
 s1='\('"$yrx"'\(\.[0-9]\{1,\}\)\{1,2\}\)\(\([^.0-9]*.*\)\{0,1\}\)$'
-sed '
-	s/^\(\(.* \)\{0,1\}v\{0,1\}\)'"$s1"'/p\n\1\nr\n\3\nt\n\5/; t
-	s/\(.* \)\('"$yrx"'\)-\('"$yrx"'\)\( .*\)$/'"$xs2"'/; t
-	s/\(.* \)\('"$yrx"'\)\( .*\)$/p\n\1\nyf\n\2\nys\n\3/; t
-	s/.*/t\n&/
-' | {
-	nothing=true
-	while read cmd
-	do
-		IFS= read -r line
-		case $cmd in
-			p) printf '%s' "$line";;
-			t) printf '%s\n' "$line";;
-			r)
-				if test "$line" = "$today"
-				then
-					line=$line.1
-				elif
-					rv=${line#"$today."}
-					test "$rv" != "$line"
-				then
-					line=$today.`expr $rv + 1`
-				else
-					line=$today
-				fi
-				printf '%s' "$line"
-				nothing=false
-				;;
-			yf) yf=$line; yt=$yf;;
-			yt) yt=$line;;
-			ys)
-				test $yt -lt $this_year && yt=$this_year
-				test x"$yf" != x"$yt" && yf="$yf-$yt"
-				echo "$yf$line"
-				nothing=false
-		esac
-	done
-	$nothing && echo v$today || :
+
+filter() {
+	sed '
+		s/^\(\(.* \)\{0,1\}v\{0,1\}\)'"$s1"'/p\n\1\nr\n\3\nt\n\5/; t
+		s/\(.* \)\('"$yrx"'\)-\('"$yrx"'\)\( .*\)$/'"$xs2"'/; t
+		s/\(.* \)\('"$yrx"'\)\( .*\)$/p\n\1\nyf\n\2\nys\n\3/; t
+		s/.*/t\n&/
+	' | {
+		nothing=true
+		while read cmd
+		do
+			IFS= read -r line
+			case $cmd in
+				p) printf '%s' "$line";;
+				t) printf '%s\n' "$line";;
+				r)
+					if test "$line" = "$today"
+					then
+						line=$line.1
+					elif
+						rv=${line#"$today."}
+						test "$rv" != "$line"
+					then
+						line=$today.`expr $rv + 1`
+					else
+						line=$today
+					fi
+					printf '%s' "$line"
+					nothing=false
+					;;
+				yf) yf=$line; yt=$yf;;
+				yt) yt=$line;;
+				ys)
+					test $yt -lt $this_year \
+						&& yt=$this_year
+					test x"$yf" != x"$yt" && yf="$yf-$yt"
+					echo "$yf$line"
+					nothing=false
+			esac
+		done
+		$nothing && echo v$today || :
+	}
 }
+
+if test -t 0
+then
+	cg | filter | cs
+else
+	filter
+fi

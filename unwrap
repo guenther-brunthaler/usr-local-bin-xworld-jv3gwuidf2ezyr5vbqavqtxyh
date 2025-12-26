@@ -1,16 +1,24 @@
-#! /usr/bin/perl -w
-#
+#! /bin/sh
+
 # Convert formatted text to free-flowed text. Assume empty lines to separate
 # paragraphs. Also every line starting with most special characters is
 # considered a paragraph, unless the line before it contains whitespace at its
 # end, in which case it is assumed to be just another continuation line.
 #
-# Version 2020.14
-#
-# Copyright (c) 2007-2020 Guenther Brunthaler. All rights reserved.
+# Version 2025.360
+# Copyright (c) 2007-2025 Guenther Brunthaler. All rights reserved.
 # 
 # This script file is free software.
 # Distribution is permitted under the terms of the GPLv3.
+
+if test -t 0
+then
+	cg | "$0" | cs; exit
+fi
+exec perl -x -S -- "$0"; exit
+
+#! perl
+#line 22
 
 use strict;
 use warnings qw(all);
