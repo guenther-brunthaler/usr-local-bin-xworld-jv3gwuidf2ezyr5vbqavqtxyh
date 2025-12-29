@@ -1,0 +1,49 @@
+#! /bin/sh
+
+# Convert between lines which contain only ASCII whitespace characters, and
+# lines where a dot character (".") has been added to the end of such lines.
+#
+# If option -e is specified, this operation is is extended to also include
+# empty lines.
+#
+# This may be useful for editing Debian control file descriptions, where
+# paragraph boundaries are denoted by indented dots, which ought to be
+# interpreted as indented empty lines separating adjacent paragraphs.
+#
+# Without arguments, this script acts like a UNIX filter, except if standard
+# input is a terminal. In the latter case, it filters the contents of the UI
+# clipboard instead, replacing the current clipboard's contents with the
+# result.
+#
+# With arguments, this script acts as a front-end to "sed". Any "-i" option
+# will be passed throug to "sed". So will all no-option arguments.
+#
+# Version 2025.363
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+passthrough_opts=
+repetition='\{1,\}'
+while getopts ei opt
+do
+	case $opt in
+		e) repetition='*';;
+		i) passthrough_opts="$passthrough_opts -$opt";;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+test $# = 0
+
+sed -f /dev/fd/5 $passthrough_opts -- ${1+"$@"} 5<< EO_SED
+
+/^[[:space:]]$repetition\$/ {
+	s/\$/./; t
+}
+/^[[:space:]]$repetition\\.\$/ {
+	s/\\.\$//
+}
+
+EO_SED

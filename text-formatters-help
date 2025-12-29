@@ -26,7 +26,7 @@ csv_from_textlines:
  Quotes the contents of arbitrary lines read from standard input as necessary
  to interpret the contents of every line as a single CSV field and write the
  result to standard output.
-
+ .
  The input lines can contain any character except newline, which is used to
  terminate every input line.
 
@@ -35,6 +35,11 @@ date_from_dd.mm.yyyy_into_yyyy-mm-dd_xfm:
 
 decimal_dot_into_locale_comma_xfm:
  Converts "." into whatever your locale considers the decimal point.
+
+dot-as-paragraph-separator-toggle:
+ Adds or removes a dot (".") character at the end of lines otherwise only
+ containing whitespace. Useful for editing control files from *.deb files.
+ With option -e, extends this behaviour to empty lines as well.
 
 dt: Format date and/or time in various variants useful in filenames
 
@@ -62,7 +67,7 @@ flowtext_rfc3676:
  have been word-wrapped according to the RFC 3676 specs for format=flowed
  e-mail text files. Multiple levels of quoting in the text, if any, will be
  converted, too.
-
+ .
  When formatting flow text back into RFC 3676, delta specifications have
  precedence: If both an indentation level delta and an absolute indentation
  level are specified, the absolute level is ignored.
@@ -71,7 +76,7 @@ foldwrap:
  Converts between 2 word-wrapped representations of original "one long
  physical line is one logical paragraph" format. One format uses space
  characters at the end of a continued line within a logical paragraph.
-
+ .
  The other format considers lines idented by a single space to be the
  continuation lines within the paragraph.
 
@@ -99,7 +104,7 @@ limit-accumulated:
  condition when to stop, this filter will add together the floating point
  values from a specified column of the input file. The filter will output all
  lines until the sum reaches the specified limit.
-
+ .
  This can be used to only report the largest or smallest entries of a sorted
  column-based text.
 
@@ -120,7 +125,7 @@ more-human: Like "less-human", but using "more" for displaying the result.
 oct_quote:
  Filter which converts all nonprintables except for ASCII LF into C escape
  sequences.
-
+ .
  This tool is very handy for editing emails which use different character
  encodings in its various MIME parts.
 
@@ -149,7 +154,7 @@ qstr:
  prefixed by a header line which, when found, will instead restore the
  original format by re-adding the stripped prefixes and suffixes (and remove
  said header line after this).
-
+ .
  This is handy to convert string literals or comments in some programming
  language into plain text temporarily, which can then be edited and re-flown
  before converting them back into literals or comments.
@@ -224,10 +229,10 @@ ucase: Convert all lower-case characters into upper-case.
 unfold-paragraphs:
  Removes newline characters separating the lines of a logical paragraph. A
  logical paragraph is a set of un-indented lines which are not empty.
-
+ .
  Within a paragraph, runs of multiple whitespace characters will be compressed
  into a single space, and trailing whitespace will be removed.
-
+ .
  Indented and empty lines will be considered preformatted and will be passed
  through unchanged.
 
@@ -268,4 +273,5 @@ xg: Write the text of the primary X11 selection to standard output.
 xs: Set text read from standard input as the primary X11 selection.
 =====
 }
-help_text | foldwrap | flowtext_rfc3676 | fmt -sw ${COLUMNS:-66} | less
+
+help_text | dot-as-paragraph-separator-toggle | less
