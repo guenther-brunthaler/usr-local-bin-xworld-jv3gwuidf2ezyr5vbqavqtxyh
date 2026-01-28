@@ -1,23 +1,63 @@
 #! /bin/sh
+exit_version() {
+	wr << =======; exit
+$APP Version 2026.27
+Copyright (c) 2023-2026 Guenther Brunthaler. All rights reserved.
 
-# Filter dmsetup table contents read from standard input by replacing all
-# hexadecimal key fields with "?"-strings of the same length. This allows to
-# display the contents of those tables without also displaying the keys.
-#
-# Version 2023.279.3
-# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
-#
-# This script is free software.
-# Distribution is permitted under the terms of the GPLv3.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+=======
+}
+
+exit_help() {
+	wr << =======; echo; exit_version
+$APP - mask key fields in a dmcrypt table file for display
+
+Usage: $APP [ <options> ... ] < <dmcryt_table_file>
+
+$APP filters dmsetup table contents read from standard input by replacing all
+ hexadecimal key fields with "?"-strings of the same length.
+
+This allows to display the contents of those tables without also displaying
+ the keys.
+
+Supported options:
+
+-z: Mask hexadecimal key bytes with zeros ("0"). By default they are mask with
+ question marks ("?").
+
+-V: Show version information and exit.
+
+-h) Show THIS help and exit.
+=======
+}
+APP=${0##*/}
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
+
 rchar='?'
-while getopts z opt
+while getopts zVh opt
 do
 	case $opt in
 		z) rchar=0;;
+		V) exit_version;;
+		h) exit_help;;
 		*) false || exit
 	esac
 done

@@ -1,52 +1,95 @@
 #! /bin/sh
+exit_version() {
+	wr << =======; exit
+$APP Version 2026.27
+Copyright (c) 2023-2026 Guenther Brunthaler. All rights reserved.
 
-# Replaces all hexadecimal key fields in all dmsetup "crypt" table entries
-# with new full-entropy keys. If a key field contains a decimal integer
-# enclosed in braces instead, it will be interpreted as an octet count for
-# a new key to be generated. For instance "{32}" will create a 256-bit key.
-#
-# This can be used to refresh keys after some time, or replace keys which
-# might have been compromised. Another usage is to create new keys using the
-# original ones as templates when cloning a whole-system image where the clone
-# shall use different keys.
-#
-# The entropy for the new keys will be obtained by calling an external helper
-# executable "$truerand" (see the definition below for its actual name).
-#
-# This helper expects a decimal octet count (octets are 8-bit bytes) as its
-# only argument and shall write that many binary full-entropy true-random
-# octets (i.e. not just cryptographically secure pseudorandom-octets) to
-# standard output.
-#
-# If no such executable exists, it is also possible to temporarily define a
-# shell function with this name and "export -f" it before calling THIS script.
-#
-# This script can either be used as a filter where it reads dmsetup table
-# contents from standard input, replaces the keys of any "crypt" lines, and
-# writes the modified tables to standard output.
-#
-# Or a bunch of files can be specified as arguments, containing the stored
-# contents of dmcrypt tables. In this case, for every argument a new file with
-# ".new" added to the original filename will be created, containing a copy of
-# the original file except that all keys will have been replaced with new
-# ones.
-#
-# Version 2025.309
-# Copyright (c) 2023-2025 Guenther Brunthaler. All rights reserved.
-#
-# This script is free software.
-# Distribution is permitted under the terms of the GPLv3.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+=======
+}
+
+exit_help() {
+	wr << =======; echo; exit_version
+$APP - replace existing keys in dmcrypt table files with new keys
+
+Usage 1: cat <dmcryt_table_file> | $APP [ <options> ... ]
+
+Usage 2: $APP [ <options> ... ] <dmcryt_table_file> ...
+
+$APP replaces all hexadecimal key fields in all dmsetup "crypt" table entries
+ with new full-entropy keys. (Key fields filled with "?"-characters will be
+ replaced as well.) If a key field contains a decimal integer enclosed in
+ braces instead, it will be interpreted as an octet count for a new key to be
+ generated. For instance "{32}" will create a 32-octet (256-bit) key.
+
+This can be used to refresh keys after some time, or replace keys which might
+ have been compromised. Another usage is to create new keys using the original
+ ones as templates when cloning a whole-system image where the clone shall use
+ different keys.
+
+The entropy for the new keys will be obtained by calling an external helper
+ executable "$truerand" (see the definition below for its actual name).
+
+This helper expects a decimal octet count (octets are 8-bit bytes) as its only
+ argument and shall write that many binary full-entropy true-random octets
+ (i.e. not just cryptographically secure pseudorandom-octets) to standard
+ output. It is also possible to use a user-defined helper other than $truerand
+ by using option -t (see below).
+
+$APP can either be used as a filter where it reads dmsetup table contents from
+ standard input, replaces the keys of any "crypt" lines, and writes the
+ modified tables to standard output.
+
+Or a bunch of files can be specified as arguments, containing the stored
+ contents of dmcrypt tables. In this case, for every argument a new file with
+ ".new" added to the original filename will be created, containing a copy of
+ the original file except that all keys will have been replaced with new ones.
+
+Supported options:
+
+-t <cmd>: Specify a series of shell commands to be executed instead of
+ "$truerand". <cmd> will be invoked by the shell and will become part of a
+ larger command pipeline. "<cmd>" must do the same things as have been
+ explained for "$truerand" above.
+
+-f: Force overwriting of already-existing output files.
+
+-V: Show version information and exit.
+
+-h) Show THIS help and exit.
+=======
+}
+APP=${0##*/}
 
 truerand=keygen-octets-by-harvesting-entropy
 
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
+
 force=false
-while getopts f opt
+while getopts t:fVh opt
 do
 	case $opt in
+		t) truerand=$OPTARG;;
 		f) force=true;;
+		V) exit_version;;
+		h) exit_help;;
 		*) false || exit
 	esac
 done
@@ -65,7 +108,7 @@ replace_keys() {
 		$5 = nk
 	}
 
-	$3 == "crypt" && $5 ~ /^[[:xdigit:]]+$/ {
+	$3 == "crypt" && $5 ~ /^([[:xdigit:]]|\?)+$/ {
 		rplc(length($5))
 	}
 
