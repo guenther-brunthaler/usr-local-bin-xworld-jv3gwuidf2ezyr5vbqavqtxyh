@@ -1,16 +1,57 @@
 #! /bin/sh
 
-case $1 in
-	--black) C=0;;
-	--red) C=1;;
-	--green) C=2;;
-	--yellow) C=3;;
-	--blue) C=4;;
-	--magenta | -- | "") C=5;;
-	--cyan) C=6;;
-	--white) C=7;;
-	*) echo "Bad arguments '$*'!" >& 2; false; exit;;
-esac
+# Displays a single-line password, made invisible by using the same foreground
+# color as the blackground color. But the password can still be selected with
+# the mouse (i.e. via gpm or xterm). The color can be selected.
+#
+# v2026.31
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+die() {
+	printf '%s\n' "$*" >& 2
+	false || exit
+}
+
+setindex() {
+	expr x"$1" : x'[1-9][0-9]*$' '|' x"$1" = x0  > /dev/null \
+	|| die "Bad option value '$1'!"
+	C=`expr 1 + $1 % 7`
+}
+
+C=5
+terminate=false
+while getopts i:t-: opt
+do
+	case $opt in
+		i) setindex "$OPTARG";;
+		t) terminate=true;;
+		-)
+			case $OPTARG in
+				black) C=0;;
+				red) C=1;;
+				green) C=2;;
+				yellow) C=3;;
+				blue) C=4;;
+				magenta) C=5;;
+				cyan) C=6;;
+				white) C=7;;
+				index=*) setindex "${OPTARG#*=}";;
+				terminate) terminate=true;;
+				*) die "Unsupported option --$OPTARG!"
+			esac
+			;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+test $# = 0 || die "Unsupported arguments '$*'!"
+
 printf '\033[3'$C';4'$C'm'
-cat
+tr -d '\n'
 printf '\033[0m'
+if $terminate
+then
+	printf '%s' '<<<'
+fi
+echo
