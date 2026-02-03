@@ -5,19 +5,65 @@
 # to "wdiff". As a comfort feature, "less" is invoked if standard output and
 # standard error are both a terminal.
 #
+# In addition, options "-u" and "-U <number>" will be processed for showing a
+# context <number> of lines ($def_context lines by default) around every line
+# containing colors. The idea is to display context similar to "diff -u".
+#
+# In order to simplify parsing, the "-u" or "-U"-options must become before
+# any other options, or they will not be recognized.
+#
 # v2026.34
+def_context=3
+
+context=0
+while test $# != 0
+do
+	case $1 in
+		-u*)
+			rest=${1#-u}; shift
+			# Handle switch clustering.
+			test "$rest" && set -- "-$rest" ${1+"$@"}
+			context=$def_context
+			;;
+		-U*)
+			context=${1#-U}; shift
+			if test -z "$context"
+			then
+				if test $# != 0
+				then
+					# Option value is in a separate
+					# argument.
+					context=$1; shift
+				else
+					# Option value is missing.
+					context=$def_context
+				fi
+			fi
+			;;
+		*) break
+	esac
+done
+
 csi=`printf '\033['`
 wdiff -n -w "$csi"'30;41m' -x "$csi"'0m' \
 	-y "$csi"'30;42m' -z "$csi"'0m' \
 	${1+"$@"} \
 | {
 	rc=$?
-	if test -t 1 && test -t 2
+	if test "$context" != 0
 	then
-		less --quit-if-one-screen --RAW-CONTROL-CHARS \
-			--chop-long-lines --shift=1 
+		grep -F "$csi" -U"$context" # Requires GNU "grep" to work.
 	else
 		cat
-	fi
-	exit $rc
+	fi \
+	| {
+		if test -t 1 && test -t 2
+		then
+			less --quit-if-one-screen --RAW-CONTROL-CHARS \
+				--chop-long-lines --shift=1 
+		else
+			cat
+		fi
+		exit $rc
+	}
 }
