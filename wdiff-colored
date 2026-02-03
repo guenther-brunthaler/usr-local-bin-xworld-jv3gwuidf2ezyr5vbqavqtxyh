@@ -1,0 +1,23 @@
+#! /bin/sh
+
+# A postprocessing wrapper for "wdiff". Insertions are displayed as green and
+# deletions are displayes as red. All options and arguent are passed through
+# to "wdiff". As a comfort feature, "less" is invoked if standard output and
+# standard error are both a terminal.
+#
+# v2026.34
+csi=`printf '\033['`
+wdiff -n -w "$csi"'30;41m' -x "$csi"'0m' \
+	-y "$csi"'30;42m' -z "$csi"'0m' \
+	${1+"$@"} \
+| {
+	rc=$?
+	if test -t 1 && test -t 2
+	then
+		less --quit-if-one-screen --RAW-CONTROL-CHARS \
+			--chop-long-lines --shift=1 
+	else
+		cat
+	fi
+	exit $rc
+}
