@@ -108,12 +108,78 @@ AUG_LDFLAGS = $(LDFLAGS) $(LIBS)
 ======
 		;;
 	reset)
-		unset export CFLAGS CPPFLAGS CXXFLAGS LDFLAGS MAKEFLAGS
+		unset export CFLAGS CPPFLAGS CXXFLAGS LDFLAGS MAKEFLAGS \
+			mkfsubst_t2uj0ij0ite58mbuiz6elilzh
+		unset -f smf
 		unalias gdb 2> /dev/null || :
 		return
 		;;
+	smf)
+		smf() {
+			export MAKEFLAGS
+			if test -z "${1+set}"
+			then
+				echo "No Makefile substitute has been" \
+					"provided."
+				echo
+				echo "'make' is currently using"
+				eval 'echo "'\''${'`:
+					`'mkfsubst_t2uj0ij0ite58mbuiz6elilzh'`:
+					`'-Makefile}'\'' as its Makefile."'
+				echo
+				echo "Provide the name of a substitute or an"
+				echo "empty string to revert to the default."
+				return
+			fi
+			if test -z "$1"
+			then
+				# Empty string as argument resets to default.
+				set Makefile
+			fi
+			if
+				expr x"$1" : x'[[:alnum:].-_=+:^]\{1,\}$' \
+				> /dev/null
+			then
+				:
+			else
+				echo "Problematic characters detected in" \
+					"pathname of 'Makefile'" \
+					"substitute." >& 2
+				echo "Please rename!" >& 2
+				false || return
+			fi
+			eval 'echo "So far, '\''make'\'' has been using'`:
+				`' '\''${mkfsubst_t2uj0ij0ite58mbuiz6elilzh'`:
+				`':=Makefile}'\''"'
+			echo "as its Makefile."
+			if test "$mkfsubst_t2uj0ij0ite58mbuiz6elilzh" != "$1"
+			then
+				echo "Now it will be using '$1' instead."
+			else
+				echo "There is no change."
+			fi
+			mkfsubst_t2uj0ij0ite58mbuiz6elilzh=$1
+			if
+				test "$mkfsubst_t2uj0ij0ite58mbuiz6elilzh" \
+				= Makefile
+			then
+				unset mkfsubst_t2uj0ij0ite58mbuiz6elilzh
+			fi
+			MAKEFLAGS=`
+				printf '%s\n' "$MAKEFLAGS" \
+				| sed -e 's/[[:space:]]\{1,\}-f[[:space:]]*'\`:
+					\`'[^[:space:]]*/ /g' \
+					-e 's/[[:space:]]*$//'
+			`
+			if test "$mkfsubst_t2uj0ij0ite58mbuiz6elilzh"
+			then
+				MAKEFLAGS="$MAKEFLAGS -f "`:
+					`"$mkfsubst_t2uj0ij0ite58mbuiz6elilzh"
+			fi
+		}
+		;;
 	help | *)
-		echo "${0##*/} Version 2025.239"
+		echo "${0##*/} Version 2026.35"
 		sed 's|^[[:space:]]*\(.*\)) \(#.*\)'`:
 			`'|set \1 \&\& . '"${0##*/}"' \&\& make \2|;'`:
 			`' t; d' "$0" \
@@ -126,6 +192,10 @@ AUG_LDFLAGS = $(LDFLAGS) $(LIBS)
 		echo "\$ set gdb && . ${0##*/}" \
 			"# Define alias 'gdb' which allows gdb to be" \
 			"invoked from unsafe '.'"
+		echo "\$ set smf && . ${0##*/}" \
+			"# Define shell function 'smf'" \
+			"which sets a different name for 'make' to use" \
+			"instead of 'Makefile'."
 		echo "\$ set geninit && . ${0##*/}" \
 			"# Create customizable template ./.gdbinit"
 		echo "\$ set mfsimple && . ${0##*/}" \
@@ -158,5 +228,13 @@ MAKEFLAGS=-e`
 		\`' t; d' \
 	| paste -sd ''
 `
+if test "$mkfsubst_t2uj0ij0ite58mbuiz6elilzh"
+then
+	MAKEFLAGS="$MAKEFLAGS${MAKEFLAGS+ }-f "`:
+		`"$mkfsubst_t2uj0ij0ite58mbuiz6elilzh"
+fi
+# Don't use $CPPFLAGS globally outside of a Makefile. They are not supported
+# directly be POSIX "make" and are therefore dangerous. Use $CFLAGS instead
+# for the same purposes.
 export CPPFLAGS= CFLAGS LDFLAGS MAKEFLAGS
 unset CXXFLAGS
