@@ -1,0 +1,67 @@
+#! /usr/bin/env python3
+
+# Orginally written by ChatGPT on 2026-02-05.
+# Moderately modified since then by the author.
+#
+# Version 2026.36
+# Copyright (c) 2026 root. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+import sys, re, os
+
+if len(sys.argv) != 3:
+    print(
+        "Usage: "
+        + os.path.basename(sys.argv[0])
+        + " CMakeCache.txt output.cmake"
+    )
+    sys.exit(1)
+
+cache_file = sys.argv[1]
+out_file = sys.argv[2]
+
+in_external_section = False
+
+with open(cache_file, "r", encoding="utf-8") as f, \
+    open(out_file, "w", encoding="utf-8") as out:
+
+    out.write("# Initial cache generated from CMakeCache.txt\n\n")
+
+    for line in f:
+        line = line.rstrip()
+
+        # Abschnittswechsel erkennen
+        if line.startswith("//"):
+            continue
+        if line.startswith("#"):
+            if "EXTERNAL cache entries" in line:
+                in_external_section = True
+            elif "INTERNAL cache entries" in line:
+                in_external_section = False
+            continue
+
+        if not in_external_section:
+            continue
+        if not line or line.startswith("//"):
+            continue
+
+        # Format: NAME:TYPE=VALUE
+        m = re.match(r"^([^:]+):([^=]+)=(.*)$", line)
+        if not m:
+            continue
+
+        name, typ, value = m.groups()
+
+        # BOOL normalisieren
+        if typ == "BOOL":
+            value = "TRUE" if value.upper() in ("ON", "1", "TRUE", "YES") \
+            else "FALSE"
+
+        # Quotes escapen
+        value = value.replace('"', '\\"')
+
+        out.write(f'set({name} "{value}" CACHE {typ} "")\n')
+
+print(f"Wrote {out_file}")
