@@ -1,29 +1,103 @@
 #! /bin/sh
+exit_version() {
+	wr << ===; exit
+$APP Version 2026.38
+Copyright (c) 2026 Guenther Brunthaler. All rights reserved.
 
-# A postprocessing wrapper for "wdiff". Insertions are displayed as green and
-# deletions are displayes as red. All options and arguent are passed through
-# to "wdiff". As a comfort feature, "less" is invoked if standard output and
-# standard error are both a terminal.
-#
-# In addition, options "-u" and "-U <number>" will be processed for showing a
-# context <number> of lines ($def_context lines by default) around every line
-# containing colors. The idea is to display context similar to "diff -u".
-#
-# In order to simplify parsing, the "-u" or "-U"-options must become before
-# any other options, or they will not be recognized.
-#
-# v2026.34
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	wr << ===; echo; exit_version
+$APP - postprocessing wrapper for "wdiff" for coloring its output
+
+Usage: $APP [ <options> ] [ <wdiff_options> ] <wdiff_arguments> ...
+
+Insertions are displayed as green and deletions are displayes as red. All
+ options and arguent are passed through to "wdiff". As a comfort feature,
+ "less" is invoked if standard output and standard error are both a terminal.
+
+In addition, options "-u" and "-U <number>" will be processed for showing a
+ context <number> of lines ($def_context lines by default) around every line
+ containing colors. The idea is to display context similar to "diff -u".
+
+In order to simplify parsing, all <options> recognized by this wrapper script
+ (such as "-u") rather than processed by "wdiff" must become precede any other
+ <wdiff_options> in the command line arguments (which will be passed through
+ to "wdiff"), or they will not be recognized.
+
+-u: Show 3 lines of context around colored section
+
+-U <N>: Show N lines of context around colored sections
+
+-S: Passed through to "less". It enables horizontal scrolling of long lines
+ instead of wrapping them into multiple lines.
+
+-h: Show THIS help and do nothing else
+
+-V: Show version information and do nothing else
+===
+}
+APP=${0##*/}
+
 def_context=3
 
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
+
+pkg= all=true
+for need in less wdiff
+do
+	case $need in
+		*:) pkg=${need%:};;
+		*)
+			: ${pkg:="$need"}
+			command -v -- "${need}" > /dev/null 2>& 1 || {
+				echo
+				echo "Required utility '$need' is missing!"
+				echo "On some systems it can be installed with"
+				echo "\$ sudo apt-get install $pkg"
+				all=false
+			} >& 2
+			pkg=
+	esac
+done
+$all || exit
+unset need all pkg
+
 context=0
+add_less_options=
 while test $# != 0
 do
 	case $1 in
 		-u*)
-			rest=${1#-u}; shift
+			rest=${1#-?}; shift
 			# Handle switch clustering.
 			test "$rest" && set -- "-$rest" ${1+"$@"}
 			context=$def_context
+			;;
+		-S*)
+			rest=${1#-?}; shift
+			# Handle switch clustering.
+			test "$rest" && set -- "-$rest" ${1+"$@"}
+			add_less_options='--chop-long-lines'
 			;;
 		-U*)
 			context=${1#-U}; shift
@@ -40,6 +114,8 @@ do
 				fi
 			fi
 			;;
+		-V*) exit_version;;
+		-h*) exit_help;;
 		*) break
 	esac
 done
@@ -60,7 +136,7 @@ wdiff -n -w "$csi"'30;41m' -x "$csi"'0m' \
 		if test -t 1 && test -t 2
 		then
 			less --quit-if-one-screen --RAW-CONTROL-CHARS \
-				--chop-long-lines --shift=1 
+				$add_less_options --shift=1 
 		else
 			cat
 		fi
