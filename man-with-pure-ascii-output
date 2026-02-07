@@ -1,0 +1,99 @@
+#! /bin/sh
+exit_version() {
+	wr << ===; exit
+$APP Version 2026.38
+Copyright (c) 2026 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	wr << ===; echo; exit_version
+$APP - like "man", but with pure ASCII as output
+
+Usage: $APP [ <options> ] [ <section> ] <man_page_name>
+
+The output might still contain ASCII HT characters for indentation. Pipe the
+ output through "expand" if only ASCII SPACE shall be used for indentation.
+
+Supported options:
+
+-w <columns>: Format output with that many columns (default: $default_width)
+-h: show this help and exit
+-V: show version information and exit
+===
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
+
+default_width=72
+width=$default_width
+while getopts w:hV opt
+do
+	case $opt in
+		w) width=$OPTARG;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+pkg= all=true
+for need in icu-devtools: uconv tidy w3m
+do
+	case $need in
+		*:) pkg=${need%:};;
+		*)
+			: ${pkg:="$need"}
+			command -v -- "${need}" > /dev/null 2>& 1 || {
+				echo
+				echo "Required utility '$need' is missing!"
+				echo "On some systems it can be installed with"
+				echo "\$ sudo apt-get install $pkg"
+				all=false
+			} >& 2
+			pkg=
+	esac
+done
+$all || exit
+unset need all pkg
+
+LANGUAGE= LANG= LC_ALL=POSIX \
+man -Hcat "$@" 2> /dev/null \
+| uconv -x "::de-ASCII;" \
+| tidy -asxhtml --quote-nbsp no --show-warnings no --show-info no \
+	2> /dev/null \
+| w3m -cols "$width" -O US-ASCII -T text/html -no-graph \
+| col -b \
+| expand \
+| LC_ALL=POSIX tr -c '\n[:print:]' _ \
+| sed 's/___*/_/g; s/^_//; s/_$//' \
+| unexpand \
+| {
+	if test -t 1 && test -t 2
+	then
+		less -F
+	else
+		cat
+	fi
+}
