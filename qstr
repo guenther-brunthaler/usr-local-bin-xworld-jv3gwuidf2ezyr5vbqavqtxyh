@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr << ===; exit
-$APP Version 2026.42
+$APP Version 2026.42.1
 Copyright (c) 2022-2026 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -27,7 +27,7 @@ printf("Finally, this is a text, too!\n");
 
 If you pass them to $APP, it will output the following:
 
-|             printf("$marker\n");
+|printf("$marker\n");
 |             This is a text.
 |             And this is another text.
 |             Finally, this is a text, too!
@@ -35,12 +35,11 @@ If you pass them to $APP, it will output the following:
 When this output is fed back into $APP, the original text will be
  reconstructed.
 
-Note that the amount of indentation added is the same as the amount of
- characters removed from all the lines. This is helpful for keeping track of
- the intended maximum output line length produced by the "printf" statements.
-
-BUG: This kind of indentation is not implemented yet. The current
- implementation keeps the original indentation unmodified.
+Note that the amount of indentation added to the lines (except for the first
+ line) is exactly the same as the size of the prefix/suffix stripped from all
+ the lines. In other words, the line lengths will not be change by the
+ transformation. When undoing the transformation later, the additional
+ indentation will be stripped.
 
 The idea is to leave the first line with the "$marker" as it is, and edit the
  remaining 3 lines. They are easy to edit now as a free text. For instance,
@@ -132,6 +131,15 @@ tfile() {
 	mktemp -- "${TMPDIR:-/tmp}/${0##*/}.XXXXXXXXXX"
 }
 
+set_indent() {
+	indent=`
+		printf '%s' "$prefix$suffix" \
+		| tr -c ' ' ' '
+		echo :
+	`
+	indent=${indent%:}
+}
+
 first=true
 while IFS= read -r line
 do
@@ -146,6 +154,7 @@ do
 				test x"$prefix$marker$suffix" = x"$line" || {
 					die "Ambiguous marker!"
 				}
+				set_indent
 				exec 5>& 1; redir5=true
 				continue
 				;;
@@ -159,7 +168,7 @@ do
 		esac
 	elif $revert
 	then
-		line=$prefix$line$suffix
+		line=$prefix${line#"$indent"}$suffix
 	else
 		any_other=true
 		while test "$suffix"
@@ -181,8 +190,9 @@ redir_5=false; exec 5>& -
 $revert && exit
 $any_other || { prefix=; suffix=; }
 printf '%s%s%s\n' "$prefix" "$marker" "$suffix"
+set_indent
 while IFS= read -r line
 do
 	line=${line%"$suffix"}
-	printf '%s\n' "${line#"$prefix"}"
+	printf '%s\n' "$indent${line#"$prefix"}"
 done < "$T"
