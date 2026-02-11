@@ -1,15 +1,76 @@
 #! /bin/sh
-# Quote shell metacharacters. If option -s is specified, the resulting lines
-# will be output as quoted strings, or the quotes will be removed when
-# unquoting. By default, single quotes will be used - but options -d and -2
-# will make the script use double quotes instead.
-#
-# Version 2021.40
-#
-# Copyright (c) 2018-2021 Guenther Brunthaler. All rights reserved.
-#
-# This script is free software.
-# Distribution is permitted under the terms of the GPLv3.
+exit_version() {
+	wr << ===; exit
+$APP Version 2026.42
+Copyright (c) 2018-2026 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	wr << ===; echo; exit_version
+$APP - quote shell meta-characters
+
+Usage: $APP [ <options> ] < <shell_expression> > <quoted_expression>
+
+$APP can be used to quote shell meta-characters. This is useful if an existing
+ shell expression shall be passed as an argument to 'eval'.
+
+If option -s is specified, the resulting lines will be output as quoted
+ strings, or the quotes will be removed when unquoting.
+
+By default, single quotes will be used - but options -d and -2 will make the
+ script use double quotes instead.
+
+For instance, when passing the command
+
+\$ echo "The variable \\"x\\" has value: \\"\$x\\"."
+
+there are two ways to pass this to 'eval' for evaluation:
+
+\$ eval 'echo "The variable \\"x\\" has value: \\"\$x\\"."'
+\$ eval "echo \\"The variable \\\\\\"x\\\\\\" has`:
+` value: \\\\\\"\\\$x\\\\\\".\\""
+
+The argument to 'eval' in the first line has been produced by "qsh -s", for
+ the second line by "qsh -sd".
+
+The output might still contain ASCII HT characters for indentation. Pipe the
+ output through "expand" if only ASCII SPACE shall be used for indentation.
+
+Supported options:
+
+-\$: Quote only "\$"/"\`"-characters. This is useful in "here-doc" sections.
+ This mode does not support the -s option (it will be ignored).
+-d, -2: Use double quotes for quoting/unqoting. Default are single quotes.
+ This quotes the same characters option "-\$" does, plus also double quotes
+ themselves.
+-1: Use single quotes for quoting/unquoting. This is the default. This quotes
+ the same characters option "-\$" does, plus also single quotes themselves.
+-u: unquote - reversal of the normal operation of $APP.
+-s: place quotes around the quoted result, or remove them with -u.
+-h: show this help and exit.
+-V: show version information and exit.
+===
+}
+APP=${0##*/}
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
 
 set -e
 trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
@@ -20,14 +81,17 @@ case `basename -- "$0"` in
 esac
 lq=
 q=s
-while getopts qusd12 opt
+while getopts \$qusd12Vh opt
 do
 	case $opt in
+		\$) q=$opt;;
 		q) mode=quote;;
 		u) mode=unqote;;
-		d | 2) q=d;;
+		[d2]) q=d;;
 		1) q=s;;
 		s) lq=true;;
+		V) exit_version;;
+		h) exit_help;;
 		*) false || exit
 	esac
 done
@@ -41,6 +105,8 @@ case $lq in
 		esac
 esac
 case $q-$mode in
+	'$-quote') sx='s/[$`\\]/\\&/g';;
+	'$-unqote') sx='s/\\\([$`\\]\)/\1/g';;
 	d-quote) sx='s/[$`\\"]/\\&/g; s/.*/'"$lq"'&'"$lq"'/';;
 	d-unqote) sx='s/'"$lq"'\(.*\)'"$lq"'/\1/; s/\\\([$`\\"]\)/\1/g';;
 	s-quote) sx='s/'\''/&\\&&/g; s/.*/'"$lq"'&'"$lq"'/';;
