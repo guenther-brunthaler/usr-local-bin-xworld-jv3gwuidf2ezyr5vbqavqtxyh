@@ -1,20 +1,103 @@
 #! /bin/sh
+exit_version() {
+	wr << ===; exit
+$APP Version 2026.42
+Copyright (c) 2022-2026 Guenther Brunthaler. All rights reserved.
 
-# Remove or restore common line-prefixes and -suffixes.
-#
-# The presence of $marker in the first line triggers restoration. It adds
-# the prefix before $marker and the suffix after $marker to all the remaining
-# lines.
-#
-# Otherwise, removal operation takes place. It determines the longest common
-# prefix and suffix of all lines and removes them. Then it adds a new first
-# line containing $marker and the removed pre- and suffixes.
-#
-# Version 2023.211
-# Copyright (c) 2022-2023 Guenther Brunthaler. All rights reserved.
-#
-# This document is free documentation.
-# Distribution is permitted under the terms of the GFDL-1.3.
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	wr << === | sed 's/^|//'; echo; exit_version
+$APP - Remove or restore prefixes and -suffixes common to all lines
+
+Usage: $APP [ <options> ] < <text> > <modifed_text>
+
+$APP is a UNIX filter for editing and re-flowing text in quoted strings in
+ source code. It reads a text from standard input, removes or restores the
+ quoting, and writes the result to standard output.
+
+For instance, consider those 3 lines:
+
+printf("This is a text.\n");
+printf("And this is another text.\n");
+printf("Finally, this is a text, too!\n");
+
+If you pass them to $APP, it will output the following:
+
+|             printf("$marker\n");
+|             This is a text.
+|             And this is another text.
+|             Finally, this is a text, too!
+
+When this output is fed back into $APP, the original text will be
+ reconstructed.
+
+Note that the amount of indentation added is the same as the amount of
+ characters removed from all the lines. This is helpful for keeping track of
+ the intended maximum output line length produced by the "printf" statements.
+
+BUG: This kind of indentation is not implemented yet. The current
+ implementation keeps the original indentation unmodified.
+
+The idea is to leave the first line with the "$marker" as it is, and edit the
+ remaining 3 lines. They are easy to edit now as a free text. For instance,
+ their text can be re-flowed using "fmt -s" or "fold -s", possibly resulting
+ in more of fewer lines.
+
+When you are done, select all lines including the first with "$marker" and
+ filter them through $APP again. It will re-add the printf's and the quotes
+ and other stuff it removed in the first transformation, converting the text
+ into valid source text again.
+
+The idea is to mark a range of lines which are identically quoted in your
+ favorite text editor as a block, send the contents of the block to $APP, and
+ replace the contents of the block with the result of $APP.
+
+If your editor does not provide a function for filtering a block through an
+ external command, the clipboard can be used for the same purpose: Select a
+ range of lines, copy them to the clipboard, use a utility like 'xclip' to
+ send the clipboard contents to $APP, and also to copy $APP's output back into
+ the clipboard. The insert the clipboard contents into the edited text. It
+ will replace the currently selected block with the results of $APP's
+ transformation.
+
+The presence of $marker in the first line triggers restoration. It adds
+ the prefix before $marker and the suffix after $marker to all the remaining
+ lines.
+
+Otherwise, removal operation takes place. It determines the longest common
+ prefix and suffix of all lines and removes them. Then it adds a new first
+ line containing $marker and the removed pre- and suffixes.
+
+Supported options:
+
+-m <marker>: Use a different marker than the default '$marker'. Use this if
+ the still-quoted input text already contains '$marker' as literal text. (This
+ is very unlikely to happen, though.)
+-s: place quotes around the quoted result, or remove them with -u.
+-h: show this help and exit.
+-V: show version information and exit.
+===
+}
+APP=${0##*/}
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
 
 set -e
 cleanup() {
@@ -26,12 +109,15 @@ cleanup() {
 T=
 redir5=false
 trap cleanup 0
-trap 'exit $?' HUP INT TERM QUIT
+trap 'exit $?' HUP INT TERM QUIT PIPE
+
 marker='$QSTR$'
-while getopts m:w: opt
+while getopts m:w:Vh opt
 do
 	case $opt in
 		m) marker=$OPTARG;;
+		V) exit_version;;
+		h) exit_help;;
 		*) false || exit
 	esac
 done
