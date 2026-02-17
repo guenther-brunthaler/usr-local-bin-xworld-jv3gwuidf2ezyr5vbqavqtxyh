@@ -1,0 +1,116 @@
+#! /bin/sh
+exit_version() {
+	cat << ===; exit
+$APP Version 2026.46
+Copyright (c) 2026 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	cat << ===; echo; exit_version
+$APP - convert HTML to UTF-8 encoded text (and any tables to line-art)
+
+Usage:
+$APP [ <options> ... [--] ] < input.html > output.txt
+$APP [ <options> ... [--] ] file1.html file2.html ...
+$APP [ <options> ... [--] ] < file.html
+
+The first usage variant lets $APP act like a filter.
+
+The second variant creates *.txt files for all input files.
+
+The third variant shows an UTF-8-ified version of the file
+in the "w3c" text-mode web browser, using pretty line-art
+graphics characters rather than ASCII art for tables.
+
+Supported options:
+
+-w <columns>: Format output with that many columns (default: $default_width)
+-f: Enforce overwriting of output files which already exist
+-h: show this help and exit
+-V: show version information and exit
+===
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+default_width=72
+width=$default_width
+force=false
+while getopts fw:hV opt
+do
+	case $opt in
+		f) force=true;;
+		w) width=$OPTARG;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+all=true; # An *: entry must be first for initializing $pkg.
+for need in icu-devtools: uconv : tidy w3m xmlstarlet
+do
+	case $need in
+		*:) pkg=${need%:};;
+		*)
+			: ${pkg:="$need"}
+			command -v -- "${need}" > /dev/null 2>& 1 || {
+				echo
+				echo "Required utility '$need' is missing!"
+				echo "On some systems it can be installed with"
+				echo "\$ sudo apt-get install $pkg"
+				all=false
+			} >& 2
+			pkg=
+	esac
+done
+$all || exit
+
+filter() {
+	tidy -asxhtml --quote-nbsp no --show-warnings no --show-info no \
+		2> /dev/null \
+	| xmlstarlet pyx \
+	| sed '/^Aborder/d; /^(table/!b; p; s/.*/Aborder 1/' \
+	| xmlstarlet p2x \
+	| w3m -cols "$width" -O UTF-8 -T text/html -graph
+}
+
+outname() {
+	result=${1%.[Hh][Tt][Mm][Ll]}
+	result=${result%.[Hh][Tt][Mm]*}
+	result=$result.txt
+}
+
+case $# in
+	0) filter;;
+	*)
+		for a
+		do
+			test -f "$a" || {
+				echo "Input file '$a' does not exist!"
+				false || exit
+			}
+			outname "$a"
+			test ! -e "$result" && continue
+			echo
+			echo "Output file '$result' already exists!"
+			if $force
+			then
+				echo "(Overwriting)"
+			else
+				echo "(Use -f to enforce overwriting.)"
+				false || exit
+			fi
+		done >& 2
+		for a
+		do
+			outname "$a"
+			filter < "$a" > "$result"
+		done
+esac
