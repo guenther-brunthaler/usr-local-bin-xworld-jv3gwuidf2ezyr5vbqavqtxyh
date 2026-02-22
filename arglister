@@ -1,6 +1,6 @@
 #! /bin/sh
-# Version 2023.34
-# Copyright (c) 2023 Guenther Brunthaler. All rights reserved.
+# Version 2026.53
+# Copyright (c) 2023-2026 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
@@ -18,7 +18,7 @@ qin() {
 			REST=${S#?}; S=${S%"$REST"}
 			case $S in
 				\$ | \` | \" | \\) S=\\\\$S;;
-				\' | " " | "$NL" | "$TAB") Q=Y;;
+				\' | [][{}\(\)] | "$NL" | "$TAB") Q=Y;;
 			esac
 			R=$R$S; S=$REST
 		done
@@ -35,5 +35,5 @@ for arg
 do
 	qin "$arg"
 	echo "argv[$i] = $REPLY"
-	i=$(($i + 1))
+	i=`expr $i + 1`
 done
