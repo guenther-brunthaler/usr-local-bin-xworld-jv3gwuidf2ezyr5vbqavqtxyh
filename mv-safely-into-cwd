@@ -1,0 +1,87 @@
+#! /bin/sh
+exit_version() {
+	wr << ===; exit
+$APP Version 2026.68
+Copyright (c) 2026 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+
+exit_help() {
+	wr << === ; echo; exit_version
+$APP - Merge files/directories into current directory with overwrite pre-check
+
+Usage: $APP [ <options> ] <file_or_dir1> ...
+
+$APP moves the specified files/directories into the current directory. Before
+ doing so, $APP checks that nothing in the current directory will be
+ overwritten by doing that.
+
+$APP does pretty much the same as
+
+\$ mv -- <file_or_dir1> ... <file_or_dirN> ./
+
+except that one can be sure nothing will be overwritten and no contents of
+ specified directories will be merged with directories of the same name in the
+ current directory.
+
+Supported options:
+
+-n: Show what would be done, but don't actually do anything.
+-h: show this help and exit.
+-V: show version information and exit.
+===
+}
+APP=${0##*/}
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+dry_run=false
+while getopts nVh opt
+do
+	case $opt in
+		n) dry_run=true;;
+		V) exit_version;;
+		h) exit_help;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+ok=true
+for f
+do
+	b=`basename -- "$f"` 
+	if test -L "$b" || test -e "$b"
+	then
+		echo "ERROR: "$b" already exists" \
+			"in current directory!" >& 2
+		ok=false
+	fi
+done
+$ok || exit
+test $# != 0
+for f
+do
+	set mv -i -- "$f" .
+	$dry_run && set echo "$@"
+	"$@"
+done
