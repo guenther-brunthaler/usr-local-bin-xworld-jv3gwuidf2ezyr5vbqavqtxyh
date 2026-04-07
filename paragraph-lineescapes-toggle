@@ -48,11 +48,23 @@ trap 'exit $?' INT PIPE HUP TERM QUIT
 convert() {
 	if tee -- "$TF" | grep -qFe ' \n ' -e ' \n\n '
 	then
+		sep=`printf '%79s' "" | tr -c = =`
+		echo "$sep"
 		sed 's/ \\n\\n /\n\n/g; s/ \\n /\n/g' "$TF"
+		echo "$sep"
 	else
-		sed 's/$/ \\n /g' "$TF" \
+		sed -f /dev/fd/5 5<<- 'EO_SED' "$TF" \
+		| sed 's/$/ \\n /g' \
 		| tr -d '\n' \
-		| sed 's/ \\n  \\n / \\n\\n /g; s/ \\n $/\n/'
+		| sed -f /dev/fd/5 5<<- 'EO_SED'
+		1b cksep
+		$b cksep
+		b
+		: cksep
+		/^=\{4,\}$/d
+		EO_SED
+		s/ \\n  \\n / \\n\\n /g; s/ \\n $/\n/
+		EO_SED
 	fi
 }
 
