@@ -179,7 +179,7 @@ AUG_LDFLAGS = $(LDFLAGS) $(LIBS)
 		}
 		;;
 	help | *)
-		echo "${0##*/} Version 2026.35"
+		echo "${0##*/} Version 2026.65"
 		sed 's|^[[:space:]]*\(.*\)) \(#.*\)'`:
 			`'|set \1 \&\& . '"${0##*/}"' \&\& make \2|;'`:
 			`' t; d' "$0" \
@@ -236,5 +236,4 @@ fi
 # Don't use $CPPFLAGS globally outside of a Makefile. They are not supported
 # directly be POSIX "make" and are therefore dangerous. Use $CFLAGS instead
 # for the same purposes.
-export CPPFLAGS= CFLAGS LDFLAGS MAKEFLAGS
-unset CXXFLAGS
+export CPPFLAGS= CFLAGS LDFLAGS MAKEFLAGS CXXFLAGS="$CFLAGS"
