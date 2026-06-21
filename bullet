@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	cat << ====; exit
-$APP version 2025.119
+$APP version 2026.171
 Copyright (c) 2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -21,6 +21,8 @@ Options:
 
 -n: Create numbered enumeration instead of bullet points
 
+-e: Separate output lines with empty lines.
+
 -h: Show this help and exit.
 
 -V: Show version information and exit.
@@ -32,9 +34,11 @@ set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
 mode=b
-while getopts dnhV opt
+postfilter=cat
+while getopts ednhV opt
 do
 	case $opt in
+		e) postfilter=separate_lines;;
 		[dn]) mode=$opt;;
 		h) exit_help;;
 		V) exit_version;;
@@ -43,10 +47,22 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
+separate_lines() {
+	first=true
+	while IFS= read -r line
+	do
+		case $first in
+			true) first=false;;
+			*) echo
+		esac
+		printf '%s\n' "$line"
+	done
+}
+
 s='[[:space:]]'; ss=$s'\{1,\}'; s=$s'*'
 case $mode in
 	d) sed "s/^$s[0-9]*[.]$s//; t; s/^$s[*]$s//";;
-	b) sed "s/$ss/ /; s/^ //; s/ \$//; s/^/* /";;
+	b) sed "s/$ss/ /; s/^ //; s/ \$//; s/^/* /" | $postfilter;;
 	n)
 		i=1
 		sed "s/$ss/ /; s/^ //; s/ \$//" \
@@ -54,7 +70,7 @@ case $mode in
 		do
 			printf '%s. %s\n' $i "$line"
 			i=`expr $i + 1`
-		done
+		done | $postfilter
 		;;
 	*) false || exit
 esac
