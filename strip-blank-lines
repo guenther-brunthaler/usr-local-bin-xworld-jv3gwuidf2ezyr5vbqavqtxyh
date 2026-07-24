@@ -1,0 +1,60 @@
+#! /bin/sh
+exit_version() {
+	wr << ===; exit
+$APP Version 2026.205
+Copyright (c) 2026 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << ===; echo; exit_version
+	
+$APP - remove all blank lines
+
+Usage: $APP [ options ] < <input.txt> > <output.txt>
+
+$APP copies all lines of text from standard input to standard output, except
+ lines which are empty or contain only whitespace characters.
+
+Options:
+-h: Display this help
+-V: Display version information
+===
+}
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
+
+while getopts hV opt; do
+	case $opt in
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+exec awk -f /dev/fd/5 5<< 'EO_AWK'
+	BEGIN {FS = OFS = "|"}
+
+	/[^[:space:]]/ {print}
+EO_AWK

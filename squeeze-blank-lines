@@ -1,0 +1,80 @@
+#! /bin/sh
+exit_version() {
+	wr << ===; exit
+$APP Version 2026.205
+Copyright (c) 2023-2026 Guenther Brunthaler. All rights reserved.
+
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
+}
+APP=${0##*/}
+
+exit_help() {
+	wr << ===; echo; exit_version
+	
+$APP - remove unnecessary empty lines
+
+Usage: $APP [ options ] < <input.txt> > <output.txt>
+
+$APP is a filter, processing text read from standard input and writing the
+ result to standard output.
+
+First of all, it replaces all lines containing only whitespace characters with
+ empty lines.
+
+After that preprocessing step, it removes all leading and trailing empty
+ lines.
+
+Also, multiple consecutive empty lines within the text are replaced by a
+ single empty line.
+
+In other words, $APP "cleans up" unnecessary empty lines in the input.
+
+Options:
+-h: Display this help
+-V: Display version information
+===
+}
+
+set -e
+trap 'test $? = 0 || echo "$0 failed!" >& 2' 0
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
+
+while getopts hV opt; do
+	case $opt in
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+exec awk -f /dev/fd/5 5<< 'EO_AWK'
+	BEGIN {FS = OFS = "|"}
+
+	/^[[:space:]]*$/ {delayed_empty_lines = 1; next}
+	
+	{
+		if (delayed_empty_lines) {
+			if (allow_empty_lines) print ""
+			delayed_empty_lines = 0
+		}
+		print
+		allow_empty_lines = 1
+	}
+EO_AWK
