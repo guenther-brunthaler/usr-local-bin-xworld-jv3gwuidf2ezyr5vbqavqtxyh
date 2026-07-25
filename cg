@@ -1,8 +1,8 @@
 #! /bin/sh
 exit_version() {
 	wr << ===; exit
-$APP Version 2023.228
-Copyright (c) 2021-2023 Guenther Brunthaler. All rights reserved.
+$APP Version 2026.205
+Copyright (c) 2021-2026 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -11,15 +11,17 @@ Distribution is permitted under the terms of the GPLv3.
 
 exit_help() {
 	case $selection in
-		primary) selection='primary X11 selection';;
-		*) selection='X11 clipboard'
+		primary) selection='primary selection';;
+		*) selection='clipboard'
 	esac
 	wr << ===; echo; exit_version
 $APP - pipe text from/to the $selection to/from standard output/input
 
-Usage 1: $APP [ -x | -c ] [ -g | -f ] | <command> ...
-Usage 2: <command> | $APP [ -x | -c ] [ -s | -t | -p ]
-Usage 3: $APP [ -x | -c ] [ -a ] [ -- ] <argument_1> ...
+Usage 1: $APP [ -p | -c ] [ -g | -f ] | <command> ...
+Usage 2: <command> | $APP [ -p | -c ] [ -s | -t ]
+Usage 3: $APP [ -p | -c ] [ -a ] [ -- ] <argument_1> ...
+
+$APP works for both X11 and Wayland.
 
 The first usage pipes data from to $selection to <command>.
 
@@ -35,11 +37,11 @@ The third usage is the default if any non-option arguments are present.
 
 Without any arguments, the default usage depends on the name of the command
  '$APP' (or a symlink to it) which has been used to run '$APP'. The presence
- of absence of the letters "s" or "x" in the name of '$APP' determines the
+ of absence of the letters "s" or "p" in the name of '$APP' determines the
  default usage.
 
 The presence of letter "s" implies option -s, otherwise -g. The presence of
- letter "x" implies -x, otherwise -c. Explicit options can always be used to
+ letter "p" implies -p, otherwise -c. Explicit options can always be used to
  override those defaults.
 
 Example: Replace the contents of the $selection with a base-64 encoded version
@@ -57,17 +59,21 @@ Supported options:
  for the specified operation. This is the default unless the name of the
  command '$APP' contains the letter 'x'.
 
--x: ("X11 Selection".) Use the primary X11 selection rather than the X11
- clipboard for the specified operation. This is the default if the name of the
- command '$APP' contains the letter 'x'.
+-p: ("Primary selection".) Use the primary selection rather than the clipboard
+ for the specified operation. This is the default if the name of the command
+ '$APP' contains the letter 'p'.
 
 -g, -f: ("Get", "From".) Get data from $selection and write to standard
  output. This is the default unless the name of the command '$APP' contains
  the letter "s".
 
--s, -t, -p: ("Set", "To", "Put".) Set data read from standard input as new
- $selection contents. This is the default if the name of the command '$APP'
- contains the letter "s".
+-s, -t: ("Set", "To".) Set data read from standard input as new $selection
+ contents. This is the default if the name of the command '$APP' contains the
+ letter "s".
+
+-b X11, -bX: Override automatic back-end detection and use X11.
+
+-b Wayland, -bW: Override automatic back-end detection and use Wayland.
 
 -h: show this help and exit
 
@@ -100,19 +106,21 @@ case $APP in
 	*) get=true;;
 esac
 case $APP in
-	*x*) selection=primary;;
+	*p*) selection=primary;;
 	*) selection=clipboard;;
 esac
 
 write_args=false
-while getopts axcgfstphV opt
+backend=
+while getopts b:acgfstphV opt
 do
 	case $opt in
+		b) backend=$OPTARG;;
 		a) write_args=true;;
-		x) selection=primary;;
+		p) selection=primary;;
 		c) selection=clipboard;;
 		[gf]) get=true;;
-		[stp]) get=false;;
+		[st]) get=false;;
 		h) exit_help;;
 		V) exit_version;;
 		*) false || exit
@@ -120,35 +128,121 @@ do
 done
 shift `expr $OPTIND - 1 || :`
 
-all=true
-pkg=
-for need in xclip
-do
-	case $need in
-		*:) pkg=${need%:};;
-		*)
-			: ${pkg:="$need"}
-			command -v -- "${need}" > /dev/null 2>& 1 || {
-				echo
-				echo "Required utility '$need' is missing!"
-				echo "On some systems it can be installed with"
-				echo "\$ sudo apt-get install $pkg"
-				all=false
-			} >& 2
-			pkg=
-	esac
-done
-$all || exit
+case $backend in
+	X | X11) backend=X11;;
+	W | Wayland) backend=Wayland;;
+	'')
+		case $XDG_SESSION_TYPE in
+			wayland) backend=Wayland;;
+			'')
+				case $WAYLAND_DISPLAY in
+					'') backend=X11;;
+					*) backend=Wayland
+				esac
+				;;
+			*) backend=X11
+		esac
+		;;
+	*) false || exit
+esac
+case $backend in
+	X11) test "$DISPLAY";;
+	Wayland) test "WAYLAND_DISPLAY";;
+	*) false || exit
+esac
+
+have() {
+	command -v "$1" > /dev/null 2>& 1 && :
+}
+
+case $backend in
+	X11)
+		if u=xclip && need=$u && have $u
+		then
+			retrieve() {
+				xclip -o -selection $selection
+			}
+			store() {
+				xclip -i -selection $selection
+			}
+			need=
+		elif u=xsel && need="$need or $u" && have $u
+		then
+			case $selection in
+				primary)
+					retrieve() {
+						xsel -o -p
+					}
+					store() {
+						xsel -i -p
+					}
+					;;
+				clipboard)
+					retrieve() {
+						xsel -o -c
+					}
+					store() {
+						xsel -i -c
+					}
+					;;
+				*) false || exit
+			esac
+			need=
+		fi
+		;;
+	Wayland)
+		if
+			u=wl-copy && need=$u && have $u \
+			&& u=wl-paste && need="$need and $u" && have $u
+		then
+			case $selection in
+				primary)
+					retrieve() {
+						wl-paste -p
+					}
+					store() {
+						wl-copy -p
+					}
+					;;
+				clipboard)
+					retrieve() {
+						wl-paste
+					}
+					store() {
+						wl-copy
+					}
+					;;
+				*) false || exit
+			esac
+			need=
+		fi
+		;;
+	*) false || exit
+esac
+case $need in
+	'') ;;
+	*)
+		{
+			echo "Required utilities: $need"
+			echo "Some of them are missing. Please install."
+			echo ""
+			echo "On some platforms, 'apt-file search' can be"
+			echo "used to determine which package contains a"
+			echo "missing utility. You need to install package"
+			echo "'apt-file' if the utility 'apt-file' is missing."
+		} >& 2
+		false || exit
+esac
 
 case $#:$write_args in
 	0:false)
 		if $get
 		then
-			xclip -o -selection $selection
+			retrieve
 		else
-			xclip -i -selection $selection
+			store
 		fi
 		;;
-	0:true) : | xclip -i -selection $selection;;
-	*) printf '%s\n' "$@" | xclip -i -selection $selection
+	0:true) : | store;;
+	*) printf '%s\n' "$@" | store
 esac
