@@ -1,0 +1,28 @@
+#! /bin/sh
+
+# Start a new SSH agent and bind it to already-exported $SSH_AUTH_SOCK.
+# This is useful if the original SSH agent died accidentally.
+#
+# v2026.233
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+if test -z "$SSH_AUTH_SOCK"
+then
+	echo '$SSH_AUTH_SOCK is unset!' >& 2
+	false || exit
+fi
+if test -S "$SSH_AUTH_SOCK"
+then
+	echo "Socket already exists." >& 2
+	false || exit
+fi
+dir=`dirname -- "$SSH_AUTH_SOCK"`
+if test -e "$dir"
+then
+	test -d "$dir"
+else
+	mkdir -m 700 -- "$dir"
+fi
+ssh-agent -a "$SSH_AUTH_SOCK" > /dev/null 2>& 1 &
+echo "Started ssh-agent for \$SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
