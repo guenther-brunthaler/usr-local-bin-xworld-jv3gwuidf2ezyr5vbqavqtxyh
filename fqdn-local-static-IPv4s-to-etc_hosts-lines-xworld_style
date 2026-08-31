@@ -1,22 +1,85 @@
 #! /bin/sh
-# Synthesizes local IPv4 addresses from FQDNs as used in xworld domain.
-#
-# Without any FQDNs as arguments, uses all FQDNs from /etc/hosts that refer to
-# IPv4 addresses in the range reserved for local nets as well as all
-# IP-addresses starting with "0.".
-#
-# Version 2023.365
-# (c) 2012-2023 by Guenther Brunthaler.
-#
-# This source file is free software.
-# Distribution is permitted under the terms of the GPLv3.
+exit_version() {
+	wr << ===; exit
+$APP Version 2026.243
+Copyright (c) 2012-2026 Guenther Brunthaler. All rights reserved.
 
-
-s2md5uc() {
-	printf '%s' "$1" | "$MD5SUM" -b \
-		| cut -c-32 | awk '{print toupper($0)}'
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+===
 }
 
+exit_help() {
+	wr << ===; echo; exit_version
+$APP - synthesize local IPv4 addresses from FQDNs as used in the "xworld"
+ administrative realm
+
+Without any FQDNs as arguments, uses all FQDNs from /etc/hosts that refer to
+ IPv4 addresses in the range reserved for local nets as well as all
+ IP-addresses starting with "0.".
+
+The generated Class-A IPv4 addresses from the range reserved for private use
+ should be used for classless */16 subnetting.
+
+In particular, the first byte will always be 0x0a, the second byte will be
+ mapped from the MD4 hash of the domain-parts of the FQDN, and the final two
+ bytes will be mapped from the MD4 hash of the host name part of the FQDN.
+
+Those mappings will map the hashes into the following numeric ranges:
+
+network-range:   0x01 -   0xFE (10.1.x.x - 10.254.x.x)
+dynamic-range: 0x0001 - 0x1FFE (10.x.0.1 - 10.x.31.254)
+static-range:  0x1FFF - 0xFFFE (10.x.31.255 - 10.x.255.254)
+
+The resulting dynamic-range and static-range will be interpreted as 16-bit
+ base-256 big-endian integers. Each integer will then be formatted from this
+ as two individual bytes, MSB first.
+
+This script only uses the network-range (by hashing the domain-parts) and the
+ static-range (by hashing the host name part) in its output.
+
+The dynamic-range is not used and reserved for DHCP or other dynamic
+ allocation mechanisms for IP adresses.
+
+Note that the generated addresses will omit 10.0.x.x/16, 10.255.x.x/16,
+ 10.x.0.0/16 and 10.x.255.255/16 which represent either the subnets themselves
+ or their broadcast-addresses.
+
+Supported options:
+
+-c: Compatibility mode. Emulates the old behaviour before version 2026.243 of
+ this utility which did not reserve ranges for DHCP and also used a slower
+ hash algorithm.
+
+-h: show this help and exit
+
+-V: show version information and exit
+===
+}
+APP=${0##*/}
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
+
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw $LINEWIDTH
+}
+LINEWIDTH=`tput cols || echo ${COLUMNS:-66}`
+
+s2uchex() {
+	printf '%s' "$1" | openssl $hash -hex | cut -d ' ' -f 2 | tr a-f A-F
+}
 
 get_from_etc_hosts() {
 	sed -e "
@@ -47,11 +110,25 @@ get_from_etc_hosts() {
 	'
 }
 
-
-MD5SUM=`command -v md5sum` || exit
-DC=`command -v dc` || exit
-LC_ALL=C
-export LC_ALL
+hash=md4 base=1FFF modulus=E000
+while getopts chV opt
+do
+	case $opt in
+		c)
+			# Compatibility fallback mode: old behaviour.
+			hash=md5 base=1 modulus=FFFE
+			;;
+		h) exit_help;;
+		V) exit_version;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+for needed in openssl dc
+do
+	command -v $needed > /dev/null || exit
+done
+export LC_ALL=C
 test $# = 0 && set -- `get_from_etc_hosts`
 while :
 do
@@ -63,14 +140,14 @@ do
 	else
 		network_name=${fqdn#*.}
 	fi
-	host_id=`s2md5uc "$host_name"`
-	network_id=`s2md5uc "$network_name"`
+	host_id=`s2uchex "$host_name"`
+	network_id=`s2uchex "$network_name"`
 	x_y_z=`
-		"$DC" -e "
+		dc -e "
 			16 i
 			$network_id FE % 1 + n
 			[.] n
-			$host_id FFFE % 1 + d
+			$host_id $modulus % $base + d
 			100 / n
 			[.] n
 			100 % n
