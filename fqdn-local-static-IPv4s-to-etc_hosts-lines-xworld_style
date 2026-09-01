@@ -1,7 +1,7 @@
 #! /bin/sh
 exit_version() {
 	wr << ===; exit
-$APP Version 2026.243
+$APP Version 2026.244
 Copyright (c) 2012-2026 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
@@ -28,8 +28,21 @@ In particular, the first byte will always be 0x0a, the second byte will be
 Those mappings will map the hashes into the following numeric ranges:
 
 network-range:   0x01 -   0xFE (10.1.x.x - 10.254.x.x)
-dynamic-range: 0x0001 - 0x1FFE (10.x.0.1 - 10.x.31.254)
-static-range:  0x1FFF - 0xFFFE (10.x.31.255 - 10.x.255.254)
+static-range:  0x0001 - 0xBFFA (10.x.0.1 - 10.x.191.250)
+manual-range:  0xBFFB - 0xDFF9 (10.x.191.251 - 10.x.223.249)
+dynamic-range: 0xDFFA - 0xFFFE (10.x.223.250 - 10.x.255.254)
+
+Those ranges consist of one or more building blocks of values. Every building
+ block contains 1/8th of the total value range (0x0001 to 0xFFFE), rounded
+ down, execept for the last block which also contains the remaining values
+ lost to the other building blocks due to rounding.
+
+This means the first 7 building blocks contain 0x1FFF values each, while the
+ 8th building block contains the remaining 0x2005 values.
+
+The static-range will cover the first 6 building blocks, while the
+ manual-range will cover the next building block, and the dynamic-range will
+ cover the last building block.
 
 The resulting dynamic-range and static-range will be interpreted as 16-bit
  base-256 big-endian integers. Each integer will then be formatted from this
@@ -41,6 +54,10 @@ This script only uses the network-range (by hashing the domain-parts) and the
 The dynamic-range is not used and reserved for DHCP or other dynamic
  allocation mechanisms for IP adresses.
 
+The manual-range ist not used either and is reserved for manually-assigned
+ IP-adresses (similar to the static-range, but not calculated via hashing by
+ THIS utility).
+
 Note that the generated addresses will omit 10.0.x.x/16, 10.255.x.x/16,
  10.x.0.0/16 and 10.x.255.255/16 which represent either the subnets themselves
  or their broadcast-addresses.
@@ -48,8 +65,8 @@ Note that the generated addresses will omit 10.0.x.x/16, 10.255.x.x/16,
 Supported options:
 
 -c: Compatibility mode. Emulates the old behaviour before version 2026.243 of
- this utility which did not reserve ranges for DHCP and also used a slower
- hash algorithm.
+ this utility which did not reserve ranges for DHCP or manually-assigned
+ addresses and also used a slower hash algorithm.
 
 -h: show this help and exit
 
@@ -110,7 +127,7 @@ get_from_etc_hosts() {
 	'
 }
 
-hash=md4 base=1FFF modulus=E000
+hash=md4 base=1 modulus=BFFA
 while getopts chV opt
 do
 	case $opt in
