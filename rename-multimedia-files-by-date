@@ -12,11 +12,11 @@ Without arguments, the list of pathnames will be read from the X11 clipboard.
 
 The new files will have names like
 
-YYYYMMDD-HHMM.jpg
+YYYYMMDD-HHMM-RESTNAME.jpg
 
 or
 
-YYYYMMDD-HHMM-COUNTER.jpg
+YYYYMMDD-HHMM-COUNTER-RESTNAME.jpg
 
 in case of name collisions for counter-based disambiguation of file names.
 
@@ -24,8 +24,20 @@ The date and time will be taken from the EXIF information of the multimedia
 files if available, or from the file date (time of last modification)
 otherwise.
 
-Version 2022.59
-Copyright (c) 2019-2022 Guenther Brunthaler. All rights reserved.
+RESTNAME will be taken from the rest of the original file name before the
+filename extension, if any. Any filename extension will be converted to lower
+case. Leading and trailing whitespace in RESTNAME will be removed. Runs of
+multiple whitespace characters in RESTNAME will be replaced by a single space.
+If RESTNAME still contans space characters after this procedure, the "-"
+before RESTNAME in the generated filename will be replaced also be a space
+character. If RESTNAME already contains the digit sequences YYYYMMDD, HHMM,
+DDMMYYYY or HHMMSS, those will be removed from RESTNAME. "SS" can be any
+2-digit number between 00 and 60. The digit blocks (such as MM) within the
+digit sequences to be removed may optionally be separated by common separator
+characters like "/", "-" and ":".
+
+Version 2025.209
+Copyright (c) 2019-2025 Guenther Brunthaler. All rights reserved.
 
 This script is free software.
 Distribution is permitted under the terms of the GPLv3.
@@ -120,6 +132,11 @@ preferred_name_base() {
 EOF
 }
 
+# $1: Original base name w/o extension. $2: YYYYMMDD-HHNNSS.
+new_name() {
+	
+}
+
 process() {
 	fs=0
 	while IFS= read -r f
@@ -130,10 +147,12 @@ process() {
 		x=${b##*.}
 		if test "$x" != "$b"
 		then
+			b=${b%.$x}
 			x=.`println "$x" | tr '[:upper:]' '[:lower:]'`
 		else
 			x=
 		fi
+		n=`new_name "$b" "$n"`
 		c=
 		while :
 		do

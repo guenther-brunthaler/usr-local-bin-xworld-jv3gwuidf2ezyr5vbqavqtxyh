@@ -1,9 +1,10 @@
-echo NYI; false || exit
 #! /bin/sh
 
 # Reads byte counts via standard input and replaces the byte counts by dynamic
-# units (bytes, kilobytes, megabytes and so on). The results of the
-# replacements are written to standard output, one byte count per line.
+# units (bytes, kilobytes, megabytes and so on). If the byte count is preceded
+# or followed by other text, that other text is kept in the output unless
+# option -p is specified. The result of the the replacements is written to
+# standard output.
 #
 # If any arguments are provided, those arguments are processed as if each
 # argument were a single line read from standard input. The real standard
@@ -16,7 +17,10 @@ echo NYI; false || exit
 #
 # -s displays only SI units, i.e. based on a factor of 1000.
 # -b displays only binary units, i.e. based on a factor or 1024.
+# -k keep original byte counts, add dynamic units as comment in parentheses.
+# -p be "pure", remove prefix/suffix of the byte counts from output.
 # -l use long unit names, e.g. "mebibytes" instead of "MiB".
+# -x treat everything across a line which looks like a byte count as such
 #
 # By default, both are displayed if appropriate. The order depends on the byte
 # count: The variant which is more compact (less digits necessary for display)
@@ -29,7 +33,7 @@ echo NYI; false || exit
 #
 # By the default, 2 fractional digits will be used. 
 #
-# v2023.311
+# v2025.309
 set -e
 cleanup () {
 	rc=$?
@@ -44,9 +48,15 @@ trap 'exit $?' HUP INT TERM QUIT
 units=dynamic
 long=false
 fract_digits=2
-while getopts n:sbl opt
+keep_count=false
+pure_output=false
+acroll=false
+while getopts kpn:sbl opt
 do
 	case $opt in
+		x) across=true;;
+		k) keep_count=true;;
+		p) pure_output=true;;
 		n) fract_digits=$OPTARG;;
 		s) units=si;;
 		b) units=binary;;
@@ -85,12 +95,24 @@ convert() {
 }
 
 process_stdin() {
-	tr -d -- "$thousands_sep" \
-	| while IFS= read -r value
+	nrx='[0-9]\(['"$thousands_sep"']\{0,1\}[0-9]\)*'
+	while IFS= read -r line
 	do
-		verify_uint "$value"
-		value=`expr x"$value" : x'0*\(.*[0-9]\)$'`$int_fract
-		println "$value"
+		line=" $line " out=
+		while :
+		do
+			prefix=`expr x"$line" : x'\([^0-9]*[^[:alnum:]]\)'`
+			out=$out$prefix
+			line=${line#"$prefix"}
+			count=`expr "$line" : x'\('"$nrx"'\)[^[:alnum:]]' || :`
+			line=${line#"$count"}
+			digits=`println "$count" | tr -dc 0-9`
+			test -z "$digits" && break
+			dec=`convert $digits 1000`
+			dec=`convert $digits 1024`
+		done
+		out=$out$count$line; out=${out%" "}; out=${out#" "}
+		println "$out"
 	done
 }
 
