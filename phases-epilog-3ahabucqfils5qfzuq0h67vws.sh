@@ -73,23 +73,33 @@ case $# in
 				exit
 		esac
 esac
+i=0
+while :
+do
+	i=`expr $i + 1`
+	eval run_${i}_tap0m6t11y4lhki77rmzjpr7m=\$run_$i \
+		func_${i}_tap0m6t11y4lhki77rmzjpr7m=\$func_$i
+	eval unset run_$i func_$i default_$i
+	test $i = $p && break
+done
 i_tap0m6t11y4lhki77rmzjpr7m=0
 p_tap0m6t11y4lhki77rmzjpr7m=$p
 dry_run_tap0m6t11y4lhki77rmzjpr7m=$dry_run
-unset i n p v dry_run
+unset n p v dry_run
 while :
 do
-	i_tap0m6t11y4lhki77rmzjpr7m=`expr $i_tap0m6t11y4lhki77rmzjpr7m + 1`
-	eval run=\$run_$i_tap0m6t11y4lhki77rmzjpr7m \
-		func=\$func_$i_tap0m6t11y4lhki77rmzjpr7m
+	eval i=\$i_tap0m6t11y4lhki77rmzjpr7m
+	i=`expr $i + 1`
+	eval i_tap0m6t11y4lhki77rmzjpr7m=\$i
+	eval run=\$run_${i}_tap0m6t11y4lhki77rmzjpr7m \
+		func=\$func_${i}_tap0m6t11y4lhki77rmzjpr7m
 	case $run in
 		true)
-			echo "Executing phase # $i_tap0m6t11y4lhki77rmzjpr7m" \
-				"(\"$func\")"
+			echo "Executing phase # $i (\"$func\")"
 			set $func
 			$dry_run_tap0m6t11y4lhki77rmzjpr7m \
 				&& set echo SIMULATION: "$@"
-			unset run func
+			unset run func i
 			"$@"
 	esac
 	test $i_tap0m6t11y4lhki77rmzjpr7m = $p_tap0m6t11y4lhki77rmzjpr7m \
