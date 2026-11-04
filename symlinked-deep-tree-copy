@@ -1,37 +1,153 @@
 #! /bin/sh
+exit_version() {
+	wr << ====; exit
+Version 2026.308
+Copyright (c) 2026 Guenther Brunthaler. All rights reserved.
 
-# Create the copy of a subdirectory tree, which can contain normal files and
-# directory as well as symlinks to those.
-#
-# The copied trie will only create real directories and symlinks to files. Any
-# symlinks to directories in the source tree will be followed when creating
-# the copies, and therefore no symlinks to directories will exist in the
-# created copy any longer. Instead, they will have been copied as symlinked
-# files within real directories.
-#
-# v2025.356
+This script is free software.
+Distribution is permitted under the terms of the GPLv3.
+====
+}
+
+exit_help() {
+	wr << ====; echo; exit_version
+$APP - copy tree, converting directory symlinks into real directories
+
+Usage: $APP <srcdir> <dstdir>
+
+$APP creates the copy of a subdirectory tree, which can contain normal files
+ and directory as well as symlinks to those.
+
+The destination directory must already exist, but any contents if may already
+ contain will be deleted before starting the copy operation.
+
+The copied tree will only create real directories and symlinks to files. Any
+ symlinks to directories in the source tree will be followed when creating the
+ copies, and therefore no symlinks to directories will exist in the created
+ copy any longer. Instead, they will have been copied as symlinked files
+ within real directories.
+
+Options:
+
+-p: Try to copy permissions, ownership, atime and mtime of directories. The
+ the created real directories as part of the destination tree will have the
+ same numeric owner/group, atime/mtime and permissions as the original
+ directories referenced by symlinks in the source tree. This option copies
+ only basic permissions; any ACLs or EAs of the referenced source directories
+ will be ignored and not be copied. If it is not possibly to perform some of
+ those operations due to insufficient permissions, the affected operations
+ will be skipped displaying error messages, but this will not abort the
+ operation as a whole and continue with the remaining files and directories.
+====
+}
+APP=${0##*/}
+
 set -e
-
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0
 
+wr() {
+	{
+		unterminated=false
+		while IFS= read -r line
+		do
+			test "${line%" "}" = "$line"
+			test "${line#" "}" != "$line" && unterminated=false
+			$unterminated && echo
+			printf '%s' "$line"
+			unterminated=true
+		done
+		$unterminated && echo
+	} | fold -sw ${COLUMNS:-66}
+}
+
 dry_run=false
-while getopts n opt
+preserve=false
+verbose=false
+while getopts pnvVh opt
 do
 	case $opt in
+		v) verbose=true;;
+		p) preserve=true;;
 		n) dry_run=true;;
+		V) exit_version;;
+		h) exit_help;;
 		*) false || exit
 	esac
 done
 shift `expr $OPTIND - 1 || :`
+
+ok=true
+if $preserve
+then
+	# The "--reference" extension to POSIX is only known to be provided by
+	# coreutils.
+	for util in chmod chown touch
+	do
+		$util --version 2>& 1 | head -n 1 \
+			| grep -Eq 'GNU|coreutils' \
+			&& continue
+		echo "'$util' implementation from GNU coreutils required!" >& 2
+		ok=false
+	done
+fi
+# The "cp -s" extension to POSIX is only known to be provided by coreutils and
+# BusyBox.
+for util in cp
+do
+	$util --version 2>& 1 | head -n 2 \
+		| grep -Eq 'GNU|coreutils|[Bb]usy[Bb]ox' \
+		&& continue
+	echo "'$util' implementation from GNU coreutils" \
+		"or from BusyBox required!" >& 2
+	ok=false
+done
+if $ok
+then
+	:
+else
+	echo "Aborting: Not all required utilities are available." >& 2
+	false || exit
+fi
 
 src=${1:?Source directory containing shallow symlinks}
 dst=${2:?Destination directory to be emptied before creating deep symlinks}
 shift 2
 test $# = 0
 
+qesc() {
+	printf '%s\n' "$1" | sed "s/'/'\\\\''/g"
+}
+
+show() {
+        i_08p8qf8y0f8sti5y73cis5wjx=$#
+        while test $i_08p8qf8y0f8sti5y73cis5wjx != 0
+        do
+                if expr x"$1" : x'[-_%/=+:,.[:alnum:]]\{1,\}$' >& 5
+                then
+                        set -- "$@" "$1"
+                else
+                        set -- "$@" "'`qesc "$1"`'"
+                fi
+                shift
+                i_08p8qf8y0f8sti5y73cis5wjx=`
+                	expr $i_08p8qf8y0f8sti5y73cis5wjx - 1 || :
+                `
+        done 5> /dev/null
+        unset i_08p8qf8y0f8sti5y73cis5wjx
+        printf '%s\n' "$*"
+}
+
 run() {
-	$dry_run && set echo "SIMULATION: $*"
-	"$@"
+	if $dry_run
+	then
+		show SIMULATION: "$@"
+	else
+		if $verbose
+		then
+			show "$@" >& 2
+		fi
+		"$@"
+	fi
 }
 
 run test -d "$src"
@@ -50,14 +166,14 @@ run test "`readlink -f -- "$src"`" != "`readlink -f -- "$dst"`"
 run find "$dst" ! -type d -exec rm -f -- {} +
 run find "$dst" -depth ! -path "$dst" -exec rmdir -- {} +
 
-find -L "$src" \
+find -L "$src" ! -path "$src" \
 | LC_COLLATE=C sort \
 | while IFS= read -r f
 do
 	o=${f#$src/}; o=${o#/}; o=$dst/$o
 	if test -d "$f"
 	then
-		if test ! -e "$o"
+		if $dry_run || test ! -e "$o"
 		then
 			run mkdir -- "$o"
 		fi
@@ -72,3 +188,22 @@ do
 		run cp -s -- "$f" "$o"
 	fi
 done
+if $preserve
+then
+	# Directory times must be copied from the innermost directories
+	# outward, because modifying a nested directory's attributes will
+	# change the atime of its parent directory. In addition, the original
+	# directory's permissions might forbid writing into that directory,
+	# which would a hindrance for creating a copy of its contents.
+	find -L "$dst" -depth ! -path "$dst" -type d \
+	| while IFS= read -r o
+	do
+		f=${o#$dst/}; f=${f#/}; f=$src/$f
+		run chmod --reference="$f" -- "$o" || :
+		# "chown --reference" also implies "chgrp":
+		run chown --reference="$f" -- "$o" || :
+		# Will include atime and mtime, but cannot
+		# copy ctime or birth time.
+		run touch --reference="$f" -- "$o" || :
+	done
+fi
